@@ -1,0 +1,51 @@
+# 本地环境变量和敏感信息
+.env
+.env.*
+!.env.example
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 测试、覆盖率和类型检查缓存
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# 构建和打包产物
+build/
+dist/
+*.egg-info/
+
+# IDE 和本地开发工具配置
+.idea/
+.vscode/
+.trae/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# 本地教材及其解析产物
+textbooks/
+
+# Docker 配置
+docker/
+
+# 运行日志和临时文件
+*.log
+*.tmp
+*.temp
+
+# uv锁
+uv.lock
