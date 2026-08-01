@@ -81,13 +81,14 @@ class _ColorfulFormatter(logging.Formatter):
 # ── 公共接口 ──────────────────────────────────────────────
 
 def get_logger(
-    name: str = "grad_assist",
+    name: str,
     level: Optional[int] = None,
 ) -> logging.Logger:
     """获取美观日志 logger。
 
     Args:
-        name:  logger 名称，通常用模块名，如 "grad_assist.nodes.retrieve"。
+        name:  logger 名称，标准做法传 `__name__`（如 app.textbook_agent.nodes.load_textbook），
+               内部自动取最后一段作为短名（load_textbook）。
         level: 日志级别，默认读取环境变量 LOG_LEVEL，否则 INFO。
 
     Returns:
@@ -95,7 +96,10 @@ def get_logger(
     """
     import os
 
-    _logger = logging.getLogger(name)
+    # 取模块短名：app.textbook_agent.nodes.load_textbook → load_textbook
+    short_name = name.rsplit(".", 1)[-1]
+
+    _logger = logging.getLogger(short_name)
 
     # 避免重复添加 handler（getLogger 同名返回同一对象）
     if _logger.handlers:
@@ -116,4 +120,4 @@ def get_logger(
 
 
 # 模块级默认实例，支持 logger.info(...) 直接调用
-logger: logging.Logger = get_logger()
+logger: logging.Logger = get_logger(__name__)

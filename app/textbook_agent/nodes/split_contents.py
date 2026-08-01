@@ -13,8 +13,10 @@ from pypdf import PdfReader, PdfWriter
 
 from app.textbook_agent.config import mineru_config
 from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import logger
+from app.textbook_agent.core.logger import get_logger
 from app.textbook_agent.state import TextBookState
+
+logger = get_logger(__name__)
 
 def find_pdfs(path: Path) -> list[Path]:
     if path.is_dir():

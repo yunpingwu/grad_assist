@@ -28,9 +28,6 @@ def build_graph() -> StateGraph:
 
     return builder.compile()
 
-
-
-
 # 单元测试
 if __name__ == '__main__':
     state: TextBookState = {

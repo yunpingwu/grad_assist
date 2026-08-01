@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from app.textbook_agent.core.logger import get_logger
 
-logger = get_logger("grad_assist.node")
+logger = get_logger(__name__)
 
 
 def log_node(func: Callable) -> Callable:

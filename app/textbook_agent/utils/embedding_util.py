@@ -7,9 +7,12 @@ Embedding 工具
 """
 
 import os
+from FlagEmbedding import BGEM3FlagModel
 
 from app.textbook_agent.config.embedding_config import embedding_config
-from app.textbook_agent.core.logger import logger
+from app.textbook_agent.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 _model = None
 
@@ -19,8 +22,6 @@ def _get_model():
     global _model
     if _model is not None:
         return _model
-
-    from FlagEmbedding import BGEM3FlagModel
 
     # 优先本地路径，否则 HuggingFace ID
     path = embedding_config.model_path
@@ -59,12 +60,17 @@ def generate_embeddings(texts: list[str]) -> dict:
     # dense: ndarray → list
     dense = output["dense_vecs"].tolist()
 
-    # sparse: CSR 矩阵列表 → [{int: float}, ...]
+    # sparse: 兼容两种格式 → [{int: float}, ...]
+    # - 新版 FlagEmbedding: lexical_weights 为 dict/defaultdict（token_id → 权重）
+    # - 旧版: scipy CSR 稀疏矩阵（有 .indices / .data）
     sparse: list[dict[int, float]] = []
     if "lexical_weights" in output and output["lexical_weights"] is not None:
         for sp in output["lexical_weights"]:
-            sparse.append(
-                dict(zip(sp.indices.tolist(), sp.data.astype("float32").tolist()))
-            )
+            if hasattr(sp, "indices"):  # scipy CSR
+                sparse.append(
+                    dict(zip(sp.indices.tolist(), sp.data.astype("float32").tolist()))
+                )
+            else:  # dict / defaultdict
+                sparse.append({int(k): float(v) for k, v in sp.items()})
 
     return {"dense": dense, "sparse": sparse}

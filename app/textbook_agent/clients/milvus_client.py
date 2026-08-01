@@ -1,51 +1,66 @@
 """
 Milvus 客户端
 
-负责连接、建表、建索引、批量插入、检索。
+负责连接、建表、建索引、批量插入、检索等通用操作。
+基于 MilvusClient（pymilvus 3.x 推荐 API，替代已废弃的 ORM Collection API）。
+
+教材注册表、集合名分配等教材领域逻辑见 utils/milvus_util.py。
 """
 
 from pymilvus import (
-    Collection,
     CollectionSchema,
     DataType,
     FieldSchema,
     MilvusClient,
-    connections,
-    utility,
 )
+from pymilvus.milvus_client.index import IndexParams
 
 from app.textbook_agent.config.milvus_config import milvus_config
-from app.textbook_agent.core.logger import logger
+from app.textbook_agent.core.logger import get_logger
 
-COLLECTION_NAME = "textbook_knowledge"
+logger = get_logger(__name__)
+
 EMBEDDING_DIM = 1024
 
+_client: MilvusClient | None = None
+
+
+def get_client() -> MilvusClient:
+    """延迟初始化全局 MilvusClient 单例。"""
+    global _client
+    if _client is None:
+        token = milvus_config.token or None
+        _client = MilvusClient(uri=milvus_config.uri, token=token)
+        logger.info(f"Milvus 已连接: {milvus_config.uri}")
+    return _client
+
+
+# ── 连接管理 ──────────────────────────────────────────────
 
 def connect_milvus() -> None:
-    """连接 Milvus"""
-    token = milvus_config.token or None
-    connections.connect(
-        alias="default",
-        uri=milvus_config.uri,
-        token=token,
-    )
-    logger.info(f"Milvus 已连接: {milvus_config.uri}")
+    """连接 Milvus（幂等，重复调用复用单例）。"""
+    get_client()
 
 
 def disconnect_milvus() -> None:
-    """断开 Milvus"""
-    connections.disconnect("default")
-    logger.info("Milvus 已断开")
+    """断开 Milvus。"""
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None
+        logger.info("Milvus 已断开")
 
 
-def collection_exists() -> bool:
-    return utility.has_collection(COLLECTION_NAME)
+# ── 数据集合管理 ──────────────────────────────────────────────
+
+def collection_exists(collection_name: str) -> bool:
+    return get_client().has_collection(collection_name)
 
 
-def create_collection() -> None:
-    """创建 textbook_knowledge 集合，含 dense + sparse 向量字段"""
-    if collection_exists():
-        logger.info(f"集合 {COLLECTION_NAME} 已存在，跳过创建")
+def create_collection(collection_name: str) -> None:
+    """创建教材 collection，含 dense + sparse 向量字段"""
+    if collection_exists(collection_name):
+        logger.info(f"集合 {collection_name} 已存在，跳过创建")
         return
 
     fields = [
@@ -61,79 +76,82 @@ def create_collection() -> None:
         FieldSchema(name="total_chunks", dtype=DataType.INT64),
         FieldSchema(name="metadata_json", dtype=DataType.VARCHAR, max_length=8192),
     ]
-
     schema = CollectionSchema(fields, description="教材知识库")
-    Collection(COLLECTION_NAME, schema)
-    logger.info(f"集合 {COLLECTION_NAME} 创建成功")
+    get_client().create_collection(collection_name, schema=schema)
+    logger.info(f"集合 {collection_name} 创建成功")
 
 
-def create_indexes() -> None:
+def create_indexes(collection_name: str) -> None:
     """为 dense 向量和标量字段建索引"""
-    col = Collection(COLLECTION_NAME)
+    client = get_client()
 
+    params = IndexParams()
     # dense 向量索引
-    col.create_index(
+    params.add_index(
         field_name="embedding",
-        index_params={
-            "metric_type": "COSINE",
-            "index_type": "IVF_FLAT",
-            "params": {"nlist": 128},
-        },
+        index_type="IVF_FLAT",
+        metric_type="COSINE",
+        index_name="idx_embedding",
+        params={"nlist": 128},
     )
-
     # sparse 向量索引（Milvus 自动选择 SPARSE_INVERTED_INDEX）
-    col.create_index(
+    params.add_index(
         field_name="sparse_embedding",
-        index_params={
-            "metric_type": "IP",
-            "index_type": "SPARSE_INVERTED_INDEX",
-            "params": {"drop_ratio_build": 0.2},
-        },
+        index_type="SPARSE_INVERTED_INDEX",
+        metric_type="IP",
+        index_name="idx_sparse",
+        params={"drop_ratio_build": 0.2},
     )
-
     # 标量索引
-    col.create_index("block_type", {"index_type": "TRIE"})
-    col.create_index("textbook_name", {"index_type": "TRIE"})
+    params.add_index(field_name="block_type", index_type="TRIE", index_name="idx_block_type")
+    params.add_index(field_name="textbook_name", index_type="TRIE", index_name="idx_textbook_name")
 
-    col.load()
-    logger.info(f"集合 {COLLECTION_NAME} 索引创建完成，已加载到内存")
+    client.create_index(collection_name, params)
+    client.load_collection(collection_name)
+    logger.info(f"集合 {collection_name} 索引创建完成，已加载到内存")
 
 
-def batch_insert(rows: list[dict]) -> int:
+def batch_insert(collection_name: str, rows: list[dict]) -> int:
     """批量插入，返回实际插入行数"""
     if not rows:
         return 0
-    col = Collection(COLLECTION_NAME)
-    result = col.insert(rows)
-    col.flush()
-    logger.info(f"插入 {len(result.primary_keys)} 行")
-    return len(result.primary_keys)
+    client = get_client()
+    result = client.insert(collection_name, rows)
+    client.flush(collection_name)
+    count = int(result.get("insert_count", len(rows)))
+    logger.info(f"插入 {count} 行")
+    return count
 
 
-def drop_collection() -> None:
+def drop_collection(collection_name: str) -> None:
     """删除集合（重建用）"""
-    if utility.has_collection(COLLECTION_NAME):
-        utility.drop_collection(COLLECTION_NAME)
-        logger.info(f"集合 {COLLECTION_NAME} 已删除")
+    client = get_client()
+    if client.has_collection(collection_name):
+        client.drop_collection(collection_name)
+        logger.info(f"集合 {collection_name} 已删除")
 
+
+# ── 检索 ──────────────────────────────────────────────
 
 def search_dense(
+    collection_name: str,
     query_vectors: list[list[float]],
     top_k: int = 5,
     expr: str | None = None,
 ) -> list[list[dict]]:
     """dense 向量检索，返回 [ [ {id, text, score, ...}, ... ] ]"""
-    col = Collection(COLLECTION_NAME)
+    client = get_client()
     output_fields = ["id", "text", "textbook_name", "chapter", "section", "block_type"]
-    results = col.search(
+    results = client.search(
+        collection_name,
         data=query_vectors,
         anns_field="embedding",
-        param={"metric_type": "COSINE", "params": {"nprobe": 16}},
+        search_params={"metric_type": "COSINE", "params": {"nprobe": 16}},
         limit=top_k,
-        expr=expr,
+        filter=expr or "",
         output_fields=output_fields,
     )
     return [
-        [{"id": h.id, "score": h.score, **h.entity.to_dict()} for h in hits]
+        [{"id": h["id"], "score": h["distance"], **h["entity"]} for h in hits]
         for hits in results
     ]

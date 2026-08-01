@@ -3,9 +3,11 @@ from pathlib import Path
 import re
 
 from pypdf import PdfReader, PdfWriter
-from app.textbook_agent.core.logger import logger
 from app.textbook_agent.core import log_node
+from app.textbook_agent.core.logger import get_logger
 from app.textbook_agent.state import TextBookState
+
+logger = get_logger(__name__)
 
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:

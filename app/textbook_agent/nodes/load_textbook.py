@@ -2,7 +2,9 @@ from pathlib import Path
 from typing import TypedDict
 
 from app.textbook_agent.core import log_node
-from app.textbook_agent.core import logger
+from app.textbook_agent.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @log_node

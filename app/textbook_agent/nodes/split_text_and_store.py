@@ -5,17 +5,25 @@ from pathlib import Path
 
 from app.textbook_agent.clients import milvus_client
 from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import logger
+from app.textbook_agent.core.logger import get_logger
 from app.textbook_agent.state import TextBookState
 from app.textbook_agent.utils.embedding_util import generate_embeddings
+from app.textbook_agent.utils.milvus_util import (
+    get_collection_by_name,
+    next_collection_name,
+    register_textbook,
+)
 
-# ==================== 常量 ====================
+logger = get_logger(__name__)
+
 # 最小块字符数
 MIN_CHUNK_SIZE = 500
 # 最大块字符数
 CHUNK_SIZE = 2000
 # 块重叠字符数
 OVERLAP = 200
+# 被合并最大字符数
+MERGE_TARGET = 1500
 
 # 匹配 Markdown 图片语法: ![...](images/xxx.jpg)
 _IMAGE_PATTERN = re.compile(r'!\[.*?\]\((images/.*?)\)')
@@ -66,8 +74,6 @@ def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
             groups.append(current_group)
             current_group = [c]
     groups.append(current_group)
-
-    MERGE_TARGET = 1500
 
     def _combine(a: dict, b: dict) -> dict:
         return {
@@ -202,30 +208,41 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
 # 每批 embedding 的最大文本数，避免 OOM
 _EMBED_BATCH_SIZE = 64
 
-
 def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
     """将切割好的 chunks 向量化后存入 Milvus。
 
     策略：
     - BGE-M3 生成 dense + sparse 双向量（混合检索）
+    - 每本教材独立 collection（tb_XX），并登记到注册表
     - 文本块以 block_type="text" 入库
     - 代码块以 block_type="code" 单独入库，有独立 embedding
     - 图片引用存入 metadata_json，不单独建向量
 
+    幂等性：
+    - 注册表中已登记该教材 → 直接跳过，不重复向量化
+
     Returns:
-        True 表示全部入库成功
+        True 表示入库成功（或已入库跳过）
     """
     if not chunks:
         logger.warning(f"[{textbook_name}] chunks 为空，跳过入库")
         return False
 
-    # 连接 Milvus 并确保集合/索引就绪
     milvus_client.connect_milvus()
-    milvus_client.create_collection()
-    if not milvus_client.collection_exists():
-        logger.error("Milvus 集合不存在，入库失败")
+
+    # 幂等：注册表中已存在该教材，说明已完成入库，跳过
+    existing = get_collection_by_name(textbook_name)
+    if existing:
+        logger.info(f"[{textbook_name}] 已入库（collection={existing}），跳过重复摄入")
+        return True
+
+    # 分配独立 collection 并确保索引就绪
+    collection_name = next_collection_name()
+    milvus_client.create_collection(collection_name)
+    if not milvus_client.collection_exists(collection_name):
+        logger.error(f"集合 {collection_name} 不存在，入库失败")
         return False
-    milvus_client.create_indexes()
+    milvus_client.create_indexes(collection_name)
 
     # 收集所有待入库的文本
     entries: list[dict] = []  # {text, block_type, chapter, section, ...}
@@ -283,10 +300,12 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
                 "metadata_json": entry["metadata_json"],
             })
 
-        inserted = milvus_client.batch_insert(rows)
+        inserted = milvus_client.batch_insert(collection_name, rows)
         total_inserted += inserted
 
-    logger.info(f"[{textbook_name}] 入库完成: {total_inserted} 行（{len(chunks)} 文本块 + {total_inserted - len(chunks)} 代码块）")
+    # 入库成功后登记到注册表，供检索时按教材名定位
+    register_textbook(textbook_name, collection_name, total_inserted)
+    logger.info(f"[{textbook_name}] 入库完成: {total_inserted} 行（collection={collection_name}）")
     return total_inserted > 0
 
 
@@ -336,7 +355,7 @@ def split_text_and_store(state: TextBookState) -> dict:
 
 # ==================== 单元测试 ====================
 if __name__ == '__main__':
-    textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
+    textbook_path = Path("D:/Projects/grad_assist/textbooks/pdf")
     split_dirs = list((textbook_path / "mineru_split").iterdir())
 
     state: TextBookState = {
@@ -349,30 +368,3 @@ if __name__ == '__main__':
     }
 
     split_text_and_store(state)
-
-    # ---- 调试：将 chunks 写入磁盘供人工查看 ----
-    import json as _json
-    debug_dir = textbook_path / "mineru_split" / "_debug_chunks"
-    debug_dir.mkdir(parents=True, exist_ok=True)
-
-    # 直接调用 chunk_textbook 获取完整 dict（含所有字段）
-    from app.textbook_agent.nodes.split_text_and_store import chunk_textbook
-    chunks_full = chunk_textbook(
-        "C语言程序设计（第五版）",
-        state["extracted_dirs"],
-    )
-
-    for c in chunks_full:
-        c["_len"] = len(c["content"])
-
-    (_json_path := debug_dir / "_chunks.json").write_text(
-        _json.dumps(chunks_full, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # 完整文本
-    (debug_dir / "_chunks.txt").write_text(
-        "\n\n" + "=" * 80 + "\n\n".join(c["content"] for c in chunks_full),
-        encoding="utf-8")
-
-    print(f"共 {len(chunks_full)} 个 chunk")
-    print(f"输出到: {debug_dir}")
-    print(f"  {_json_path.name}")

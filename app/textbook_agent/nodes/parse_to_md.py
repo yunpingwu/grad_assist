@@ -2,12 +2,14 @@ from pathlib import Path
 import shutil
 
 from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import logger
+from app.textbook_agent.core.logger import get_logger
 from app.textbook_agent.nodes.split_contents import (
     mineru_download_and_extract,
     mineru_upload_and_poll,
 )
 from app.textbook_agent.state import TextBookState
+
+logger = get_logger(__name__)
 
 
 def collect_chapter_pdfs(sub_pdf_paths: list[str]) -> dict[str, list[Path]]:
