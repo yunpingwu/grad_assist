@@ -12,6 +12,9 @@ dependencies = [
     "pypdf>=6.14.2",
     "python-dotenv>=1.2.2",
     "requests>=2.31.0",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.1",
+    "python-multipart>=0.0.32",
 
     # PyTorch CUDA 版本
     "torch>=2.7",

@@ -17,6 +17,10 @@ class TextBookState(TypedDict):
     # 教材名称（摄入目录标识，检索时按此过滤）
     textbook_name: NotRequired[str]
 
+    # ===== 任务追踪 =====
+    # 任务 ID（由上层编排创建，节点内通过 task_util.update_task 上报进度，供 SSE 推送）
+    task_id: NotRequired[str]
+
     # ===== 摄入中间产物 =====
     # 章节分割后的子 PDF 路径列表
     sub_pdf_paths: NotRequired[list[str]]
