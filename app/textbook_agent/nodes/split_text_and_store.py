@@ -13,6 +13,7 @@ from app.textbook_agent.utils.milvus_util import (
     next_collection_name,
     register_textbook,
 )
+from app.textbook_agent.utils.minio_util import upload_and_map
 
 logger = get_logger(__name__)
 
@@ -129,7 +130,8 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
     - 小节 ≤ 2000 字符：直接作为一个 chunk
     - 小节 > 2000 字符：按字符数硬切（overlap=200）
     - 公式保留在文本中不单独处理
-    - 图片引用和代码块提取后存入 images/codes 字段
+    - 图片引用提取后上传到 MinIO，并携带 object_name / url 存入 images 字段
+    - 代码块提取后存入 codes 字段
 
     返回每个 chunk 包含:
         content, textbook_name, chapter, section,
@@ -150,6 +152,14 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
         if first_line.startswith("# "):
             chapter_title = first_line[2:]
 
+        # 上传本章 markdown 引用的图片，构建 相对路径 → {object_name, url} 映射
+        rel_to_image = upload_and_map(
+            chapter_dir=ch_dir,
+            textbook_name=textbook_name,
+            chapter=ch_dir.name,
+            rel_paths=set(_IMAGE_PATTERN.findall(full_text)),
+        )
+
         # ---- 按 ## 拆分成 section ----
         sections = _SECTION_SPLIT.split(full_text)
         current_section_title = ""
@@ -168,6 +178,12 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
             clean_text, images, codes = _extract_images_and_code(sec)
             if not clean_text:
                 continue
+
+            # 为图片引用补充 MinIO object_name / url（未上传成功的保持仅有 path）
+            for img in images:
+                info = rel_to_image.get(img["path"])
+                if info:
+                    img.update(info)
 
             # ---- 切分 ----
             if len(clean_text) <= CHUNK_SIZE:
@@ -363,8 +379,6 @@ if __name__ == '__main__':
         "textbook_path": str(textbook_path),
         # 仅测试 C 语言教材
         "extracted_dirs": [str(d) for d in (textbook_path / "mineru_split" / "C语言程序设计（第五版）_(谭浩强)_(z-library.sk,_1lib.sk,_z-lib.sk)").iterdir() if d.is_dir()],
-        "messages": [],
-        "original_question": "",
     }
 
     split_text_and_store(state)

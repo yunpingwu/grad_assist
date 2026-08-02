@@ -227,8 +227,6 @@ if __name__ == '__main__':
     state: TextBookState = {
         "textbook_exists": False,
         "textbook_path": "D:/PycharmProjects/grad_assist/textbooks/pdf/pdf_toc",
-        "messages": [],
-        "original_question": "",
     }
     spilt_contents(state)
     #print(spilt_textbook(state))

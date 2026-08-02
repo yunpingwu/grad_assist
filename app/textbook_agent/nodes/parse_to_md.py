@@ -97,8 +97,6 @@ if __name__ == '__main__':
         "textbook_exists": False,
         "textbook_path": str(textbook_path),
         "sub_pdf_paths": [str(d) for d in sub_pdf_dirs if d.is_dir()],
-        "messages": [],
-        "original_question": "",
     }
 
     parse_to_md(state)

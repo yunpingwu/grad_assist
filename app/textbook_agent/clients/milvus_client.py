@@ -74,7 +74,7 @@ def create_collection(collection_name: str) -> None:
         FieldSchema(name="section", dtype=DataType.VARCHAR, max_length=255),
         FieldSchema(name="chunk_index", dtype=DataType.INT64),
         FieldSchema(name="total_chunks", dtype=DataType.INT64),
-        FieldSchema(name="metadata_json", dtype=DataType.VARCHAR, max_length=8192),
+        FieldSchema(name="metadata_json", dtype=DataType.VARCHAR, max_length=65535),
     ]
     schema = CollectionSchema(fields, description="教材知识库")
     get_client().create_collection(collection_name, schema=schema)
@@ -141,7 +141,7 @@ def search_dense(
 ) -> list[list[dict]]:
     """dense 向量检索，返回 [ [ {id, text, score, ...}, ... ] ]"""
     client = get_client()
-    output_fields = ["id", "text", "textbook_name", "chapter", "section", "block_type"]
+    output_fields = ["id", "text", "textbook_name", "chapter", "section", "block_type", "metadata_json"]
     results = client.search(
         collection_name,
         data=query_vectors,

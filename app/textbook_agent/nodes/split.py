@@ -216,9 +216,7 @@ if __name__ == '__main__':
     state: TextBookState = {
         "textbook_exists": False,
         "textbook_path": str(textbook_path),
-        "extracted_contents_dirs": str(extract_dirs),
-        "messages": [],
-        "original_question": "",
+        "extracted_contents_dirs": [str(extract_dirs)],
     }
 
     split(state)

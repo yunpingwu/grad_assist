@@ -1,6 +1,5 @@
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
-from IPython.display import Image, display
 
 from app.textbook_agent.nodes import parse_to_md, load_textbook, spilt_contents, split, split_text_and_store
 from app.textbook_agent.state import TextBookState
@@ -30,10 +29,10 @@ def build_graph() -> StateGraph:
 
 # 单元测试
 if __name__ == '__main__':
+    from IPython.display import Image, display
+
     state: TextBookState = {
         "textbook_exists": False,
-        "messages": [],
-        "original_question": "",
     }
 
     graph = build_graph()

@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 _client: Minio | None = None
 
 
-def _get_client() -> Minio:
+def get_client() -> Minio:
     """延迟初始化 MinIO 客户端"""
     global _client
     if _client is None:
@@ -33,7 +33,7 @@ def _get_client() -> Minio:
 
 def ensure_bucket() -> None:
     """确保目标 bucket 存在"""
-    client = _get_client()
+    client = get_client()
     bucket = minio_config.bucket
     if not client.bucket_exists(bucket):
         client.make_bucket(bucket)
@@ -44,7 +44,7 @@ def ensure_bucket() -> None:
 
 def upload_file(local_path: Path | str, object_name: str | None = None) -> str:
     """上传本地文件到 MinIO，返回 object_name"""
-    client = _get_client()
+    client = get_client()
     local_path = Path(local_path)
     object_name = object_name or local_path.name
 
@@ -59,7 +59,7 @@ def upload_file(local_path: Path | str, object_name: str | None = None) -> str:
 
 def download_file(object_name: str, local_path: Path | str) -> Path:
     """从 MinIO 下载文件到本地，返回本地路径"""
-    client = _get_client()
+    client = get_client()
     local_path = Path(local_path)
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -74,21 +74,21 @@ def download_file(object_name: str, local_path: Path | str) -> Path:
 
 def list_objects(prefix: str = "") -> list[str]:
     """列出指定前缀下的所有 object 名称"""
-    client = _get_client()
+    client = get_client()
     objects = client.list_objects(minio_config.bucket, prefix=prefix)
     return [obj.object_name for obj in objects]
 
 
 def delete_object(object_name: str) -> None:
     """删除指定 object"""
-    client = _get_client()
+    client = get_client()
     client.remove_object(minio_config.bucket, object_name)
     logger.debug(f"已删除: {object_name}")
 
 
 def exists(object_name: str) -> bool:
     """检查 object 是否存在"""
-    client = _get_client()
+    client = get_client()
     try:
         client.stat_object(minio_config.bucket, object_name)
         return True
