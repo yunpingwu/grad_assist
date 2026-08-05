@@ -7,18 +7,18 @@ Milvus 教材域工具
 
 import re
 from datetime import datetime
+from typing import Any
 
 from pymilvus import (
+    AnnSearchRequest,
     CollectionSchema,
     DataType,
     FieldSchema,
 )
 from pymilvus.milvus_client.index import IndexParams
 
-from app.textbook_agent.clients import milvus_client
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.clients import milvus_client
+from app.core import logger
 
 # collection 名前缀
 COLLECTION_PREFIX = "tb"
@@ -109,7 +109,7 @@ def get_collection_by_name(textbook_name: str) -> str | None:
     safe_name = textbook_name.replace('"', '\\"')
     res = client.query(
         REGISTRY_COLLECTION,
-        filter=f'textbook_name == "{safe_name}"',
+        filter=f'textbook_name like "%{safe_name}%"',
         output_fields=["collection_name"],
         limit=1,
     )
@@ -126,3 +126,54 @@ def list_textbooks() -> list[dict]:
         output_fields=["textbook_name", "collection_name", "chunk_count", "created_at"],
         limit=1000,
     )
+
+
+# ── 混合检索 ──────────────────────────────────────────────
+
+# 向量字段名（与 clients/milvus_client.py 的 create_collection 保持一致）
+DENSE_FIELD = "embedding"
+SPARSE_FIELD = "sparse_embedding"
+
+
+def create_hybrid_search_requests(
+    dense_vector: list[float],
+    sparse_vector: dict[int, float],
+    limit: int = 10,
+    expr: str | None = None,
+) -> list[AnnSearchRequest]:
+    """构造 dense + sparse 混合检索请求列表（供 MilvusClient.hybrid_search 使用）。
+
+    Args:
+        dense_vector: 查询的稠密向量（单条，如 BGE-M3 的 dense_vecs[0]）。
+        sparse_vector: 查询的稀疏向量（单条，{token_id: weight} 字典）。
+        limit: 单路底层检索返回的最大结果数（供 ranker 融合重排）。
+        expr: 标量过滤表达式，如 ``textbook_name == "C语言"``，缺省不过滤。
+
+    Returns:
+        两个 AnnSearchRequest：dense 路（COSINE）+ sparse 路（IP），
+        顺序与 ranker 权重列表一一对应。
+    """
+    if not dense_vector:
+        raise ValueError("dense_vector 不能为空")
+    if not sparse_vector:
+        raise ValueError("sparse_vector 不能为空")
+
+    return [
+        AnnSearchRequest(
+            # pymilvus 3.0 的 prepare 会对 data 逐实体调用 len()，
+            # 稠密向量需以「列表套向量」形式传入，裸一维列表会触发 len(float) 错误
+            data=[dense_vector],
+            anns_field=DENSE_FIELD,
+            param={"metric_type": "COSINE", "params": {"nprobe": 16}},
+            limit=limit,
+            expr=expr or "",
+        ),
+        AnnSearchRequest(
+            # 同理，稀疏向量需以「列表套字典」形式传入
+            data=[sparse_vector],
+            anns_field=SPARSE_FIELD,
+            param={"metric_type": "IP"},
+            limit=limit,
+            expr=expr or "",
+        ),
+    ]

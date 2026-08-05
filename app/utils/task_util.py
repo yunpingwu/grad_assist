@@ -16,11 +16,9 @@ import asyncio
 import threading
 import time
 import uuid
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core import logger
 
 # 任务状态常量
 STATUS_PENDING = "pending"

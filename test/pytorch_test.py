@@ -1,7 +1,7 @@
 # 测试本地pytorch是否可用（gpu）
 import torch
 
-from app.textbook_agent.core.logger import logger
+from app.core import logger
 
 if __name__ == '__main__':
     try:

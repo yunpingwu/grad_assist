@@ -13,11 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import quote
 
-from app.textbook_agent.clients import minio_client
+from app.clients import minio_client
 from app.textbook_agent.config.minio_config import minio_config
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core import logger
 
 # object key 前缀，形如 textbook/{教材名}/{章节}/images/{文件名}
 _OBJECT_PREFIX = "textbook"

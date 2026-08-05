@@ -19,7 +19,9 @@ dependencies = [
     # PyTorch CUDA 版本
     "torch>=2.7",
     # BGE-M3 嵌入模型
-    "FlagEmbedding",
+    "flagembedding>=1.4.0",
+    # 日志
+    "loguru>=0.7.3",
 ]
 
 [dependency-groups]

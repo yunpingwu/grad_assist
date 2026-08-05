@@ -1,15 +1,13 @@
 from pathlib import Path
 import shutil
 
-from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import get_logger
+from app.core import log_node, logger
 from app.textbook_agent.nodes.split_contents import (
     mineru_download_and_extract,
     mineru_upload_and_poll,
 )
 from app.textbook_agent.state import TextBookState
-
-logger = get_logger(__name__)
+from app.utils import update_task
 
 
 def collect_chapter_pdfs(sub_pdf_paths: list[str]) -> dict[str, list[Path]]:
@@ -52,6 +50,10 @@ def parse_to_md(state: TextBookState):
     textbook_path = Path(state.get("textbook_path"))
     output_dir = textbook_path / "mineru_split"
 
+    task_id = state.get("task_id")
+    if task_id:
+        update_task(task_id=task_id, message="开始解析章节 Markdown（MinerU）", progress=0.55)
+
     # 幂等：如果 mineru_split 已有解析结果，直接复用
     if output_dir.exists() and any(
         chapter_dir.is_dir() and (chapter_dir / "full.md").exists()
@@ -68,6 +70,8 @@ def parse_to_md(state: TextBookState):
                     extracted_dirs.append(str(chapter_dir))
         state["extracted_dirs"] = extracted_dirs
         logger.info(f"mineru_split 已存在，跳过解析，共 {len(extracted_dirs)} 个章节目录")
+        if task_id:
+            update_task(task_id=task_id, message="章节解析结果已存在，直接复用", progress=0.8)
         return state
 
     sub_pdf_paths = state.get("sub_pdf_paths", [])
@@ -78,6 +82,8 @@ def parse_to_md(state: TextBookState):
     # 分组解析
     extracted_dirs = mineru_parse_chapters(textbook_path, grouped)
     state["extracted_dirs"] = extracted_dirs
+    if task_id:
+        update_task(task_id=task_id, message=f"章节解析完成，共 {len(extracted_dirs)} 个章节", progress=0.8)
 
     # 清理临时目录页切割产物
     toc_dir = textbook_path / "pdf_toc"
