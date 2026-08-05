@@ -16,9 +16,7 @@ from pymilvus import (
 from pymilvus.milvus_client.index import IndexParams
 
 from app.textbook_agent.config.milvus_config import milvus_config
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core import logger
 
 EMBEDDING_DIM = 1024
 

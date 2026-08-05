@@ -10,9 +10,7 @@ from minio import Minio
 from minio.error import S3Error
 
 from app.textbook_agent.config.minio_config import minio_config
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core import logger
 
 _client: Minio | None = None
 

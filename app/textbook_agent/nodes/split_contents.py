@@ -1,6 +1,3 @@
-import json
-import os
-import re
 import shutil
 import time
 import uuid
@@ -8,15 +5,12 @@ import zipfile
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 from pypdf import PdfReader, PdfWriter
 
 from app.textbook_agent.config import mineru_config
-from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import get_logger
+from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
-
-logger = get_logger(__name__)
+from app.utils import update_task
 
 def find_pdfs(path: Path) -> list[Path]:
     if path.is_dir():
@@ -181,21 +175,27 @@ def mineru_download_and_extract(full_zip_urls: list[str], output_dir: Path, name
 
 # 主节点
 @log_node
-def spilt_contents(state: TextBookState):
-    """
-    处理教材目录
-    :param state:
-    :return:
+def split_contents(state: TextBookState):
+    """处理教材目录。
+
+    Args:
+        state: 当前工作流状态，含 textbook_path / task_id。
+
+    Returns:
+        更新后的状态（写入 extracted_contents_dirs）。
     """
     textbook_path = Path(state.get("textbook_path"))
     output_dir = textbook_path / "mineru_toc"
+
+    task_id = state.get("task_id")
+    if task_id:
+        update_task(task_id=task_id, message="开始解析教材目录（MinerU）", progress=0.15)
 
     # 幂等：如果 mineru_toc 已有解析结果，直接复用
     if output_dir.exists() and any(
         d.is_dir() and (d / "full.md").exists()
         for d in output_dir.iterdir()
     ):
-        extracted_dirs = mineru_download_and_extract([], output_dir, names=[])
         # 从已有目录重新收集
         extracted_dirs = [
             str(d) for d in output_dir.iterdir()
@@ -203,6 +203,8 @@ def spilt_contents(state: TextBookState):
         ]
         state["extracted_contents_dirs"] = extracted_dirs
         logger.info(f"mineru_toc 已存在，跳过解析，共 {len(extracted_dirs)} 个目录")
+        if task_id:
+            update_task(task_id=task_id, message="目录解析结果已存在，直接复用", progress=0.4)
         return state
 
     toc_dir = textbook_path / "pdf_toc"
@@ -220,6 +222,8 @@ def spilt_contents(state: TextBookState):
     extracted_dirs = mineru_download_and_extract(full_zip_urls, output_dir, names=toc_names)
 
     state["extracted_contents_dirs"] = extracted_dirs
+    if task_id:
+        update_task(task_id=task_id, message=f"目录解析完成，共 {len(extracted_dirs)} 本教材", progress=0.4)
     return state
 
 # 单元测试
@@ -228,5 +232,4 @@ if __name__ == '__main__':
         "textbook_exists": False,
         "textbook_path": "D:/PycharmProjects/grad_assist/textbooks/pdf/pdf_toc",
     }
-    spilt_contents(state)
-    #print(spilt_textbook(state))
+    split_contents(state)

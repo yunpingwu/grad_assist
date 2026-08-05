@@ -7,9 +7,7 @@ import inspect
 import time
 from typing import Any, Callable
 
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core.logger import logger
 
 
 def log_node(func: Callable) -> Callable:

@@ -3,19 +3,17 @@ import re
 import uuid
 from pathlib import Path
 
-from app.textbook_agent.clients import milvus_client
-from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import get_logger
+from app.clients import milvus_client
+from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
-from app.textbook_agent.utils.embedding_util import generate_embeddings
-from app.textbook_agent.utils.milvus_util import (
+from app.utils import generate_embeddings
+from app.utils import (
     get_collection_by_name,
     next_collection_name,
     register_textbook,
 )
-from app.textbook_agent.utils.minio_util import upload_and_map
-
-logger = get_logger(__name__)
+from app.utils import upload_and_map
+from app.utils import update_task
 
 # 最小块字符数
 MIN_CHUNK_SIZE = 500
@@ -336,10 +334,16 @@ def split_text_and_store(state: TextBookState) -> dict:
         logger.info("ingestion_done 已为 True，跳过重复摄入")
         return state
 
+    task_id = state.get("task_id")
+    if task_id:
+        update_task(task_id=task_id, message="开始切块与向量化入库", progress=0.8)
+
     extracted_dirs = state.get("extracted_dirs", [])
     if not extracted_dirs:
         logger.warning("extracted_dirs 为空，无章节解析结果可处理")
         state["ingestion_done"] = False
+        if task_id:
+            update_task(task_id=task_id, message="无章节解析结果，任务终止", progress=1.0)
         return state
 
     # 按教材名分组: mineru_split/{教材名}/{章节名}/
@@ -352,7 +356,8 @@ def split_text_and_store(state: TextBookState) -> dict:
 
     total_chunks = 0
     all_chunk_contents: list[str] = []
-    for textbook_name, chapter_dirs in grouped.items():
+    total_textbooks = len(grouped)
+    for idx, (textbook_name, chapter_dirs) in enumerate(grouped.items()):
         chunks = chunk_textbook(textbook_name, chapter_dirs)
         if not chunks:
             logger.warning(f"[{textbook_name}] 切割结果为空，跳过")
@@ -361,11 +366,20 @@ def split_text_and_store(state: TextBookState) -> dict:
         if embed_and_store(textbook_name, chunks):
             total_chunks += len(chunks)
             all_chunk_contents.extend(c["content"] for c in chunks)
+            if task_id:
+                progress = 0.8 + 0.2 * (idx + 1) / total_textbooks
+                update_task(
+                    task_id=task_id,
+                    message=f"[{textbook_name}] 入库完成（{len(chunks)} chunks）",
+                    progress=progress,
+                )
         else:
             logger.error(f"[{textbook_name}] 入库失败")
 
     state["ingestion_done"] = total_chunks > 0
     logger.info(f"全部完成: {total_chunks} 个 chunk 已入库")
+    if task_id:
+        update_task(task_id=task_id, message=f"全部完成：{total_chunks} 个 chunk 已入库", progress=1.0)
     return state
 
 

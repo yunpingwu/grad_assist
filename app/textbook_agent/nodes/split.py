@@ -3,11 +3,9 @@ from pathlib import Path
 import re
 
 from pypdf import PdfReader, PdfWriter
-from app.textbook_agent.core import log_node
-from app.textbook_agent.core.logger import get_logger
+from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
-
-logger = get_logger(__name__)
+from app.utils import update_task
 
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
@@ -184,6 +182,10 @@ def split(state: TextBookState):
     textbook_path = Path(state.get("textbook_path"))
     output_root = textbook_path / "pdf_split"
 
+    task_id = state.get("task_id")
+    if task_id:
+        update_task(task_id=task_id, message="开始按章节切割教材", progress=0.4)
+
     # 幂等：如果 pdf_split 已有切割结果，直接复用
     if output_root.exists() and any(output_root.iterdir()):
         sub_pdf_paths = [
@@ -192,6 +194,8 @@ def split(state: TextBookState):
         ]
         state["sub_pdf_paths"] = sub_pdf_paths
         logger.info(f"pdf_split 已存在，跳过切割，共 {len(sub_pdf_paths)} 个教材目录")
+        if task_id:
+            update_task(task_id=task_id, message="章节切割结果已存在，直接复用", progress=0.55)
         return state
 
     extract_dirs_list = state.get("extracted_contents_dirs", [])
@@ -204,6 +208,8 @@ def split(state: TextBookState):
     # 按章节切割教材
     sub_pdf_paths = split_chapter(textbook_path, all_match)
     state["sub_pdf_paths"] = sub_pdf_paths
+    if task_id:
+        update_task(task_id=task_id, message=f"章节切割完成，共 {len(sub_pdf_paths)} 本教材", progress=0.55)
     return state
     
 # 单元测试

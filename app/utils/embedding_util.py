@@ -10,9 +10,7 @@ import os
 from FlagEmbedding import BGEM3FlagModel
 
 from app.textbook_agent.config.embedding_config import embedding_config
-from app.textbook_agent.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.core import logger
 
 _model = None
 
@@ -26,7 +24,7 @@ def _get_model():
     # 优先本地路径，否则 HuggingFace ID
     path = embedding_config.model_path
     if not path or not os.path.isdir(path):
-        path = embedding_config.model_name
+        raise ValueError(f"BGE-M3 模型路径不存在: {path}")
 
     device = embedding_config.device
     use_fp16 = (device != "cpu")

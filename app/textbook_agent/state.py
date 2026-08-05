@@ -4,7 +4,7 @@ from typing_extensions import NotRequired, TypedDict
 
 
 class TextBookState(TypedDict):
-    """教材摄入流水线（load_textbook → spilt_contents → split → parse_to_md → split_text_and_store）的状态。
+    """教材摄入流水线（load_textbook → split_contents → split → parse_to_md → split_text_and_store）的状态。
 
     仅保留摄入所需字段；检索/对话相关字段已随检索图（retrieval graph）迁移。
     """
