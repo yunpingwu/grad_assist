@@ -1,5 +1,6 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.types import StreamWriter
 from pymilvus import WeightedRanker
 
 from app.clients.llm import get_llm_client
@@ -78,8 +79,9 @@ async def hyde_doc_search(hyde_doc: str, rewritten_query: str, textbook_name: st
 
 
 @log_node
-async def hyde_embedding_search(state: QueryState) -> dict:
+async def hyde_embedding_search(state: QueryState, *, writer: StreamWriter) -> dict:
     """根据重写的问题生成假设性文档，向量化之后查询"""
+    writer({"type": "stage", "stage": "search", "message": "正在检索教材内容…"})
     rewritten_query = state.get("rewritten_query")
     textbook_name = state.get("textbook_name")
     hyde_doc = await hyde_doc_generate(rewritten_query)

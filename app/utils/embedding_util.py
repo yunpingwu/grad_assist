@@ -9,7 +9,7 @@ Embedding 工具
 import os
 from FlagEmbedding import BGEM3FlagModel
 
-from app.textbook_agent.config.embedding_config import embedding_config
+from app.config.embedding_config import embedding_config
 from app.core import logger
 
 _model = None

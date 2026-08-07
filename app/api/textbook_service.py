@@ -1,6 +1,7 @@
 import json
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -9,6 +10,8 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, StreamingResponse
 
+from app.api.query_service import router as query_router
+from app.clients.milvus_client import get_client
 from app.core import logger
 from app.textbook_agent.graph import build_graph
 from app.textbook_agent.state import TextBookState
@@ -19,7 +22,7 @@ from app.utils import (
     create_task,
     get_task,
     subscribe,
-    update_task,
+    update_task, list_textbooks,
 )
 
 # 教材根目录（本文件位于 app/api/ 下，项目根为 parents[2]）。
@@ -39,10 +42,23 @@ def _new_textbook_dir() -> Path:
     return textbook_dir
 
 # 创建 FastAPI 实例
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期：退出时优雅释放外部连接（均幂等，未初始化时 no-op）。"""
+    yield
+    from app.clients import milvus_client, minio_client, mongo_client
+    milvus_client.disconnect_milvus()
+    minio_client.disconnect_minio()
+    mongo_client.disconnect_mongo()
+
+
 app = FastAPI(
     title="Textbook Agent",
     description="一个将教材向量化后存储入向量数据库的langgraph流程",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # 允许跨域
@@ -53,6 +69,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 问答服务（/chat）挂载到同一 app，共享端口与 CORS
+app.include_router(query_router)
 
 
 def _run_pipeline(graph, state: TextBookState, task_id: str) -> None:
@@ -159,6 +178,12 @@ async def get_task_status(task_id: str):
     """获取任务状态"""
     current_task = get_task(task_id)
     return JSONResponse(current_task)
+
+@app.get("/list", summary="获取所有教材", description="获取所有教材")
+async def get_all_textbooks():
+    """获取所有教材"""
+    textbooks = list_textbooks()
+    return JSONResponse(textbooks)
 
 if __name__ == '__main__':
     import uvicorn

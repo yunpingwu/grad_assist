@@ -9,7 +9,7 @@ from pathlib import Path
 from minio import Minio
 from minio.error import S3Error
 
-from app.textbook_agent.config.minio_config import minio_config
+from app.config import minio_config
 from app.core import logger
 
 _client: Minio | None = None
@@ -27,6 +27,18 @@ def get_client() -> Minio:
         )
         logger.info(f"MinIO 已连接: {minio_config.endpoint}")
     return _client
+
+
+def disconnect_minio() -> None:
+    """断开 MinIO。
+
+    Minio SDK 无显式 close()（底层 urllib3 连接池由进程退出时 OS 回收），
+    此处仅释放单例引用，与 milvus/mongo 的 disconnect 保持对称语义。
+    """
+    global _client
+    if _client is not None:
+        _client = None
+        logger.info("MinIO 已断开")
 
 
 def ensure_bucket() -> None:
