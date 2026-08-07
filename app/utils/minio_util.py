@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from app.clients import minio_client
-from app.textbook_agent.config.minio_config import minio_config
+from app.config import minio_config
 from app.core import logger
 
 # object key 前缀，形如 textbook/{教材名}/{章节}/images/{文件名}

@@ -15,7 +15,7 @@ from pymilvus import (
 )
 from pymilvus.milvus_client.index import IndexParams
 
-from app.textbook_agent.config.milvus_config import milvus_config
+from app.config.milvus_config import milvus_config
 from app.core import logger
 
 EMBEDDING_DIM = 1024
@@ -127,29 +127,3 @@ def drop_collection(collection_name: str) -> None:
     if client.has_collection(collection_name):
         client.drop_collection(collection_name)
         logger.info(f"集合 {collection_name} 已删除")
-
-
-# ── 检索 ──────────────────────────────────────────────
-
-def search_dense(
-    collection_name: str,
-    query_vectors: list[list[float]],
-    top_k: int = 5,
-    expr: str | None = None,
-) -> list[list[dict]]:
-    """dense 向量检索，返回 [ [ {id, text, score, ...}, ... ] ]"""
-    client = get_client()
-    output_fields = ["id", "text", "textbook_name", "chapter", "section", "block_type", "metadata_json"]
-    results = client.search(
-        collection_name,
-        data=query_vectors,
-        anns_field="embedding",
-        search_params={"metric_type": "COSINE", "params": {"nprobe": 16}},
-        limit=top_k,
-        filter=expr or "",
-        output_fields=output_fields,
-    )
-    return [
-        [{"id": h["id"], "score": h["distance"], **h["entity"]} for h in hits]
-        for hits in results
-    ]

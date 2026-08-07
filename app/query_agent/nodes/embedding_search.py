@@ -1,4 +1,5 @@
 from pymilvus import WeightedRanker
+from langgraph.types import StreamWriter
 
 from app.clients.milvus_client import get_client
 from app.core import log_node, logger
@@ -51,8 +52,9 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str) -> list[d
 
 
 @log_node
-async def embedding_search(state: QueryState) -> dict:
+async def embedding_search(state: QueryState, *, writer: StreamWriter) -> dict:
     """根据重写问题进行向量检索"""
+    writer({"type": "stage", "stage": "search", "message": "正在检索教材内容…"})
     textbook_name = state.get("textbook_name")
     rewritten_query = state.get("rewritten_query")
     result = await rewrite_query_search(textbook_name, rewritten_query)

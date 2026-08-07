@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 from pypdf import PdfReader, PdfWriter
 
-from app.textbook_agent.config import mineru_config
+from app.config import mineru_config
 from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
 from app.utils import update_task

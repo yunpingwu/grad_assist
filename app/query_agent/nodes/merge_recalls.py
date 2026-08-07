@@ -1,3 +1,5 @@
+from langgraph.types import StreamWriter
+
 from app.core import log_node, logger
 from app.query_agent.state import QueryState
 
@@ -37,15 +39,17 @@ async def rrf_merge(embedding_chunks: list[dict],hyde_chunks: list[dict],k: int 
 
 
 @log_node
-async def merge_recalls(state: QueryState) -> dict:
+async def merge_recalls(state: QueryState, *, writer: StreamWriter) -> dict:
     """用 RRF 融合普通检索与 HyDE 检索两路召回。
 
     Args:
         state: 含 ``embedding_chunks`` 与 ``hyde_embedding_chunks`` 两路召回。
+        writer: 流式 writer，推送融合阶段提示。
 
     Returns:
         写回 ``merged_chunks``（RRF 融合结果），同时保留 ``distance`` 供后续 rerank 使用。
     """
+    writer({"type": "stage", "stage": "merge", "message": "正在融合检索结果…"})
     embedding_chunks = state.get("embedding_chunks", [])
     hyde_chunks = state.get("hyde_embedding_chunks", [])
 
