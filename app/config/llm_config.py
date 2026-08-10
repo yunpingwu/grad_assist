@@ -9,13 +9,15 @@ load_dotenv()
 @dataclass
 class LLMConfig:
     model: str
+    visual_model: str
     base_url: str
     api_key: str
     temperature: float
 
 llm_config = LLMConfig(
     model=os.getenv("MODEL"),
+    visual_model=os.getenv("VISUAL_MODEL"),
     base_url=os.getenv("ALIBABA_BASE_URL"),
     api_key=os.getenv("ALIBABA_API_KEY"),
-    temperature=0.7,
+    temperature=0.3,
 )

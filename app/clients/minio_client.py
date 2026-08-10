@@ -41,15 +41,17 @@ def disconnect_minio() -> None:
         logger.info("MinIO 已断开")
 
 
-def ensure_bucket() -> None:
+def ensure_bucket() -> bool:
     """确保目标 bucket 存在"""
     client = get_client()
     bucket = minio_config.bucket
     if not client.bucket_exists(bucket):
         client.make_bucket(bucket)
         logger.info(f"MinIO bucket 已创建: {bucket}")
+        return True
     else:
         logger.debug(f"MinIO bucket 已存在: {bucket}")
+        return False
 
 
 def upload_file(local_path: Path | str, object_name: str | None = None) -> str:

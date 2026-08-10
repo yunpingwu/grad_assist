@@ -6,6 +6,7 @@ from app.textbook_agent.nodes import (
     load_textbook,
     split_contents,
     split,
+    enrich_md,
     split_text_and_store
 )
 from app.textbook_agent.state import TextBookState
@@ -14,7 +15,7 @@ from app.textbook_agent.state import TextBookState
 def build_graph() -> StateGraph:
     """构建教材处理流水线 Graph。
 
-    流程: load_textbook → split_contents → split → parse_to_md → split_text_and_store
+    流程: load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store
     """
     builder = StateGraph(TextBookState)
 
@@ -22,13 +23,15 @@ def build_graph() -> StateGraph:
     builder.add_node("split_contents", split_contents)
     builder.add_node("split", split)
     builder.add_node("parse_to_md", parse_to_md)
+    builder.add_node("enrich_md", enrich_md)
     builder.add_node("split_text_and_store", split_text_and_store)
 
     builder.add_edge(START, "load_textbook")
     builder.add_edge("load_textbook", "split_contents")
     builder.add_edge("split_contents", "split")
     builder.add_edge("split", "parse_to_md")
-    builder.add_edge("parse_to_md", "split_text_and_store")
+    builder.add_edge("parse_to_md", "enrich_md")
+    builder.add_edge("enrich_md", "split_text_and_store")
     builder.add_edge("split_text_and_store", END)
 
     return builder.compile()

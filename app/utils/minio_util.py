@@ -69,6 +69,7 @@ def upload_and_map(
     if not rel_paths:
         return {}
 
+    # ensure_bucket 幂等:存在即跳过创建,返回值仅表示"本次是否新建",与上传无关
     minio_client.ensure_bucket()
 
     mapping: dict[str, dict] = {}

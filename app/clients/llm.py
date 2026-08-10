@@ -9,11 +9,14 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
 
-def get_llm_client(model: str | None = None) -> Any:
+def get_llm_client(model: str | None = None, *, max_retries: int = 2, timeout: int = 120) -> Any:
     """获取裸 Chat 模型（非 Agent）。
 
     Args:
         model: 模型名，缺省用环境变量 MODEL。
+        max_retries: 网络错误 / 429 / 5xx 的自动重试次数（透传 ChatOpenAI）。
+        timeout: 单次请求超时秒数（透传 ChatOpenAI；SDK 默认 600s 过长,
+                 配合重试会放大故障静默时间）。
 
     Returns:
         配置好的 Chat 模型，支持 ``ainvoke`` / ``bind_tools``。
@@ -26,6 +29,8 @@ def get_llm_client(model: str | None = None) -> Any:
         temperature=0.1,
         api_key=os.getenv("ALIBABA_API_KEY"),
         base_url=os.getenv("ALIBABA_BASE_URL"),
+        max_retries=max_retries,
+        timeout=timeout,
     )
 
 

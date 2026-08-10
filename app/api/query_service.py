@@ -1,14 +1,14 @@
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 from app.core import logger
 from app.query_agent.graph import build_graph
 from app.query_agent.state import QueryState
-from app.utils.chat_util import get_session_messages, list_sessions
+from app.utils.chat_util import delete_session as remove_session_record, get_session_messages, list_sessions
 
 router = APIRouter(tags=["query"])
 
@@ -74,3 +74,17 @@ async def history(session_id: str | None = None) -> list[dict]:
     if not session_id:
         raise HTTPException(status_code=400, detail="缺少 session_id")
     return get_session_messages(session_id)
+
+
+@router.delete("/sessions/{session_id}", summary="删除会话", description="删除单个历史会话及其全部消息")
+async def delete_session(session_id: str) -> Response:
+    """删除单个历史会话。
+
+    - 成功: 204 No Content
+    - 会话不存在: 404（幂等删除，重复删除同一会话也会得到 404）
+    """
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 session_id")
+    if not remove_session_record(session_id):
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return Response(status_code=204)

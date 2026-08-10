@@ -24,8 +24,8 @@ OVERLAP = 200
 # 被合并最大字符数
 MERGE_TARGET = 1500
 
-# 匹配 Markdown 图片语法: ![...](images/xxx.jpg)
-_IMAGE_PATTERN = re.compile(r'!\[.*?\]\((images/.*?)\)')
+# 匹配 Markdown 图片语法: ![alt](images/xxx.jpg),捕获 (alt, 相对路径)
+_IMAGE_PATTERN = re.compile(r'!\[(.*?)\]\((images/.*?)\)')
 # 匹配围栏代码块: ```lang\n...\n```
 _CODE_PATTERN = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
 # 按 ## 小节标题分割
@@ -33,9 +33,25 @@ _SECTION_SPLIT = re.compile(r'(?=^## )', re.MULTILINE)
 
 
 def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
-    """从文本中提取图片引用和代码块，返回(清理后文本, 图片列表, 代码列表)"""
-    images = [{"path": m.group(1)} for m in _IMAGE_PATTERN.finditer(text)]
-    text = _IMAGE_PATTERN.sub('', text)
+    """从文本中提取图片引用和代码块，返回(清理后文本, 图片列表, 代码列表)。
+
+    - 图片项: {path, description},description 取自富化副本的 alt(视觉模型简介,
+      富化时已用文件名兜底,故始终非空)。
+    - 图片行原位替换为「【图: 简介】」文本(而非删除),让简介与引导句、后续解释
+      处于同一 chunk 向量,检索绑定更紧;metadata 的 {url, description} 供回答注入。
+    - 代码块从正文删除,但副本中紧随其后的「> 代码说明: …」行不在代码块内,
+      会自然保留在清理后的正文里,供语义类问题感知代码存在。
+    """
+    images = [
+        {"path": m.group(2), "description": m.group(1).strip()}
+        for m in _IMAGE_PATTERN.finditer(text)
+    ]
+
+    def _replace_image(m: re.Match) -> str:
+        alt = m.group(1).strip()
+        return f"【图: {alt}】" if alt else ""  # 图片本地缺失(富化时原样保留)则整行删除
+
+    text = _IMAGE_PATTERN.sub(_replace_image, text)
 
     codes = [{"language": m.group(1) or "text", "code": m.group(2).strip()}
              for m in _CODE_PATTERN.finditer(text)]
@@ -124,12 +140,15 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
     """对一本教材的所有章节做文本切割。
 
     策略：
+    - 读取富化副本 full_captioned.md(图片行 alt=视觉简介、代码块带说明行);
+      缺副本的章节目录直接跳过
     - 按 ## 小节标题自然分割
     - 小节 ≤ 2000 字符：直接作为一个 chunk
     - 小节 > 2000 字符：按字符数硬切（overlap=200）
     - 公式保留在文本中不单独处理
-    - 图片引用提取后上传到 MinIO，并携带 object_name / url 存入 images 字段
-    - 代码块提取后存入 codes 字段
+    - 图片引用提取后原位替换为「【图: 简介】」文本,简介随正文参与向量检索;
+      同时携带 object_name / url / description 存入 images 字段(回答注入用)
+    - 代码块提取后存入 codes 字段(独立记录),其说明行保留在正文
 
     返回每个 chunk 包含:
         content, textbook_name, chapter, section,
@@ -139,9 +158,9 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
 
     for ch_dir_str in sorted(chapter_dirs):
         ch_dir = Path(ch_dir_str)
-        md_path = ch_dir / "full.md"
+        md_path = ch_dir / "full_captioned.md"
         if not md_path.exists():
-            logger.warning(f"跳过，缺少 full.md: {ch_dir}")
+            logger.warning(f"跳过,缺少富化副本 full_captioned.md: {ch_dir}")
             continue
 
         full_text = md_path.read_text(encoding="utf-8")
@@ -155,7 +174,7 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
             chapter_dir=ch_dir,
             textbook_name=textbook_name,
             chapter=ch_dir.name,
-            rel_paths=set(_IMAGE_PATTERN.findall(full_text)),
+            rel_paths={rel for _, rel in _IMAGE_PATTERN.findall(full_text)},
         )
 
         # ---- 按 ## 拆分成 section ----
@@ -185,8 +204,9 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
 
             # ---- 切分 ----
             if len(clean_text) <= CHUNK_SIZE:
+                content = f"# {chapter_title} > ## {current_section_title}\n{clean_text}"
                 chunk = {
-                    "content": f"# {chapter_title} > ## {current_section_title}\n{clean_text}",
+                    "content": content,
                     "textbook_name": textbook_name,
                     "chapter": chapter_title,
                     "section": current_section_title,
@@ -261,7 +281,12 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
     # 收集所有待入库的文本
     entries: list[dict] = []  # {text, block_type, chapter, section, ...}
     for c in chunks:
-        # 文本块
+        # 文本块:metadata 瘦身,仅保留 {url, description}(path/object_name 入库后无消费)
+        images_meta = [
+            {"url": img["url"], "description": img.get("description", "")}
+            for img in c.get("images", [])
+            if img.get("url")
+        ]
         entries.append({
             "text": c["content"],
             "block_type": "text",
@@ -270,9 +295,9 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
             "section": c["section"],
             "chunk_index": c["chunk_index"],
             "total_chunks": c["total_chunks"],
-            "metadata_json": json.dumps({"images": c.get("images", [])}, ensure_ascii=False),
+            "metadata_json": json.dumps({"images": images_meta}, ensure_ascii=False),
         })
-        # 代码块
+        # 代码块:保留独立记录,metadata 清空(language 零消费,围栏内已携带)
         for code in c.get("codes", []):
             code_text = f"```{code['language']}\n{code['code']}\n```"
             entries.append({
@@ -283,7 +308,7 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
                 "section": c["section"],
                 "chunk_index": c["chunk_index"],
                 "total_chunks": c["total_chunks"],
-                "metadata_json": json.dumps({"language": code["language"]}, ensure_ascii=False),
+                "metadata_json": "{}",
             })
 
     # 分批生成 embedding

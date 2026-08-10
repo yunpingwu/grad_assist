@@ -15,9 +15,11 @@ dependencies = [
     "fastapi>=0.141.1",
     "uvicorn>=0.52.1",
     "python-multipart>=0.0.32",
+    "torch>=2.7",
     "flagembedding>=1.4.0",
     "loguru>=0.7.3",
     "pymongo>=4.17.0",
+    "pillow>=12.3.0",
 ]
 
 [dependency-groups]
@@ -28,3 +30,12 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
+# 指定 PyTorch CUDA 12.8 软件源
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+# 强制 PyTorch 相关依赖从 CUDA 软件源安装
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

@@ -52,9 +52,36 @@ def collect_image_options(chunks: list[dict]) -> list[dict]:
             images.append({
                 "index": len(images) + 1,
                 "url": url,
-                "description": img.get("path", "教材图片"),
+                # 富化后 description 为视觉简介;极端缺失(本地图片丢失)时兜底通用文案
+                "description": img.get("description") or "教材图片",
             })
     return images
+
+
+def build_image_candidates(chunks: list[dict]) -> str:
+    """汇总召回片段的图片候选,拼成 markdown 片段注入 LLM context。
+
+    格式(每张图一行,含可复制的引用格式,供 LLM 决定是否插入回答):
+        - 简介: <简介>
+          引用: ![<图注>](<url>)
+    """
+    lines: list[str] = []
+    for hit in chunks:
+        entity = hit.get("entity") or hit
+        meta_raw = entity.get("metadata_json")
+        if not meta_raw:
+            continue
+        try:
+            meta = json.loads(meta_raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for img in meta.get("images", []) or []:
+            url = img.get("url")
+            desc = (img.get("description") or "").strip()
+            if not url or not desc:
+                continue
+            lines.append(f"- 简介: {desc}\n  引用: ![{desc}]({url})")
+    return "\n".join(lines)
 
 
 async def ask_llm(chunks: list[dict], original_query: str, *, writer: StreamWriter) -> str:
@@ -76,6 +103,10 @@ async def ask_llm(chunks: list[dict], original_query: str, *, writer: StreamWrit
         if text:
             context_parts.append(f"[片段{i}] {text}")
     context = "\n\n".join(context_parts) or "（无召回片段）"
+    # 图片候选:附上简介与可复制的引用格式,LLM 据此决定是否在回答中插入图片引用
+    image_candidates = build_image_candidates(chunks)
+    if image_candidates:
+        context += f"\n\n【图片候选】\n{image_candidates}"
     # 调用 llm 流式生成回答
     template = load_prompt("generate_answer")
     prompt = ChatPromptTemplate.from_template(template)

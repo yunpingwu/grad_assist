@@ -195,3 +195,25 @@ def get_session_messages(session_id: str, max_turns: int = MAX_HISTORY_TURNS_LIM
         return []
     messages = doc.get("messages", [])
     return messages[-(max_turns * 2):]
+
+
+def delete_session(session_id: str) -> bool:
+    """删除单个会话文档（含其全部消息）。
+
+    Args:
+        session_id: 会话 ID（文档 _id）。
+
+    Returns:
+        True 表示确实删除了一个会话；False 表示会话不存在或删除失败（旁路降级，
+        与其余对话读写一致：失败仅记 warning，不向上抛）。
+    """
+    if not session_id:
+        return False
+    try:
+        result = mongo_client.get_collection(mongo_config.chat_collection).delete_one(
+            {"_id": session_id}
+        )
+        return result.deleted_count > 0
+    except PyMongoError as exc:
+        logger.warning(f"删除会话失败(session_id={session_id}): {exc}")
+        return False
