@@ -1,4 +1,5 @@
 import json
+import re
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,11 +11,33 @@ from app.query_agent.state import QueryState
 from app.utils.chat_util import append_turn
 
 
+def _extract_image_urls(answer: str) -> list[dict]:
+    """从 LLM 回答中提取实际引用的图片 URL（markdown 引用 + 裸 URL，限图片扩展名）。
+
+    - 只取图片扩展名（jpg/jpeg/png/gif/webp/bmp）结尾的 URL，防止把网络搜索来源链接等
+      普通链接误存为图片；
+    - 去重并编号，供历史回显。
+
+    Args:
+        answer: LLM 生成的答案文本（可能含 ![图注](url) 或裸 URL）。
+
+    Returns:
+        形如 [{index, url}] 的列表；无图片引用返回空列表。
+    """
+    urls: list[str] = []
+    for m in re.finditer(r"https?://[^\s)\]}]+\b", answer):
+        url = m.group(0).rstrip(",.;")
+        if re.search(r"\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)", url, re.IGNORECASE):
+            if url not in urls:
+                urls.append(url)
+    return [{"index": i + 1, "url": u} for i, u in enumerate(urls)]
+
+
 def save_history(state: QueryState, answer: str) -> None:
     """将本轮 user/assistant 消息持久化到 MongoDB。
 
     存储是旁路：失败由 append_turn 内部降级（仅告警），不阻断问答主链路。
-    附带存档改写问题与候选图片，供前端历史回显。
+    图片只存 LLM 回答中实际引用的（从 answer 提取），不存全部候选。
     """
     append_turn(
         session_id=state.get("session_id"),
@@ -22,40 +45,8 @@ def save_history(state: QueryState, answer: str) -> None:
         user_msg=state.get("original_query", ""),
         assistant_msg=answer,
         rewritten_query=state.get("rewritten_query"),
-        images=collect_image_options(state.get("merged_chunks", []) or []),
+        images=_extract_image_urls(answer),
     )
-
-
-def collect_image_options(chunks: list[dict]) -> list[dict]:
-    """从召回片段中汇总候选图片（解析 metadata_json）。
-
-    Args:
-        chunks: RRF 融合后的召回 hit 列表（entity 含 metadata_json）。
-
-    Returns:
-        候选图片列表，每项 {index, url, description}。
-    """
-    images: list[dict] = []
-    for hit in chunks:
-        entity = hit.get("entity") or hit  # pymilvus 命中结构兼容
-        meta_raw = entity.get("metadata_json")
-        if not meta_raw:
-            continue
-        try:
-            meta = json.loads(meta_raw)
-        except (json.JSONDecodeError, TypeError):
-            continue
-        for img in meta.get("images", []) or []:
-            url = img.get("url")
-            if not url:
-                continue
-            images.append({
-                "index": len(images) + 1,
-                "url": url,
-                # 富化后 description 为视觉简介;极端缺失(本地图片丢失)时兜底通用文案
-                "description": img.get("description") or "教材图片",
-            })
-    return images
 
 
 def build_image_candidates(chunks: list[dict]) -> str:
@@ -84,13 +75,20 @@ def build_image_candidates(chunks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def ask_llm(chunks: list[dict], original_query: str, *, writer: StreamWriter) -> str:
-    """向 LLM 提问，基于召回片段流式生成答案。
+async def ask_llm(
+    chunks: list[dict],
+    original_query: str,
+    *,
+    writer: StreamWriter,
+    web_chunks: list[dict] | None = None,
+) -> str:
+    """向 LLM 提问，基于召回片段（及可选的联网结果）流式生成答案。
 
     Args:
         chunks: 参考片段。
         original_query: 用户原始问题。
         writer: 流式 writer，逐 token 推送 {"type": "token", "content": …}。
+        web_chunks: 联网搜索结果 [{title, url, content}]，拼入【网络搜索】区块。
 
     Returns:
         LLM 生成的完整答案文本。
@@ -107,6 +105,17 @@ async def ask_llm(chunks: list[dict], original_query: str, *, writer: StreamWrit
     image_candidates = build_image_candidates(chunks)
     if image_candidates:
         context += f"\n\n【图片候选】\n{image_candidates}"
+    # 联网结果:作为补充资料拼入上下文,明确标注来源,LLM 需注明引用
+    web_parts = [
+        f"- [{c.get('title', '')}]({c.get('url', '')}): {c.get('content', '')}"
+        for c in (web_chunks or [])
+        if c.get("content")
+    ]
+    if web_parts:
+        context += (
+            "\n\n【网络搜索】(以下为联网检索的外部资料,可能与教材表述不同;"
+            "仅作补充,引用时注明来源,教材未覆盖时可参考)\n" + "\n".join(web_parts)
+        )
     # 调用 llm 流式生成回答
     template = load_prompt("generate_answer")
     prompt = ChatPromptTemplate.from_template(template)
@@ -137,7 +146,7 @@ async def generate_answer(state: QueryState, *, writer: StreamWriter) -> dict:
     chunks = state.get("merged_chunks", []) or []
     # 只取融合后 TOP5 片段，避免上下文过大、干扰回答
     chunks = chunks[:5]
-    answer = await ask_llm(chunks, original_query, writer=writer)
+    answer = await ask_llm(chunks, original_query, writer=writer, web_chunks=state.get("web_chunks"))
     logger.info(f"答案: {answer[:120]!r}")
     # 多轮对话的出口：把本轮问答持久化（旁路，失败不阻断）
     save_history(state, answer)

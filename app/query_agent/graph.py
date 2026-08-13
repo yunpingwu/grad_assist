@@ -7,8 +7,14 @@ from app.query_agent.nodes import (
     hyde_embedding_search,
     merge_recalls,
     rewrite_query,
+    web_search,
 )
 from app.query_agent.state import QueryState
+
+
+def _route_after_merge(state: QueryState) -> str:
+    """融合后路由：启用联网搜索时先走 web_search，否则直接生成。"""
+    return "web_search" if state.get("is_web_search") else "generate_answer"
 
 
 def build_graph() -> StateGraph:
@@ -22,6 +28,7 @@ def build_graph() -> StateGraph:
     builder.add_node("embedding_search", embedding_search)
     builder.add_node("hyde_embedding_search", hyde_embedding_search)
     builder.add_node("merge_recalls", merge_recalls)
+    builder.add_node("web_search", web_search)
     builder.add_node("generate_answer", generate_answer)
 
     # 入口：先重写问题
@@ -29,10 +36,16 @@ def build_graph() -> StateGraph:
     # 重写后并行发起两路召回（普通向量 + HyDE）
     builder.add_edge("rewrite_query", "embedding_search")
     builder.add_edge("rewrite_query", "hyde_embedding_search")
-    # 两路召回汇合后做 RRF 融合，最后生成答案
+    # 两路召回汇合后做 RRF 融合
     builder.add_edge("embedding_search", "merge_recalls")
     builder.add_edge("hyde_embedding_search", "merge_recalls")
-    builder.add_edge("merge_recalls", "generate_answer")
+    # 融合后按是否启用联网搜索分支：开 → 联网搜索 → 生成；关 → 直接生成
+    builder.add_conditional_edges(
+        "merge_recalls",
+        _route_after_merge,
+        {"web_search": "web_search", "generate_answer": "generate_answer"},
+    )
+    builder.add_edge("web_search", "generate_answer")
     builder.add_edge("generate_answer", END)
 
     return builder.compile()

@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     textbook_name: str = Field(..., description="教材名")
     query: str = Field(..., min_length=1, description="用户问题")
     session_id: str | None = Field(default=None, description="会话 ID，缺省时图内自动生成")
+    is_web_search: bool = Field(default=True, description="是否启用联网搜索（前端按钮控制）")
 
 
 # 模块级编译一次，LangGraph 编译图无共享可变状态，可并发复用
@@ -37,6 +38,7 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
         "session_id": req.session_id,
         "textbook_name": req.textbook_name,
         "original_query": req.query,
+        "is_web_search": req.is_web_search,
     }
 
     async def event_gen():

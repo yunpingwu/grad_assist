@@ -19,5 +19,9 @@ class QueryState(TypedDict):
     hyde_embedding_chunks: NotRequired[list]
     # RRF 融合后的最终召回（保留 distance）
     merged_chunks: NotRequired[list]
+    # 是否启用联网搜索（前端按钮控制，默认开启）
+    is_web_search: NotRequired[bool]
+    # 联网搜索结果 [{title, url, content}]，供生成节点合并进上下文
+    web_chunks: NotRequired[list]
     # 最终答案（文本，可能含 markdown 图片引用）
     answer: NotRequired[str]
