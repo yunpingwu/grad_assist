@@ -5,7 +5,7 @@ from pymilvus import WeightedRanker
 
 from app.clients.llm import get_llm_client
 from app.clients.milvus_client import get_client
-from app.core import log_node, load_prompt,logger
+from app.core import load_prompt, log_node, logger
 from app.query_agent.state import QueryState
 from app.utils.embedding_util import generate_embeddings
 from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
@@ -26,9 +26,11 @@ async def hyde_doc_generate(rewritten_query: str) -> str:
     prompt = ChatPromptTemplate.from_template(template)
     llm = get_llm_client()
     chain = prompt | llm | StrOutputParser()
-    output = await chain.ainvoke({
-        "rewritten_query": rewritten_query,
-    })
+    output = await chain.ainvoke(
+        {
+            "rewritten_query": rewritten_query,
+        }
+    )
     hyde_doc = output.strip()
     logger.info(f"假设性文档预览：{hyde_doc[:100]}")
 
@@ -86,13 +88,15 @@ async def hyde_embedding_search(state: QueryState, *, writer: StreamWriter) -> d
     textbook_name = state.get("textbook_name")
     hyde_doc = await hyde_doc_generate(rewritten_query)
 
-    hyde_embedding_chunks = await hyde_doc_search(hyde_doc,rewritten_query,textbook_name)
+    hyde_embedding_chunks = await hyde_doc_search(hyde_doc, rewritten_query, textbook_name)
     # 只返回本节点写入的字段（避免并行分支携带整个 state 导致 key 冲突）
     return {"hyde_embedding_chunks": hyde_embedding_chunks}
 
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
+
     state: QueryState = {
         "session_id": "test",
         "textbook_name": "C语言程序设计",

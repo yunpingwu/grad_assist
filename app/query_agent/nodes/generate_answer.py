@@ -1,14 +1,14 @@
 import json
 import re
 
+from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import StreamWriter
 
 from app.clients.llm import get_llm_client
-from app.core import log_node, logger, load_prompt
+from app.core import load_prompt, log_node, logger
 from app.query_agent.state import QueryState
-from app.utils.chat_util import append_turn
 
 
 def _extract_image_urls(answer: str) -> list[dict]:
@@ -27,26 +27,9 @@ def _extract_image_urls(answer: str) -> list[dict]:
     urls: list[str] = []
     for m in re.finditer(r"https?://[^\s)\]}]+\b", answer):
         url = m.group(0).rstrip(",.;")
-        if re.search(r"\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)", url, re.IGNORECASE):
-            if url not in urls:
-                urls.append(url)
+        if re.search(r"\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)", url, re.IGNORECASE) and url not in urls:
+            urls.append(url)
     return [{"index": i + 1, "url": u} for i, u in enumerate(urls)]
-
-
-def save_history(state: QueryState, answer: str) -> None:
-    """将本轮 user/assistant 消息持久化到 MongoDB。
-
-    存储是旁路：失败由 append_turn 内部降级（仅告警），不阻断问答主链路。
-    图片只存 LLM 回答中实际引用的（从 answer 提取），不存全部候选。
-    """
-    append_turn(
-        session_id=state.get("session_id"),
-        textbook_name=state.get("textbook_name", ""),
-        user_msg=state.get("original_query", ""),
-        assistant_msg=answer,
-        rewritten_query=state.get("rewritten_query"),
-        images=_extract_image_urls(answer),
-    )
 
 
 def build_image_candidates(chunks: list[dict]) -> str:
@@ -121,10 +104,12 @@ async def ask_llm(
     prompt = ChatPromptTemplate.from_template(template)
     chain = prompt | get_llm_client() | StrOutputParser()
     parts: list[str] = []
-    async for token in chain.astream({
-        "context": context,
-        "original_query": original_query,
-    }):
+    async for token in chain.astream(
+        {
+            "context": context,
+            "original_query": original_query,
+        }
+    ):
         parts.append(token)
         writer({"type": "token", "content": token})
     return "".join(parts)
@@ -148,16 +133,14 @@ async def generate_answer(state: QueryState, *, writer: StreamWriter) -> dict:
     chunks = chunks[:5]
     answer = await ask_llm(chunks, original_query, writer=writer, web_chunks=state.get("web_chunks"))
     logger.info(f"答案: {answer[:120]!r}")
-    # 多轮对话的出口：把本轮问答持久化（旁路，失败不阻断）
-    save_history(state, answer)
     # 流结束：通知前端收尾并回传 session_id（custom 流里不含 answer）
     writer({"type": "done", "session_id": state.get("session_id")})
     # 只返回本节点写入的字段
-    return {"answer": answer}
+    return {"answer": answer, "messages": [AIMessage(content=answer)]}
 
 
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     test_chunks = [
@@ -168,9 +151,9 @@ if __name__ == '__main__':
                 "text": "# 第3章 栈 > ## 栈的基本操作\n栈是一种后进先出的数据结构。",
                 "chapter": "第3章 栈",
                 "section": "栈的基本操作",
-                "metadata_json": json.dumps({
-                    "images": [{"path": "images/stack.png", "url": "http://minio/stack.png"}]
-                }),
+                "metadata_json": json.dumps(
+                    {"images": [{"path": "images/stack.png", "url": "http://minio/stack.png"}]}
+                ),
             },
         }
     ]
@@ -181,5 +164,9 @@ if __name__ == '__main__':
         "rewritten_query": "什么是栈的先进后出特性？",
         "merged_chunks": test_chunks,
     }
-    result = asyncio.run(generate_answer(test_state))
+
+    def writer(chunk):
+        pass
+
+    result = asyncio.run(generate_answer(test_state, writer=writer))
     print(f"答案: {result.get('answer', '')[:120]!r}")

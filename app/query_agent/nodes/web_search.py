@@ -12,8 +12,7 @@ from langgraph.types import StreamWriter
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from app.config.llm_config import llm_config
-from app.config.web_search_config import web_search_config
+from app.config import llm_config, web_search_config
 from app.core import log_node, logger
 from app.query_agent.state import QueryState
 
@@ -28,16 +27,12 @@ async def _search_web(query: str, count: int | None = None) -> list[dict]:
         logger.warning("未配置 ALIBABA_API_KEY，跳过联网搜索")
         return []
     count = count or web_search_config.search_count
-    http_client = httpx2.AsyncClient(
-        headers={"Authorization": f"Bearer {llm_config.api_key}"}
-    )
+    http_client = httpx2.AsyncClient(headers={"Authorization": f"Bearer {llm_config.api_key}"})
     try:
         async with streamable_http_client(web_search_config.mcp_url, http_client=http_client) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
-                result = await session.call_tool(
-                    web_search_config.tool_name, {"query": query, "count": count}
-                )
+                result = await session.call_tool(web_search_config.tool_name, {"query": query, "count": count})
                 text = "".join(getattr(b, "text", "") for b in result.content)
                 data = json.loads(text)
                 return [

@@ -1,5 +1,5 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from app.core import log_node, logger
 from app.textbook_agent.nodes.split_contents import (
@@ -93,9 +93,9 @@ def parse_to_md(state: TextBookState):
 
     return state
 
-# 单元测试
-if __name__ == '__main__':
 
+# 单元测试
+if __name__ == "__main__":
     textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
     sub_pdf_dirs = list((textbook_path / "pdf_split").iterdir())
 

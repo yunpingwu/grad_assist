@@ -17,14 +17,31 @@ dependencies = [
     "python-multipart>=0.0.32",
     "flagembedding>=1.4.0",
     "loguru>=0.7.3",
-    "pymongo>=4.17.0",
+    "pymongo>=4.12.0,<4.17.0",
+    "pillow>=12.3.0",
+    "mcp>=2.0.0",
+    "pydantic-settings>=2.15.0",
+    "langgraph-checkpoint-mongodb>=0.4.0"
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.2",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+# E=错误 F=未使用/未定义 W=警告 I=import排序 UP=py3.13新写法 B=常见bug模式
+select = ["E", "F", "W", "I", "UP", "B"]
+
+# FastAPI 的 File(...)/Field(...) 作为默认参数是框架惯用法，非 bug，仅对 API 路由忽略
+[tool.ruff.lint.per-file-ignores]
+"app/api/*.py" = ["B008"]
 

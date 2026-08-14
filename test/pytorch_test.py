@@ -3,7 +3,7 @@ import torch
 
 from app.core import logger
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         logger.info(f"pytorch: {torch.__version__}")
         logger.info(f"cuda: {torch.cuda.is_available()}")

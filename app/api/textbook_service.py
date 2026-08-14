@@ -4,14 +4,12 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, StreamingResponse
 
 from app.api.query_service import router as query_router
-from app.clients.milvus_client import get_client
 from app.core import logger
 from app.textbook_agent.graph import build_graph
 from app.textbook_agent.state import TextBookState
@@ -21,8 +19,9 @@ from app.utils import (
     STATUS_SUCCEEDED,
     create_task,
     get_task,
+    list_textbooks,
     subscribe,
-    update_task, list_textbooks,
+    update_task,
 )
 
 # 教材根目录（本文件位于 app/api/ 下，项目根为 parents[2]）。
@@ -41,6 +40,7 @@ def _new_textbook_dir() -> Path:
     textbook_dir.mkdir(parents=True, exist_ok=False)
     return textbook_dir
 
+
 # 创建 FastAPI 实例
 
 
@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     """应用生命周期：退出时优雅释放外部连接（均幂等，未初始化时 no-op）。"""
     yield
     from app.clients import milvus_client, minio_client, mongo_client
+
     milvus_client.disconnect_milvus()
     minio_client.disconnect_minio()
     mongo_client.disconnect_mongo()
@@ -100,7 +101,7 @@ async def _sse_stream(task_id: str):
 
 
 @app.post("/upload", summary="上传教材", description="支持批量上传，接受格式当前为pdf")
-async def upload_textbooks(files: List[UploadFile] = File(...)):
+async def upload_textbooks(files: list[UploadFile] = File(...)):
     """上传教材：每次上传在 textbooks/ 下创建独立目录 pdf-{特征值}/ 并保存文件。
 
     Args:
@@ -179,12 +180,15 @@ async def get_task_status(task_id: str):
     current_task = get_task(task_id)
     return JSONResponse(current_task)
 
+
 @app.get("/list", summary="获取所有教材", description="获取所有教材")
 async def get_all_textbooks():
     """获取所有教材"""
     textbooks = list_textbooks()
     return JSONResponse(textbooks)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

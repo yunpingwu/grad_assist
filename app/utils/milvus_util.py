@@ -7,7 +7,6 @@ Milvus 教材域工具
 
 import re
 from datetime import datetime
-from typing import Any
 
 from pymilvus import (
     AnnSearchRequest,
@@ -89,14 +88,19 @@ def register_textbook(textbook_name: str, collection_name: str, chunk_count: int
     """
     _ensure_registry()
     client = milvus_client.get_client()
-    client.upsert(REGISTRY_COLLECTION, [{
-        "textbook_name": textbook_name,
-        "collection_name": collection_name,
-        "chunk_count": chunk_count,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        # 占位向量：向量字段不支持 nullable，注册表仅用标量查询
-        "dummy_embedding": [0.0, 0.0],
-    }])
+    client.upsert(
+        REGISTRY_COLLECTION,
+        [
+            {
+                "textbook_name": textbook_name,
+                "collection_name": collection_name,
+                "chunk_count": chunk_count,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                # 占位向量：向量字段不支持 nullable，注册表仅用标量查询
+                "dummy_embedding": [0.0, 0.0],
+            }
+        ],
+    )
     client.flush(REGISTRY_COLLECTION)
     logger.info(f"注册教材: {textbook_name} → {collection_name}（{chunk_count} chunk）")
 

@@ -1,8 +1,9 @@
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
+
 from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
 from app.utils import update_task
@@ -10,7 +11,7 @@ from app.utils import update_task
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
     """解析单个 content_list.json，提取章节偏移信息。"""
-    with open(file_path, "r", encoding="utf-8") as fh:
+    with open(file_path, encoding="utf-8") as fh:
         content_list = json.load(fh)
     match_list: list[dict] = []
     found_content = False
@@ -18,10 +19,10 @@ def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
     first_chapter = None
 
     for i, item in enumerate(content_list):
-        if not found_content and re.match(r'目\s*录', item.get("text", "")) and i < len(content_list) - 1:
+        if not found_content and re.match(r"目\s*录", item.get("text", "")) and i < len(content_list) - 1:
             # 从下一项提取章节号（如 "第1章"、"第 3 章"、"第一篇"）
             next_text = content_list[i + 1].get("text", "")
-            m = re.match(r'(第?\s*\S+\s*[章篇])', next_text.strip())
+            m = re.match(r"(第?\s*\S+\s*[章篇])", next_text.strip())
             if m:
                 first_chapter = m.group(1)
             content_index = item["page_idx"]
@@ -30,7 +31,7 @@ def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
             item_text = item.get("text", "").strip()
             # "第一篇" 结构：后续条目匹配 "第X章" 或 "第X篇"
             if "篇" in first_chapter:
-                if re.match(r'第?\s*\S+\s*[章篇]', item_text):
+                if re.match(r"第?\s*\S+\s*[章篇]", item_text):
                     match_list.append(item)
             elif item_text.startswith(first_chapter):
                 match_list.append(item)
@@ -72,20 +73,14 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
     textbook_path = Path(textbook_path)
 
     # 查找所有 PDF（排除 _toc.pdf）
-    pdfs = sorted(
-        f for f in textbook_path.iterdir()
-        if f.suffix == ".pdf" and not f.name.endswith("_toc.pdf")
-    )
+    pdfs = sorted(f for f in textbook_path.iterdir() if f.suffix == ".pdf" and not f.name.endswith("_toc.pdf"))
     if not pdfs:
         logger.warning(f"未找到 PDF 文件: {textbook_path}")
         return
 
     # mineru_toc 目录已按教材名重命名，与 PDF 名一致，排序后一一对应
     mineru_toc = textbook_path / "mineru_toc"
-    mineru_dirs = sorted(
-        d for d in mineru_toc.iterdir()
-        if d.is_dir() and (d / "full.md").exists()
-    )
+    mineru_dirs = sorted(d for d in mineru_toc.iterdir() if d.is_dir() and (d / "full.md").exists())
 
     output_root = textbook_path / "pdf_split"
 
@@ -107,10 +102,11 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
         # 删除已有切割文件，便于重复测试
         if chapter_output_dir.exists():
             import shutil
+
             shutil.rmtree(chapter_output_dir)
             logger.info(f"已删除旧文件: {chapter_output_dir}")
 
-        logger.info(f"处理教材 [{i+1}/{len(pdfs)}]: {textbook_name}")
+        logger.info(f"处理教材 [{i + 1}/{len(pdfs)}]: {textbook_name}")
         # 按名称匹配 mineru_toc 目录（排序后索引对应）
         if i >= len(mineru_dirs):
             logger.warning(f"缺少 MinerU 解析结果: {pdf_path.name}")
@@ -125,19 +121,22 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
             logger.warning(f"未找到 '## 目录': {full_md}")
             continue
 
-        toc_text = text[toc_match.start():]
+        toc_text = text[toc_match.start() :]
         chapters = []
         for m in chapter_pattern.finditer(toc_text):
-            num = re.sub(r'\s+', '', m.group(1))
-            if not num.startswith('第'):
-                num = '第' + num
-            chapters.append({
-                "num": num,
-                "title": m.group(2).strip(),
-                "printed_page": int(m.group(3)),
-            })
+            num = re.sub(r"\s+", "", m.group(1))
+            if not num.startswith("第"):
+                num = "第" + num
+            chapters.append(
+                {
+                    "num": num,
+                    "title": m.group(2).strip(),
+                    "printed_page": int(m.group(3)),
+                }
+            )
 
-        logger.info(f"[{textbook_name}] 正则匹配到 {len(chapters)} 章，offset={all_match[i]['page_idx'] if i < len(all_match) else 'N/A'}")
+        offset = all_match[i]["page_idx"] if i < len(all_match) else "N/A"
+        logger.info(f"[{textbook_name}] 正则匹配到 {len(chapters)} 章，offset={offset}")
         for ch in chapters:
             logger.info(f"  {ch['num']} {ch['title']} → 印刷页码={ch['printed_page']}")
 
@@ -166,7 +165,7 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
             for page_idx in range(start, min(end, total)):
                 writer.add_page(reader.pages[page_idx])
 
-            safe_title = re.sub(r'[\\/:*?"<>|]', '-', ch["title"])
+            safe_title = re.sub(r'[\\/:*?"<>|]', "-", ch["title"])
             output_path = chapter_output_dir / f"{ch['num']} {safe_title}.pdf"
             with open(output_path, "wb") as f:
                 writer.write(f)
@@ -189,8 +188,7 @@ def split(state: TextBookState):
     # 幂等：如果 pdf_split 已有切割结果，直接复用
     if output_root.exists() and any(output_root.iterdir()):
         sub_pdf_paths = [
-            str(d) for d in output_root.iterdir()
-            if d.is_dir() and any(p.suffix == ".pdf" for p in d.iterdir())
+            str(d) for d in output_root.iterdir() if d.is_dir() and any(p.suffix == ".pdf" for p in d.iterdir())
         ]
         state["sub_pdf_paths"] = sub_pdf_paths
         logger.info(f"pdf_split 已存在，跳过切割，共 {len(sub_pdf_paths)} 个教材目录")
@@ -203,7 +201,7 @@ def split(state: TextBookState):
     all_match: list[dict] = []
     for d in extract_dirs_list:
         all_match.extend(get_pre_offset(Path(d)))
-    for i, match in enumerate(all_match):
+    for match in all_match:
         logger.info(f"[{match['text'][:20]}] {match['page_idx']}")
     # 按章节切割教材
     sub_pdf_paths = split_chapter(textbook_path, all_match)
@@ -211,9 +209,10 @@ def split(state: TextBookState):
     if task_id:
         update_task(task_id=task_id, message=f"章节切割完成，共 {len(sub_pdf_paths)} 本教材", progress=0.55)
     return state
-    
+
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     from pathlib import Path
 
     textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")

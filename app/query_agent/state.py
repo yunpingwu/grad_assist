@@ -1,16 +1,18 @@
-from typing import NotRequired, TypedDict
+from typing import Annotated, NotRequired, TypedDict
+
+from langchain_core.messages import AnyMessage
+from langgraph.graph import add_messages
 
 
 class QueryState(TypedDict):
-
     # 会话 ID
     session_id: str
     # 教材名
     textbook_name: str
     # 原始问题
     original_query: str
-    # 最近对话历史（纯文本，用于多轮消歧）
-    chat_history: NotRequired[str]
+    # 多轮对话历史（由 checkpointer 持久化；add_messages 每轮追加而非覆盖）
+    messages: Annotated[list[AnyMessage], add_messages]
     # 重写问题
     rewritten_query: NotRequired[str]
     # 普通向量检索回来的切片

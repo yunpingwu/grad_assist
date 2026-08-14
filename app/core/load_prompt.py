@@ -36,7 +36,7 @@ def load_prompt(name: str, prompts_dir: Path | None = None) -> str:
 
 
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:

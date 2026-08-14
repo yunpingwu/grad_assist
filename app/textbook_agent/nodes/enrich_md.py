@@ -18,13 +18,13 @@ from PIL import Image
 
 from app.clients.llm import get_llm_client
 from app.config import llm_config
-from app.core import log_node, logger, load_prompt
+from app.core import load_prompt, log_node, logger
 from app.textbook_agent.state import TextBookState
 
 # 匹配 Markdown 图片语法: ![alt](images/xxx.jpg),捕获 (alt, 相对路径)
-_IMAGE_PATTERN = re.compile(r'!\[(.*?)\]\((images/.*?)\)')
+_IMAGE_PATTERN = re.compile(r"!\[(.*?)\]\((images/.*?)\)")
 # 匹配围栏代码块: ```lang\n...\n```
-_CODE_PATTERN = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+_CODE_PATTERN = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
 # 简介/说明长度上限(兜底截断,防超长)
 _CAPTION_LIMIT = 200
 # 视觉模型输入图片:最长边压缩上限与 JPEG 质量。
@@ -72,13 +72,15 @@ def _caption_image(model: Any, prompt: str, chapter_dir: Path, m: re.Match, raw_
     if not img_path.is_file():
         return m.group(0)  # 本地缺失,原样保留
 
-    context = raw_text[max(0, m.start() - _IMG_CONTEXT_CHARS):m.start()].strip()
+    context = raw_text[max(0, m.start() - _IMG_CONTEXT_CHARS) : m.start()].strip()
     try:
         data_url = _image_to_base64_data_url(img_path)
-        message = HumanMessage(content=[
-            {"type": "text", "text": prompt.format(context=context)},
-            {"type": "image_url", "image_url": {"url": data_url}},
-        ])
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt.format(context=context)},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ]
+        )
         alt = _call_llm(model, message)
     except Exception as exc:
         logger.warning(f"图片简介生成失败({img_path.name}): {exc}")
@@ -89,12 +91,10 @@ def _caption_image(model: Any, prompt: str, chapter_dir: Path, m: re.Match, raw_
 def _caption_code(model: Any, prompt: str, m: re.Match, raw_text: str) -> str:
     """为单个代码块生成说明,返回代码块(成功后追加说明行);失败仅返回代码块。"""
     lang, code = m.group(1), m.group(2)
-    context = raw_text[max(0, m.start() - _CODE_CONTEXT_CHARS):m.start()].strip()
+    context = raw_text[max(0, m.start() - _CODE_CONTEXT_CHARS) : m.start()].strip()
     block = f"```{lang}\n{code}\n```"
     try:
-        messages = ChatPromptTemplate.from_template(prompt).format_messages(
-            context=context, code=code
-        )
+        messages = ChatPromptTemplate.from_template(prompt).format_messages(context=context, code=code)
         desc = _call_llm(model, messages)
     except Exception as exc:
         logger.warning(f"代码说明生成失败: {exc}")
@@ -123,11 +123,11 @@ def _rebuild_text(
     """按位置切片重组:原文段落与处理结果交替拼接。"""
     parts: list[str] = []
     cursor = 0
-    for (_, _, start, end), res in zip(tasks, results):
+    for (_, _, start, end), res in zip(tasks, results, strict=True):
         parts.append(raw_text[cursor:start])  # 保留区间前的原文
-        parts.append(res)                     # 填入处理结果
+        parts.append(res)  # 填入处理结果
         cursor = end
-    parts.append(raw_text[cursor:])           # 尾部剩余原文
+    parts.append(raw_text[cursor:])  # 尾部剩余原文
     return "".join(parts)
 
 
@@ -183,9 +183,7 @@ def code_and_image_caption(extracted_dirs) -> None:
         logger.info(f"  [{ci + 1}/{len(plans)}] 提交: {plan['dir'].name}(图 {n_img} / 码 {len(plan['tasks']) - n_img})")
 
     # 2. 扁平化所有章节任务,统一并发(跨章并行;上下文取各自 raw_text,天然无污染)
-    flat: list[tuple[int, tuple]] = [
-        (ci, task) for ci, plan in enumerate(plans) for task in plan["tasks"]
-    ]
+    flat: list[tuple[int, tuple]] = [(ci, task) for ci, plan in enumerate(plans) for task in plan["tasks"]]
 
     def _run(item: tuple[int, tuple]) -> str:
         ci, task = item
@@ -200,7 +198,7 @@ def code_and_image_caption(extracted_dirs) -> None:
 
     # 3. 按章节分组重组,写回各自副本
     per_chapter: list[list[str]] = [[] for _ in plans]
-    for (ci, _), res in zip(flat, results):
+    for (ci, _), res in zip(flat, results, strict=True):
         per_chapter[ci].append(res)
 
     for ci, plan in enumerate(plans):

@@ -1,5 +1,5 @@
-from pymilvus import WeightedRanker
 from langgraph.types import StreamWriter
+from pymilvus import WeightedRanker
 
 from app.clients.milvus_client import get_client
 from app.core import log_node, logger
@@ -61,8 +61,9 @@ async def embedding_search(state: QueryState, *, writer: StreamWriter) -> dict:
     # 只返回本节点写入的字段（避免并行分支携带整个 state 导致 key 冲突）
     return {"embedding_chunks": result}
 
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     state: QueryState = {

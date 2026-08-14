@@ -7,7 +7,11 @@ from app.query_agent.state import QueryState
 RRF_K = 60
 
 
-async def rrf_merge(embedding_chunks: list[dict],hyde_chunks: list[dict],k: int = RRF_K,) -> list[dict]:
+async def rrf_merge(
+    embedding_chunks: list[dict],
+    hyde_chunks: list[dict],
+    k: int = RRF_K,
+) -> list[dict]:
     """按 Reciprocal Rank Fusion 融合两路召回，按 doc_id 去重并降序排序。
 
     Args:
@@ -63,7 +67,7 @@ async def merge_recalls(state: QueryState, *, writer: StreamWriter) -> dict:
 
 
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     # 构造两路召回的模拟 hit（含 id/distance/entity）

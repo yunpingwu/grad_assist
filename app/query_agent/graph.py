@@ -17,7 +17,7 @@ def _route_after_merge(state: QueryState) -> str:
     return "web_search" if state.get("is_web_search") else "generate_answer"
 
 
-def build_graph() -> StateGraph:
+def build_graph(checkpointer=None) -> StateGraph:
     """构建教材问答流水线 Graph。
 
     流程: rewrite_query → (embedding_search ∥ hyde_embedding_search) → merge_recalls → generate_answer
@@ -48,11 +48,11 @@ def build_graph() -> StateGraph:
     builder.add_edge("web_search", "generate_answer")
     builder.add_edge("generate_answer", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
 
 
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     state: QueryState = {

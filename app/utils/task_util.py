@@ -16,7 +16,7 @@ import asyncio
 import threading
 import time
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from app.core import logger
 
@@ -86,13 +86,15 @@ def update_task(
         if message:
             task["message"] = message
         task["updated_at"] = time.time()
-        task["events"].append({
-            "ts": time.time(),
-            "status": status or task["status"],
-            "message": message or "",
-            "progress": task["progress"],
-            "data": data or {},
-        })
+        task["events"].append(
+            {
+                "ts": time.time(),
+                "status": status or task["status"],
+                "message": message or "",
+                "progress": task["progress"],
+                "data": data or {},
+            }
+        )
 
     # 唤醒等待该任务的 SSE 订阅者
     event = _events.get(task_id)
@@ -116,7 +118,7 @@ def get_task(task_id: str) -> dict | None:
         return {k: (list(v) if k == "events" else v) for k, v in task.items()}
 
 
-async def subscribe(task_id: str) -> AsyncGenerator[dict, None]:
+async def subscribe(task_id: str) -> AsyncGenerator[dict]:
     """订阅任务事件流（SSE 用）。
 
     - 先下发当前状态快照（event=status）；
@@ -160,7 +162,7 @@ async def subscribe(task_id: str) -> AsyncGenerator[dict, None]:
         # 等待新事件，超时则发心跳
         try:
             await _wait_for_update(task_id)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             yield {"event": "heartbeat", "data": {}}
 
 
@@ -175,9 +177,8 @@ async def _wait_for_update(task_id: str) -> None:
 
 
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
-
 
     async def demo() -> None:
         task_id = create_task()
@@ -193,6 +194,5 @@ if __name__ == '__main__':
 
         async for event in subscribe(task_id):
             print(event)
-
 
     asyncio.run(demo())

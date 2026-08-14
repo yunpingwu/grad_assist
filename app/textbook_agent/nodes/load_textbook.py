@@ -18,7 +18,7 @@ def load_textbook(state: TypedDict):
     if raw_path:
         textbook_path = Path(raw_path)
     else:
-        textbook_path = Path(__file__).resolve().parents[3] / 'textbooks' / 'pdf'
+        textbook_path = Path(__file__).resolve().parents[3] / "textbooks" / "pdf"
 
     # 获取所有支持的教材
     supported = {".pdf", ".doc", ".ppt"}
@@ -37,8 +37,9 @@ def load_textbook(state: TypedDict):
         update_task(task_id=task_id, message=f"教材校验通过，共 {len(files)} 个文件", progress=0.1)
     return state
 
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 测试
     state = {}
     load_textbook(state)

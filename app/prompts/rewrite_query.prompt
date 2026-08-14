@@ -3,8 +3,8 @@
 - 若已清晰则原样返回；只输出问题本身，无解释
 - 教材：{textbook_name}（缺省时按通用教材处理）
 
-【历史对话】
-{chat_history}
+【历史问题】
+{questions_history}
 
 【最新问题】{original_query}
 【改写后】

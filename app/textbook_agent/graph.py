@@ -1,13 +1,13 @@
-from langgraph.constants import START, END
+from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
 from app.textbook_agent.nodes import (
-    parse_to_md,
-    load_textbook,
-    split_contents,
-    split,
     enrich_md,
-    split_text_and_store
+    load_textbook,
+    parse_to_md,
+    split,
+    split_contents,
+    split_text_and_store,
 )
 from app.textbook_agent.state import TextBookState
 
@@ -36,8 +36,9 @@ def build_graph() -> StateGraph:
 
     return builder.compile()
 
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     from IPython.display import Image, display
 
     state: TextBookState = {

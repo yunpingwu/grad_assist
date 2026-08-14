@@ -7,9 +7,10 @@ Embedding 工具
 """
 
 import os
+
 from FlagEmbedding import BGEM3FlagModel
 
-from app.config.embedding_config import embedding_config
+from app.config import embedding_config
 from app.core import logger
 
 _model = None
@@ -27,7 +28,7 @@ def _get_model():
         raise ValueError(f"BGE-M3 模型路径不存在: {path}")
 
     device = embedding_config.device
-    use_fp16 = (device != "cpu")
+    use_fp16 = device != "cpu"
 
     logger.info(f"加载 BGE-M3: {path} (device={device}, fp16={use_fp16})")
     _model = BGEM3FlagModel(str(path), use_fp16=use_fp16, devices=[device])
@@ -65,9 +66,7 @@ def generate_embeddings(texts: list[str]) -> dict:
     if "lexical_weights" in output and output["lexical_weights"] is not None:
         for sp in output["lexical_weights"]:
             if hasattr(sp, "indices"):  # scipy CSR
-                sparse.append(
-                    dict(zip(sp.indices.tolist(), sp.data.astype("float32").tolist()))
-                )
+                sparse.append(dict(zip(sp.indices.tolist(), sp.data.astype("float32").tolist(), strict=True)))
             else:  # dict / defaultdict
                 sparse.append({int(k): float(v) for k, v in sp.items()})
 

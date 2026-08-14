@@ -9,7 +9,7 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 
-from app.config.mongo_config import mongo_config
+from app.config import mongo_config
 from app.core import logger
 
 _client: MongoClient | None = None
@@ -35,6 +35,7 @@ def get_client() -> MongoClient:
 
 # ── 连接管理 ──────────────────────────────────────────────
 
+
 def connect_mongo() -> None:
     """连接 MongoDB（幂等，重复调用复用单例）。"""
     get_client()
@@ -50,6 +51,7 @@ def disconnect_mongo() -> None:
 
 
 # ── 数据库/集合访问 ──────────────────────────────────────────────
+
 
 def get_database() -> Database:
     """获取配置的默认数据库（惰性，连接不存在时自动建立）。"""

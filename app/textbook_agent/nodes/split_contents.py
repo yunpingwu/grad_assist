@@ -12,13 +12,15 @@ from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
 from app.utils import update_task
 
+
 def find_pdfs(path: Path) -> list[Path]:
     if path.is_dir():
         return [f for f in path.iterdir() if f.suffix == ".pdf"]
     return [path] if path.suffix == ".pdf" else []
 
+
 # 步骤 1：切目录页
-def cut_toc_pages(toc_dir: Path,pdfs: list[Path], toc_pages: int = 30) -> list[Path]:
+def cut_toc_pages(toc_dir: Path, pdfs: list[Path], toc_pages: int = 30) -> list[Path]:
     """切割教材的前30页（关注里面包含的目录）"""
     if toc_dir.exists():
         shutil.rmtree(toc_dir)
@@ -42,7 +44,7 @@ def cut_toc_pages(toc_dir: Path,pdfs: list[Path], toc_pages: int = 30) -> list[P
 # 步骤 2：MinerU 在线 API
 def mineru_upload_and_poll(toc_files: list[Path], toc_dir: Path) -> list[str]:
     """利用mineru解析切割的目录pdf文件
-    
+
     完整流程：
     1. POST /api/v4/file-urls/batch 获取预签名上传URL和batch_id
     2. PUT 上传每个文件到对应URL（系统自动提交解析任务）
@@ -52,18 +54,9 @@ def mineru_upload_and_poll(toc_files: list[Path], toc_dir: Path) -> list[str]:
     base_url = mineru_config.url
 
     # ========== Step 1: 获取上传URL ==========
-    files_info = [
-        {"name": f.name, "data_id": str(uuid.uuid4())[:8]}
-        for f in toc_files
-    ]
-    header = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}"
-    }
-    data = {
-        "files": files_info,
-        "model_version": "vlm"
-    }
+    files_info = [{"name": f.name, "data_id": str(uuid.uuid4())[:8]} for f in toc_files]
+    header = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    data = {"files": files_info, "model_version": "vlm"}
 
     logger.info(f"请求上传URL，共 {len(toc_files)} 个文件")
     resp = requests.post(f"{base_url}/api/v4/file-urls/batch", headers=header, json=data)
@@ -78,13 +71,13 @@ def mineru_upload_and_poll(toc_files: list[Path], toc_dir: Path) -> list[str]:
     logger.info(f"获取上传URL成功，batch_id: {batch_id}，URL数量: {len(urls)}")
 
     # ========== Step 2: 上传文件到预签名URL ==========
-    for i, (file_path, upload_url) in enumerate(zip(toc_files, urls)):
+    for i, (file_path, upload_url) in enumerate(zip(toc_files, urls, strict=True)):
         with open(file_path, "rb") as f:
             put_resp = requests.put(upload_url, data=f)
             if put_resp.status_code == 200:
-                logger.info(f"上传成功 [{i+1}/{len(toc_files)}]: {file_path.name}")
+                logger.info(f"上传成功 [{i + 1}/{len(toc_files)}]: {file_path.name}")
             else:
-                logger.error(f"上传失败 [{i+1}/{len(toc_files)}]: {file_path.name}, HTTP {put_resp.status_code}")
+                logger.error(f"上传失败 [{i + 1}/{len(toc_files)}]: {file_path.name}, HTTP {put_resp.status_code}")
                 raise RuntimeError(f"上传失败: {file_path.name}, HTTP {put_resp.status_code}")
 
     logger.info("所有文件上传完成，开始轮询解析结果...")
@@ -132,7 +125,10 @@ def mineru_upload_and_poll(toc_files: list[Path], toc_dir: Path) -> list[str]:
 
         time.sleep(3)
 
-def mineru_download_and_extract(full_zip_urls: list[str], output_dir: Path, names: list[str] | None = None) -> list[str]:
+
+def mineru_download_and_extract(
+    full_zip_urls: list[str], output_dir: Path, names: list[str] | None = None
+) -> list[str]:
     """下载 MinerU 解析结果 zip 并解压到 output_dir/{name}/ 下，返回目录路径字符串列表
 
     names: 自定义目录名列表，长度与 full_zip_urls 一致。不传则用 URL 的 stem。
@@ -192,15 +188,9 @@ def split_contents(state: TextBookState):
         update_task(task_id=task_id, message="开始解析教材目录（MinerU）", progress=0.15)
 
     # 幂等：如果 mineru_toc 已有解析结果，直接复用
-    if output_dir.exists() and any(
-        d.is_dir() and (d / "full.md").exists()
-        for d in output_dir.iterdir()
-    ):
+    if output_dir.exists() and any(d.is_dir() and (d / "full.md").exists() for d in output_dir.iterdir()):
         # 从已有目录重新收集
-        extracted_dirs = [
-            str(d) for d in output_dir.iterdir()
-            if d.is_dir() and (d / "full.md").exists()
-        ]
+        extracted_dirs = [str(d) for d in output_dir.iterdir() if d.is_dir() and (d / "full.md").exists()]
         state["extracted_contents_dirs"] = extracted_dirs
         logger.info(f"mineru_toc 已存在，跳过解析，共 {len(extracted_dirs)} 个目录")
         if task_id:
@@ -226,8 +216,9 @@ def split_contents(state: TextBookState):
         update_task(task_id=task_id, message=f"目录解析完成，共 {len(extracted_dirs)} 本教材", progress=0.4)
     return state
 
+
 # 单元测试
-if __name__ == '__main__':
+if __name__ == "__main__":
     state: TextBookState = {
         "textbook_exists": False,
         "textbook_path": "D:/PycharmProjects/grad_assist/textbooks/pdf/pdf_toc",

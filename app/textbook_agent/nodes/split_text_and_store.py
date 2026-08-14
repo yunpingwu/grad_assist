@@ -6,14 +6,14 @@ from pathlib import Path
 from app.clients import milvus_client
 from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
-from app.utils import generate_embeddings
 from app.utils import (
+    generate_embeddings,
     get_collection_by_name,
     next_collection_name,
     register_textbook,
+    update_task,
+    upload_and_map,
 )
-from app.utils import upload_and_map
-from app.utils import update_task
 
 # 最小块字符数
 MIN_CHUNK_SIZE = 500
@@ -25,11 +25,11 @@ OVERLAP = 200
 MERGE_TARGET = 1500
 
 # 匹配 Markdown 图片语法: ![alt](images/xxx.jpg),捕获 (alt, 相对路径)
-_IMAGE_PATTERN = re.compile(r'!\[(.*?)\]\((images/.*?)\)')
+_IMAGE_PATTERN = re.compile(r"!\[(.*?)\]\((images/.*?)\)")
 # 匹配围栏代码块: ```lang\n...\n```
-_CODE_PATTERN = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+_CODE_PATTERN = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
 # 按 ## 小节标题分割
-_SECTION_SPLIT = re.compile(r'(?=^## )', re.MULTILINE)
+_SECTION_SPLIT = re.compile(r"(?=^## )", re.MULTILINE)
 
 
 def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
@@ -42,10 +42,7 @@ def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
     - 代码块从正文删除,但副本中紧随其后的「> 代码说明: …」行不在代码块内,
       会自然保留在清理后的正文里,供语义类问题感知代码存在。
     """
-    images = [
-        {"path": m.group(2), "description": m.group(1).strip()}
-        for m in _IMAGE_PATTERN.finditer(text)
-    ]
+    images = [{"path": m.group(2), "description": m.group(1).strip()} for m in _IMAGE_PATTERN.finditer(text)]
 
     def _replace_image(m: re.Match) -> str:
         alt = m.group(1).strip()
@@ -53,9 +50,8 @@ def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
 
     text = _IMAGE_PATTERN.sub(_replace_image, text)
 
-    codes = [{"language": m.group(1) or "text", "code": m.group(2).strip()}
-             for m in _CODE_PATTERN.finditer(text)]
-    text = _CODE_PATTERN.sub('', text)
+    codes = [{"language": m.group(1) or "text", "code": m.group(2).strip()} for m in _CODE_PATTERN.finditer(text)]
+    text = _CODE_PATTERN.sub("", text)
 
     return text.strip(), images, codes
 
@@ -65,14 +61,14 @@ def _char_split(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP)
     chunks = []
     start = 0
     while start < len(text):
-        chunks.append(text[start:start + chunk_size])
+        chunks.append(text[start : start + chunk_size])
         start += chunk_size - overlap
     return chunks
 
 
 def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
     """合并同一 section 内过小的 chunk（< 500 字符）。
-    
+
     合并后若仍 < 1500 字符，继续向后贪心合并，避免碎片浪费。
     """
     if not chunks:
@@ -103,9 +99,11 @@ def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
         i = 0
         while i < len(group):
             cur = group[i]
-            if (i + 1 < len(group)
-                    and len(cur["content"]) < MIN_CHUNK_SIZE
-                    and len(cur["content"]) + len(group[i + 1]["content"]) <= CHUNK_SIZE):
+            if (
+                i + 1 < len(group)
+                and len(cur["content"]) < MIN_CHUNK_SIZE
+                and len(cur["content"]) + len(group[i + 1]["content"]) <= CHUNK_SIZE
+            ):
                 # 合并到 group[i]，删除 group[i+1]
                 group[i] = _combine(cur, group[i + 1])
                 del group[i + 1]
@@ -135,6 +133,7 @@ def _renumber_chunks(chunks: list[dict]) -> None:
 
 
 # ==================== 文本切割 ====================
+
 
 def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
     """对一本教材的所有章节做文本切割。
@@ -187,7 +186,7 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
                 continue
 
             # 提取 ## 标题
-            header_match = re.match(r'^## (.+)', sec)
+            header_match = re.match(r"^## (.+)", sec)
             if header_match:
                 current_section_title = header_match.group(1).strip()
 
@@ -242,6 +241,7 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
 # 每批 embedding 的最大文本数，避免 OOM
 _EMBED_BATCH_SIZE = 64
 
+
 def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
     """将切割好的 chunks 向量化后存入 Milvus。
 
@@ -287,34 +287,38 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
             for img in c.get("images", [])
             if img.get("url")
         ]
-        entries.append({
-            "text": c["content"],
-            "block_type": "text",
-            "textbook_name": c["textbook_name"],
-            "chapter": c["chapter"],
-            "section": c["section"],
-            "chunk_index": c["chunk_index"],
-            "total_chunks": c["total_chunks"],
-            "metadata_json": json.dumps({"images": images_meta}, ensure_ascii=False),
-        })
-        # 代码块:保留独立记录,metadata 清空(language 零消费,围栏内已携带)
-        for code in c.get("codes", []):
-            code_text = f"```{code['language']}\n{code['code']}\n```"
-            entries.append({
-                "text": code_text,
-                "block_type": "code",
+        entries.append(
+            {
+                "text": c["content"],
+                "block_type": "text",
                 "textbook_name": c["textbook_name"],
                 "chapter": c["chapter"],
                 "section": c["section"],
                 "chunk_index": c["chunk_index"],
                 "total_chunks": c["total_chunks"],
-                "metadata_json": "{}",
-            })
+                "metadata_json": json.dumps({"images": images_meta}, ensure_ascii=False),
+            }
+        )
+        # 代码块:保留独立记录,metadata 清空(language 零消费,围栏内已携带)
+        for code in c.get("codes", []):
+            code_text = f"```{code['language']}\n{code['code']}\n```"
+            entries.append(
+                {
+                    "text": code_text,
+                    "block_type": "code",
+                    "textbook_name": c["textbook_name"],
+                    "chapter": c["chapter"],
+                    "section": c["section"],
+                    "chunk_index": c["chunk_index"],
+                    "total_chunks": c["total_chunks"],
+                    "metadata_json": "{}",
+                }
+            )
 
     # 分批生成 embedding
     total_inserted = 0
     for batch_start in range(0, len(entries), _EMBED_BATCH_SIZE):
-        batch_entries = entries[batch_start:batch_start + _EMBED_BATCH_SIZE]
+        batch_entries = entries[batch_start : batch_start + _EMBED_BATCH_SIZE]
         texts = [e["text"] for e in batch_entries]
 
         emb = generate_embeddings(texts)
@@ -325,19 +329,21 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
         rows: list[dict] = []
         for i, entry in enumerate(batch_entries):
             chunk_id = f"{textbook_name}_{batch_start + i}_{uuid.uuid4().hex[:8]}"
-            rows.append({
-                "id": chunk_id,
-                "text": entry["text"],
-                "embedding": dense_vecs[i],
-                "sparse_embedding": sparse_vecs[i] if i < len(sparse_vecs) else {},
-                "block_type": entry["block_type"],
-                "textbook_name": entry["textbook_name"],
-                "chapter": entry["chapter"],
-                "section": entry["section"],
-                "chunk_index": entry["chunk_index"],
-                "total_chunks": entry["total_chunks"],
-                "metadata_json": entry["metadata_json"],
-            })
+            rows.append(
+                {
+                    "id": chunk_id,
+                    "text": entry["text"],
+                    "embedding": dense_vecs[i],
+                    "sparse_embedding": sparse_vecs[i] if i < len(sparse_vecs) else {},
+                    "block_type": entry["block_type"],
+                    "textbook_name": entry["textbook_name"],
+                    "chapter": entry["chapter"],
+                    "section": entry["section"],
+                    "chunk_index": entry["chunk_index"],
+                    "total_chunks": entry["total_chunks"],
+                    "metadata_json": entry["metadata_json"],
+                }
+            )
 
         inserted = milvus_client.batch_insert(collection_name, rows)
         total_inserted += inserted
@@ -349,6 +355,7 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
 
 
 # ==================== 主节点 ====================
+
 
 @log_node
 def split_text_and_store(state: TextBookState) -> dict:
@@ -409,15 +416,17 @@ def split_text_and_store(state: TextBookState) -> dict:
 
 
 # ==================== 单元测试 ====================
-if __name__ == '__main__':
+if __name__ == "__main__":
     textbook_path = Path("D:/Projects/grad_assist/textbooks/pdf")
     split_dirs = list((textbook_path / "mineru_split").iterdir())
+
+    # 仅测试 C 语言教材
+    chapter_dir = textbook_path / "mineru_split" / "C语言程序设计（第五版）_(谭浩强)_(z-library.sk,_1lib.sk,_z-lib.sk)"
 
     state: TextBookState = {
         "textbook_exists": False,
         "textbook_path": str(textbook_path),
-        # 仅测试 C 语言教材
-        "extracted_dirs": [str(d) for d in (textbook_path / "mineru_split" / "C语言程序设计（第五版）_(谭浩强)_(z-library.sk,_1lib.sk,_z-lib.sk)").iterdir() if d.is_dir()],
+        "extracted_dirs": [str(d) for d in chapter_dir.iterdir() if d.is_dir()],
     }
 
     split_text_and_store(state)

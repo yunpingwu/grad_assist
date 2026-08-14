@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from pymongo.errors import PyMongoError
 
 from app.clients import mongo_client
-from app.config.mongo_config import mongo_config
+from app.config import mongo_config
 from app.core import logger
 
 # 中国时区（UTC+8）：消息时间戳按本地时间存储与展示
@@ -55,9 +55,7 @@ def load_chat_history(session_id: str, limit: int = MAX_HISTORY_TURNS) -> str:
     if not session_id:
         return ""
     try:
-        doc = mongo_client.get_collection(mongo_config.chat_collection).find_one(
-            {"_id": session_id}
-        )
+        doc = mongo_client.get_collection(mongo_config.chat_collection).find_one({"_id": session_id})
     except PyMongoError as exc:
         logger.warning(f"读取会话历史失败(session_id={session_id}): {exc}")
         return ""
@@ -107,10 +105,12 @@ def append_turn(
             {"_id": session_id},
             {
                 "$push": {
-                    "messages": {"$each": [
-                        {"role": "user", "content": user_msg, "created_at": now},
-                        assistant_doc,
-                    ]}
+                    "messages": {
+                        "$each": [
+                            {"role": "user", "content": user_msg, "created_at": now},
+                            assistant_doc,
+                        ]
+                    }
                 },
                 "$set": {"updated_at": now},
                 "$setOnInsert": {
@@ -142,12 +142,14 @@ def list_sessions(textbook_name: str, limit: int = MAX_SESSIONS) -> list[dict]:
             {"$match": {"textbook_name": textbook_name}},
             {"$sort": {"updated_at": -1}},
             {"$limit": limit},
-            {"$project": {
-                "updated_at": 1,
-                "message_count": {"$size": "$messages"},
-                # 倒数第二条 = 用户提问（消息成对追加 [user, assistant]）
-                "last_message": {"$arrayElemAt": ["$messages", -2]},
-            }},
+            {
+                "$project": {
+                    "updated_at": 1,
+                    "message_count": {"$size": "$messages"},
+                    # 倒数第二条 = 用户提问（消息成对追加 [user, assistant]）
+                    "last_message": {"$arrayElemAt": ["$messages", -2]},
+                }
+            },
         ]
         sessions = []
         for d in mongo_client.get_collection(mongo_config.chat_collection).aggregate(pipeline):
@@ -158,12 +160,14 @@ def list_sessions(textbook_name: str, limit: int = MAX_SESSIONS) -> list[dict]:
             updated_at = d.get("updated_at")
             if isinstance(updated_at, datetime):
                 updated_at = updated_at.replace(tzinfo=CHINA_TZ).isoformat()
-            sessions.append({
-                "session_id": d["_id"],
-                "updated_at": updated_at,
-                "message_count": d.get("message_count", 0),
-                "preview": f"{role}: {preview}",
-            })
+            sessions.append(
+                {
+                    "session_id": d["_id"],
+                    "updated_at": updated_at,
+                    "message_count": d.get("message_count", 0),
+                    "preview": f"{role}: {preview}",
+                }
+            )
         return sessions
     except PyMongoError as exc:
         logger.warning(f"读取会话列表失败(textbook_name={textbook_name}): {exc}")
@@ -185,16 +189,14 @@ def get_session_messages(session_id: str, max_turns: int = MAX_HISTORY_TURNS_LIM
     if not session_id:
         return []
     try:
-        doc = mongo_client.get_collection(mongo_config.chat_collection).find_one(
-            {"_id": session_id}
-        )
+        doc = mongo_client.get_collection(mongo_config.chat_collection).find_one({"_id": session_id})
     except PyMongoError as exc:
         logger.warning(f"读取会话历史失败(session_id={session_id}): {exc}")
         return []
     if not doc:
         return []
     messages = doc.get("messages", [])
-    return messages[-(max_turns * 2):]
+    return messages[-(max_turns * 2) :]
 
 
 def delete_session(session_id: str) -> bool:
@@ -210,9 +212,7 @@ def delete_session(session_id: str) -> bool:
     if not session_id:
         return False
     try:
-        result = mongo_client.get_collection(mongo_config.chat_collection).delete_one(
-            {"_id": session_id}
-        )
+        result = mongo_client.get_collection(mongo_config.chat_collection).delete_one({"_id": session_id})
         return result.deleted_count > 0
     except PyMongoError as exc:
         logger.warning(f"删除会话失败(session_id={session_id}): {exc}")

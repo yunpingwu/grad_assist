@@ -15,7 +15,7 @@ from pymilvus import (
 )
 from pymilvus.milvus_client.index import IndexParams
 
-from app.config.milvus_config import milvus_config
+from app.config import milvus_config
 from app.core import logger
 
 EMBEDDING_DIM = 1024
@@ -35,6 +35,7 @@ def get_client() -> MilvusClient:
 
 # ── 连接管理 ──────────────────────────────────────────────
 
+
 def connect_milvus() -> None:
     """连接 Milvus（幂等，重复调用复用单例）。"""
     get_client()
@@ -50,6 +51,7 @@ def disconnect_milvus() -> None:
 
 
 # ── 数据集合管理 ──────────────────────────────────────────────
+
 
 def collection_exists(collection_name: str) -> bool:
     return get_client().has_collection(collection_name)
