@@ -19,6 +19,7 @@ mineru_config = settings.mineru
 minio_config = settings.minio
 mongo_config = settings.mongo
 web_search_config = settings.web_search
+rerank_config = settings.rerank
 
 __all__ = [
     "Settings",
@@ -30,4 +31,5 @@ __all__ = [
     "minio_config",
     "mongo_config",
     "web_search_config",
+    "rerank_config",
 ]

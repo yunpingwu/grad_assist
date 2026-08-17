@@ -65,17 +65,22 @@ async def rewrite_query(state: QueryState, *, writer: StreamWriter) -> dict:
 
     rewritten_query = await rewrite(original_query, textbook_name, questions_history)
     logger.info(f"重写问题：{original_query} → {rewritten_query}")
-    state["rewritten_query"] = rewritten_query
 
     return {"rewritten_query": rewritten_query}
 
 
-# 单元测试
+# 冒烟测试：桩掉 LLM 重写，验证历史拼装与 rewritten_query 写回
 if __name__ == "__main__":
     import asyncio
 
+    async def _fake_rewrite(original_query: str, textbook_name: str, questions_history: str) -> str:
+        assert "什么是指针?" in questions_history, f"多轮历史未拼进重写输入: {questions_history!r}"
+        return f"{original_query}（针对教材 {textbook_name} 重写）"
+
+    rewrite = _fake_rewrite  # 覆盖真实 LLM 调用
+
     def writer(chunk):
-        pass
+        print(f"  [writer] {chunk}")
 
     test_state: QueryState = {
         "session_id": "test",
@@ -86,4 +91,8 @@ if __name__ == "__main__":
             AIMessage(content="指针是一种…"),  # 第1轮 答
         ],
     }
-    assert asyncio.run(rewrite_query(test_state, writer=writer)) != {}
+    result = asyncio.run(rewrite_query(test_state, writer=writer))
+    rewritten = result["rewritten_query"]
+    assert rewritten and "如何使用它?" in rewritten, f"rewritten_query 不正确: {rewritten!r}"
+    print(f"重写问题: {rewritten}")
+    print("rewrite_query 测试通过")

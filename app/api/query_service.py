@@ -20,7 +20,7 @@ class ChatRequest(BaseModel):
     textbook_name: str = Field(..., description="教材名")
     query: str = Field(..., min_length=1, description="用户问题")
     session_id: str | None = Field(default=None, description="会话 ID，缺省时后端生成")
-    is_web_search: bool = Field(default=True, description="是否启用联网搜索（前端按钮控制）")
+    is_web_search: bool = Field(default=False, description="是否启用联网搜索（前端按钮控制）")
 
 
 # 模块级编译一次。

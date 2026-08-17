@@ -34,7 +34,7 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str) -> list[d
     reqs = create_hybrid_search_requests(
         dense_vector=dense_vec,  # 取用户问题的稠密向量（单条，故取索引0）
         sparse_vector=sparse_vec,  # 取用户问题的稀疏向量（单条，故取索引0）
-        limit=10,  # 底层检索返回数量（后续会再过滤为5，预留更多结果做重排序）
+        limit=10,  # 底层检索返回数量
     )
     # 执行混合搜索
     client = get_client()
@@ -43,7 +43,7 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str) -> list[d
     res = client.hybrid_search(
         collection_name=collection_name,  # 检索的目标集合名（文本片段向量集合）
         reqs=reqs,  # 构造好的混合搜索请求对象（稠密+稀疏）
-        ranker=WeightedRanker(0.8, 0.2),  # 稠/稀疏向量评分权重配比（pymilvus 3.0 用位置参数，可按业务调优）
+        ranker=WeightedRanker(0.8, 0.2),  # 稠/稀疏向量评分权重配比（pymilvus 3.0 用位置参数）
         limit=5,  # 最终返回的TOP5相似度最高结果
         output_fields=["text", "chapter", "section", "metadata_json"],  # 指定返回的业务字段
     )
@@ -57,20 +57,33 @@ async def embedding_search(state: QueryState, *, writer: StreamWriter) -> dict:
     writer({"type": "stage", "stage": "search", "message": "正在检索教材内容…"})
     textbook_name = state.get("textbook_name")
     rewritten_query = state.get("rewritten_query")
+    # 向量检索
     result = await rewrite_query_search(textbook_name, rewritten_query)
-    # 只返回本节点写入的字段（避免并行分支携带整个 state 导致 key 冲突）
     return {"embedding_chunks": result}
 
 
-# 单元测试
+# 冒烟测试：桩掉真实检索（依赖 Milvus + embedding 模型），只验证节点编排
 if __name__ == "__main__":
     import asyncio
+
+    async def _fake_search(textbook_name: str, rewrite_query: str) -> list[dict]:
+        return [
+            {"id": "c1", "distance": 0.8, "entity": {"text": "指针是C语言的核心概念。"}},
+            {"id": "c2", "distance": 0.7, "entity": {"text": "数组是相同类型元素的集合。"}},
+        ]
+
+    rewrite_query_search = _fake_search  # 覆盖真实检索，避免依赖外部服务
+
+    def writer(chunk):
+        print(f"  [writer] {chunk}")
 
     state: QueryState = {
         "session_id": "test",
         "textbook_name": "C语言程序设计",
         "original_query": "C语言如何使用指针?",
         "rewritten_query": "C语言如何使用指针?",
-        "chat_history": "",
     }
-    asyncio.run(embedding_search(state))
+    result = asyncio.run(embedding_search(state, writer=writer))
+    chunks = result["embedding_chunks"]
+    assert len(chunks) == 2 and chunks[0]["id"] == "c1", f"embedding_chunks 不正确: {chunks}"
+    print(f"embedding_search 测试通过，召回 {len(chunks)} 条")

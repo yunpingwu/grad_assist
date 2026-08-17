@@ -66,7 +66,7 @@ async def merge_recalls(state: QueryState, *, writer: StreamWriter) -> dict:
     return {"merged_chunks": merged_hits}
 
 
-# 单元测试
+# 冒烟测试：rrf_merge 为纯函数，桩掉 writer 即可确定性验证
 if __name__ == "__main__":
     import asyncio
 
@@ -92,11 +92,16 @@ if __name__ == "__main__":
         "embedding_chunks": emb,
         "hyde_embedding_chunks": hyd,
     }
-    result = asyncio.run(merge_recalls(test_state))
+
+    def writer(chunk):
+        pass
+
+    result = asyncio.run(merge_recalls(test_state, writer=writer))
     merged = result["merged_chunks"]
     assert len(merged) == 4, f"两路共 5 条召回、doc_b 重复，去重应为 4 条，实际 {len(merged)}"
     ids = [h["id"] for h in merged]
     assert ids[0] == "doc_b", "doc_b 被两路召回，RRF 分数叠加应排第一"
     assert set(ids) == {"doc_a", "doc_b", "doc_c", "doc_d"}, f"id 集不正确: {ids}"
+    assert merged[0]["distance"] == 0.7, "应保留原 hit 的 distance（供 rerank 使用）"
     print(f"融合顺序: {ids}")
     print("merge_recalls 测试通过")

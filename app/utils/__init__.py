@@ -15,6 +15,7 @@ from app.utils.milvus_util import (
     register_textbook,
 )
 from app.utils.minio_util import upload_and_map
+from app.utils.reranker_util import compute_rerank_scores
 from app.utils.task_util import (
     STATUS_FAILED,
     STATUS_RUNNING,
@@ -27,6 +28,7 @@ from app.utils.task_util import (
 
 __all__ = [
     "generate_embeddings",
+    "compute_rerank_scores",
     "append_turn",
     "get_session_messages",
     "list_sessions",

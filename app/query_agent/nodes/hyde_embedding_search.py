@@ -86,22 +86,39 @@ async def hyde_embedding_search(state: QueryState, *, writer: StreamWriter) -> d
     writer({"type": "stage", "stage": "search", "message": "正在检索教材内容…"})
     rewritten_query = state.get("rewritten_query")
     textbook_name = state.get("textbook_name")
+    # 假设性文档生成
     hyde_doc = await hyde_doc_generate(rewritten_query)
-
+    # 向量检索
     hyde_embedding_chunks = await hyde_doc_search(hyde_doc, rewritten_query, textbook_name)
-    # 只返回本节点写入的字段（避免并行分支携带整个 state 导致 key 冲突）
+
     return {"hyde_embedding_chunks": hyde_embedding_chunks}
 
 
-# 单元测试
+# 冒烟测试：桩掉 LLM 与检索（依赖真实模型/Milvus），只验证节点编排
 if __name__ == "__main__":
     import asyncio
+
+    async def _fake_generate(rewritten_query: str) -> str:
+        return f"假设性文档: {rewritten_query}"
+
+    async def _fake_search(hyde_doc: str, rewritten_query: str, textbook_name: str) -> list[dict]:
+        return [
+            {"id": "h1", "distance": 0.6, "entity": {"text": hyde_doc}},
+        ]
+
+    hyde_doc_generate = _fake_generate  # 覆盖真实 LLM 生成
+    hyde_doc_search = _fake_search  # 覆盖真实向量检索
+
+    def writer(chunk):
+        print(f"  [writer] {chunk}")
 
     state: QueryState = {
         "session_id": "test",
         "textbook_name": "C语言程序设计",
         "original_query": "C语言如何使用指针?",
         "rewritten_query": "C语言如何使用指针?",
-        "chat_history": "",
     }
-    asyncio.run(hyde_embedding_search(state))
+    result = asyncio.run(hyde_embedding_search(state, writer=writer))
+    chunks = result["hyde_embedding_chunks"]
+    assert len(chunks) == 1 and chunks[0]["id"] == "h1", f"hyde_embedding_chunks 不正确: {chunks}"
+    print(f"hyde_embedding_search 测试通过，HyDE 召回 {len(chunks)} 条")

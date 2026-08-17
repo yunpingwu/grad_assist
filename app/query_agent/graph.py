@@ -6,6 +6,7 @@ from app.query_agent.nodes import (
     generate_answer,
     hyde_embedding_search,
     merge_recalls,
+    rerank,
     rewrite_query,
     web_search,
 )
@@ -13,14 +14,14 @@ from app.query_agent.state import QueryState
 
 
 def _route_after_merge(state: QueryState) -> str:
-    """融合后路由：启用联网搜索时先走 web_search，否则直接生成。"""
+    """融合精排后路由：启用联网搜索时先走 web_search，否则直接生成。"""
     return "web_search" if state.get("is_web_search") else "generate_answer"
 
 
 def build_graph(checkpointer=None) -> StateGraph:
     """构建教材问答流水线 Graph。
 
-    流程: rewrite_query → (embedding_search ∥ hyde_embedding_search) → merge_recalls → generate_answer
+    流程: rewrite_query → (embedding_search ∥ hyde_embedding_search) → merge_recalls → rerank → generate_answer
     """
     builder = StateGraph(QueryState)
 
@@ -28,6 +29,7 @@ def build_graph(checkpointer=None) -> StateGraph:
     builder.add_node("embedding_search", embedding_search)
     builder.add_node("hyde_embedding_search", hyde_embedding_search)
     builder.add_node("merge_recalls", merge_recalls)
+    builder.add_node("rerank", rerank)
     builder.add_node("web_search", web_search)
     builder.add_node("generate_answer", generate_answer)
 
@@ -39,9 +41,11 @@ def build_graph(checkpointer=None) -> StateGraph:
     # 两路召回汇合后做 RRF 融合
     builder.add_edge("embedding_search", "merge_recalls")
     builder.add_edge("hyde_embedding_search", "merge_recalls")
-    # 融合后按是否启用联网搜索分支：开 → 联网搜索 → 生成；关 → 直接生成
+    # 融合后做 rerank 精排（TOP-K）
+    builder.add_edge("merge_recalls", "rerank")
+    # 精排后按是否启用联网搜索分支：开 → 联网搜索 → 生成；关 → 直接生成
     builder.add_conditional_edges(
-        "merge_recalls",
+        "rerank",
         _route_after_merge,
         {"web_search": "web_search", "generate_answer": "generate_answer"},
     )
@@ -59,7 +63,7 @@ if __name__ == "__main__":
         "session_id": "test",
         "textbook_name": "C语言程序设计",
         "original_query": "C语言如何使用指针?",
-        "chat_history": "",
+        "messages": [],
     }
 
     graph = build_graph()

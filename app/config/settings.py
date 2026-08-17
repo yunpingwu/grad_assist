@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 全项目仅此一处加载 .env；子 Settings 类从 os.environ 读取，不再各自 load_dotenv()
+# 全项目仅此一处加载 .env；子 Settings 类从 os.environ 读取
 load_dotenv()
 
 
@@ -109,6 +109,22 @@ class WebSearchSettings(BaseSettings):
     search_count: int = Field(default=3, validation_alias="WEB_SEARCH_COUNT")
 
 
+class RerankSettings(BaseSettings):
+    """重排序（Rerank）模型配置（FlagEmbedding BGE-Reranker）。
+
+    与 embedding 同源：优先加载本地模型路径，缺省回退 HuggingFace ID。
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    # 本地模型路径（优先使用），缺省为空字符串
+    model_path: str = Field(default="", validation_alias="RERANKER_MODEL_PATH")
+    # HuggingFace ID（本地路径不存在时使用）
+    model_name: str = Field(default="BAAI/bge-reranker-large", validation_alias="RERANKER_MODEL")
+    device: str = Field(default="cpu", validation_alias="RERANKER_DEVICE")
+    top_k: int = Field(default=5, validation_alias="RERANKER_TOP_K")
+
+
 class Settings(BaseModel):
     """顶层配置聚合，实例化一次后按域访问。
 
@@ -120,6 +136,7 @@ class Settings(BaseModel):
         minio: MinIO 配置。
         mongo: MongoDB 配置。
         web_search: 联网搜索配置。
+        rerank: 重排序模型配置。
     """
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -129,6 +146,7 @@ class Settings(BaseModel):
     minio: MinioSettings = Field(default_factory=MinioSettings)
     mongo: MongoSettings = Field(default_factory=MongoSettings)
     web_search: WebSearchSettings = Field(default_factory=WebSearchSettings)
+    rerank: RerankSettings = Field(default_factory=RerankSettings)
 
 
 # 单元测试
@@ -142,3 +160,4 @@ if __name__ == "__main__":
     print("embedding.dim:", s.embedding.dim, "device:", s.embedding.device)
     print("mongo.db:", s.mongo.db)
     print("web_search.search_count:", s.web_search.search_count)
+    print("device:", s.rerank.device, "top_k:", s.rerank.top_k)

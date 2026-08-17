@@ -59,3 +59,36 @@ async def web_search(state: QueryState, *, writer: StreamWriter) -> dict:
     web_chunks = await _search_web(query)
     logger.info(f"联网搜索 {query!r} → {len(web_chunks)} 条结果")
     return {"web_chunks": web_chunks}
+
+
+# 冒烟测试：桩掉 MCP 联网搜索，验证查询选择与 web_chunks 写回
+if __name__ == "__main__":
+    import asyncio
+
+    async def _fake_search(query: str, count: int | None = None) -> list[dict]:
+        return [
+            {"title": "示例结果", "url": "https://example.com", "content": f"关于 {query} 的内容"},
+        ]
+
+    _search_web = _fake_search  # 覆盖真实 MCP 调用
+
+    def writer(chunk):
+        print(f"  [writer] {chunk}")
+
+    async def _run() -> tuple[list[dict], list[dict]]:
+        # 1) rewritten_query 优先
+        r1 = await web_search(
+            {"session_id": "test", "original_query": "原始问题", "rewritten_query": "重写后的问题"},
+            writer=writer,
+        )
+        assert r1["web_chunks"][0]["content"].startswith("关于 重写后的问题"), r1
+        # 2) 无 rewritten_query 时回退 original_query
+        r2 = await web_search(
+            {"session_id": "test", "original_query": "只有原始问题"},
+            writer=writer,
+        )
+        assert r2["web_chunks"][0]["content"].startswith("关于 只有原始问题"), r2
+        return r1["web_chunks"], r2["web_chunks"]
+
+    w1, w2 = asyncio.run(_run())
+    print(f"web_search 测试通过：rewritten 优先 {len(w1)} 条，original 回退 {len(w2)} 条")
