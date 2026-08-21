@@ -14,14 +14,12 @@ class TextBookState(TypedDict):
     # ===== 入口路由 =====
     # 是否已有教材在向量库中，由上层编排决定走摄入流程还是检索流程
     textbook_exists: bool
+    # 匿名设备身份（前端 X-User-Id 请求头传入），用于多用户任务隔离
+    user_id: NotRequired[str]
     # 教材文件路径（本地路径或 URL）
     textbook_path: NotRequired[str]
     # 教材名称（摄入目录标识，检索时按此过滤）
     textbook_name: NotRequired[str]
-
-    # ===== 任务追踪 =====
-    # 任务 ID（由上层编排创建，节点内通过 task_util.update_task 上报进度，供 SSE 推送）
-    task_id: NotRequired[str]
 
     # ===== 摄入中间产物 =====
     # 章节分割后的子 PDF 路径列表

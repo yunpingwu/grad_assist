@@ -16,15 +16,6 @@ from app.utils.milvus_util import (
 )
 from app.utils.minio_util import upload_and_map
 from app.utils.reranker_util import compute_rerank_scores
-from app.utils.task_util import (
-    STATUS_FAILED,
-    STATUS_RUNNING,
-    STATUS_SUCCEEDED,
-    create_task,
-    get_task,
-    subscribe,
-    update_task,
-)
 
 __all__ = [
     "generate_embeddings",
@@ -39,11 +30,4 @@ __all__ = [
     "next_collection_name",
     "register_textbook",
     "upload_and_map",
-    "STATUS_FAILED",
-    "STATUS_RUNNING",
-    "STATUS_SUCCEEDED",
-    "create_task",
-    "get_task",
-    "subscribe",
-    "update_task",
 ]

@@ -41,8 +41,7 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
 
     # 交叉编码打分（sigmoid 归一化，越大越相关；模型单例封装在 util 公共 API 内）
     scores = compute_rerank_scores(query, texts)
-    logger.info(f"Rerank 完成：{len(chunks)} 条候选 → TOP{top_k}，分数范围 "
-                f"{min(scores):.3f} ~ {max(scores):.3f}")
+    logger.info(f"Rerank 完成：{len(chunks)} 条候选 → TOP{top_k}，分数范围 {min(scores):.3f} ~ {max(scores):.3f}")
 
     # 把分数挂到对应 hit 上 → 降序排序 → 截取 TOP-K
     ranked = []

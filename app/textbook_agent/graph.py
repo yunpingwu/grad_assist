@@ -12,7 +12,7 @@ from app.textbook_agent.nodes import (
 from app.textbook_agent.state import TextBookState
 
 
-def build_graph() -> StateGraph:
+def build_graph(checkpointer=None) -> StateGraph:
     """构建教材处理流水线 Graph。
 
     流程: load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store
@@ -34,7 +34,7 @@ def build_graph() -> StateGraph:
     builder.add_edge("enrich_md", "split_text_and_store")
     builder.add_edge("split_text_and_store", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
 
 
 # 单元测试

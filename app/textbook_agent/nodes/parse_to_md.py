@@ -1,13 +1,14 @@
 import shutil
 from pathlib import Path
 
+from langgraph.types import StreamWriter
+
 from app.core import log_node, logger
 from app.textbook_agent.nodes.split_contents import (
     mineru_download_and_extract,
     mineru_upload_and_poll,
 )
 from app.textbook_agent.state import TextBookState
-from app.utils import update_task
 
 
 def collect_chapter_pdfs(sub_pdf_paths: list[str]) -> dict[str, list[Path]]:
@@ -29,30 +30,28 @@ def collect_chapter_pdfs(sub_pdf_paths: list[str]) -> dict[str, list[Path]]:
     return grouped
 
 
-def mineru_parse_chapters(textbook_path: Path, grouped: dict[str, list[Path]]) -> list[str]:
+async def mineru_parse_chapters(textbook_path: Path, grouped: dict[str, list[Path]]) -> list[str]:
     """按教材分组上传章节 PDF 到 MinerU，解压到 mineru_split/{教材名}/ 下"""
     all_dirs: list[str] = []
 
     for textbook_name, pdfs in grouped.items():
         output_dir = textbook_path / "mineru_split" / textbook_name
-        full_zip_urls = mineru_upload_and_poll(pdfs, output_dir)
+        full_zip_urls = await mineru_upload_and_poll(pdfs, output_dir)
         names = [pdf.stem for pdf in pdfs]
-        dirs = mineru_download_and_extract(full_zip_urls, output_dir, names=names)
+        dirs = await mineru_download_and_extract(full_zip_urls, output_dir, names=names)
         all_dirs.extend(dirs)
 
     return all_dirs
 
 
 @log_node
-def parse_to_md(state: TextBookState):
+async def parse_to_md(state: TextBookState, *, writer: StreamWriter) -> dict:
     """将分割后的各章节 PDF 用 MinerU 解析为 Markdown"""
 
     textbook_path = Path(state.get("textbook_path"))
     output_dir = textbook_path / "mineru_split"
 
-    task_id = state.get("task_id")
-    if task_id:
-        update_task(task_id=task_id, message="开始解析章节 Markdown（MinerU）", progress=0.55)
+    writer({"type": "message", "status": "running", "message": "开始解析章节 Markdown（MinerU）", "progress": 0.55})
 
     # 幂等：如果 mineru_split 已有解析结果，直接复用
     if output_dir.exists() and any(
@@ -70,8 +69,7 @@ def parse_to_md(state: TextBookState):
                     extracted_dirs.append(str(chapter_dir))
         state["extracted_dirs"] = extracted_dirs
         logger.info(f"mineru_split 已存在，跳过解析，共 {len(extracted_dirs)} 个章节目录")
-        if task_id:
-            update_task(task_id=task_id, message="章节解析结果已存在，直接复用", progress=0.8)
+        writer({"type": "message", "status": "running", "message": "章节解析结果已存在，直接复用", "progress": 0.8})
         return state
 
     sub_pdf_paths = state.get("sub_pdf_paths", [])
@@ -80,10 +78,16 @@ def parse_to_md(state: TextBookState):
     grouped = collect_chapter_pdfs(sub_pdf_paths)
 
     # 分组解析
-    extracted_dirs = mineru_parse_chapters(textbook_path, grouped)
+    extracted_dirs = await mineru_parse_chapters(textbook_path, grouped)
     state["extracted_dirs"] = extracted_dirs
-    if task_id:
-        update_task(task_id=task_id, message=f"章节解析完成，共 {len(extracted_dirs)} 个章节", progress=0.8)
+    writer(
+        {
+            "type": "message",
+            "status": "running",
+            "message": f"章节解析完成，共 {len(extracted_dirs)} 个章节",
+            "progress": 0.8,
+        }
+    )
 
     # 清理临时目录页切割产物
     toc_dir = textbook_path / "pdf_toc"
@@ -96,6 +100,11 @@ def parse_to_md(state: TextBookState):
 
 # 单元测试
 if __name__ == "__main__":
+    import asyncio
+
+    def writer(chunk):
+        print("event:", chunk)
+
     textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
     sub_pdf_dirs = list((textbook_path / "pdf_split").iterdir())
 
@@ -105,4 +114,4 @@ if __name__ == "__main__":
         "sub_pdf_paths": [str(d) for d in sub_pdf_dirs if d.is_dir()],
     }
 
-    parse_to_md(state)
+    asyncio.run(parse_to_md(state, writer=writer))

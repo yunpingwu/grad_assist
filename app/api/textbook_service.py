@@ -1,28 +1,19 @@
 import json
-import threading
 import uuid
-from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from starlette.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from langgraph.checkpoint.mongodb import MongoDBSaver
 from starlette.responses import JSONResponse, StreamingResponse
 
-from app.api.query_service import router as query_router
+from app.api.deps import get_user_id
+from app.clients import mongo_client
+from app.config import mongo_config
 from app.core import logger
 from app.textbook_agent.graph import build_graph
 from app.textbook_agent.state import TextBookState
-from app.utils import (
-    STATUS_FAILED,
-    STATUS_RUNNING,
-    STATUS_SUCCEEDED,
-    create_task,
-    get_task,
-    list_textbooks,
-    subscribe,
-    update_task,
-)
+from app.utils import list_textbooks
 
 # 教材根目录（本文件位于 app/api/ 下，项目根为 parents[2]）。
 # 每次上传在根目录下新建独立子目录（pdf-{特征值}），与测试数据 textbooks/pdf 隔离。
@@ -41,66 +32,21 @@ def _new_textbook_dir() -> Path:
     return textbook_dir
 
 
-# 创建 FastAPI 实例
+# 教材路由
+router = APIRouter(tags=["textbook"])
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """应用生命周期：退出时优雅释放外部连接（均幂等，未初始化时 no-op）。"""
-    yield
-    from app.clients import milvus_client, minio_client, mongo_client
-
-    milvus_client.disconnect_milvus()
-    minio_client.disconnect_minio()
-    mongo_client.disconnect_mongo()
-
-
-app = FastAPI(
-    title="Textbook Agent",
-    description="一个将教材向量化后存储入向量数据库的langgraph流程",
-    version="0.1.0",
-    lifespan=lifespan,
+# 教材摄入图：独立 checkpointer collection，避免与 query 图的 thread_id 冲突；
+# thread_id = user_id:task_id，多用户任务天然隔离。
+checkpointer = MongoDBSaver(
+    mongo_client.get_client(),
+    mongo_config.db,
+    checkpoint_collection_name="textbook_checkpoints",
+    writes_collection_name="textbook_checkpoint_writes",
 )
-
-# 允许跨域
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 问答服务（/chat）挂载到同一 app，共享端口与 CORS
-app.include_router(query_router)
+textbook_graph = build_graph(checkpointer=checkpointer)
 
 
-def _run_pipeline(graph, state: TextBookState, task_id: str) -> None:
-    """后台线程执行摄入流水线，结束后更新任务终态。
-
-    Args:
-        graph: 编译后的 LangGraph 图。
-        state: 流水线初始状态（含 task_id）。
-        task_id: 任务 ID，用于终态更新。
-    """
-    try:
-        final_state = graph.invoke(state)
-        if final_state.get("ingestion_done"):
-            update_task(task_id=task_id, status=STATUS_SUCCEEDED, message="解析完成", progress=1.0)
-        else:
-            update_task(task_id=task_id, status=STATUS_FAILED, message="解析失败：未完成入库", progress=1.0)
-    except Exception as exc:
-        logger.error(f"任务 {task_id} 执行异常: {exc}")
-        update_task(task_id=task_id, status=STATUS_FAILED, message=f"解析失败: {exc}", progress=1.0)
-
-
-async def _sse_stream(task_id: str):
-    """将 subscribe 的事件 dict 格式化为 SSE 文本流。"""
-    async for event in subscribe(task_id):
-        yield f"event: {event['event']}\ndata: {json.dumps(event['data'], ensure_ascii=False)}\n\n"
-
-
-@app.post("/upload", summary="上传教材", description="支持批量上传，接受格式当前为pdf")
+@router.post("/upload", summary="上传教材", description="支持批量上传，接受格式当前为pdf")
 async def upload_textbooks(files: list[UploadFile] = File(...)):
     """上传教材：每次上传在 textbooks/ 下创建独立目录 pdf-{特征值}/ 并保存文件。
 
@@ -126,69 +72,85 @@ async def upload_textbooks(files: list[UploadFile] = File(...)):
     )
 
 
-@app.post("/resolve", summary="解析教材", description="解析教材，将教材向量化并保存入向量数据库")
-async def resolve_textbooks(textbook_path: str):
-    """解析教材：在 /upload 返回的独立目录下执行摄入流水线，创建任务后立即返回 task_id。
+@router.post(
+    "/resolve",
+    summary="解析教材",
+    description="解析教材并以 SSE 流返回实时进度（合并创建任务与进度订阅为单请求，支持断点续跑）",
+)
+async def resolve_textbooks(
+    textbook_path: str | None = None,
+    task_id: str | None = None,
+    user_id: str = Depends(get_user_id),
+) -> StreamingResponse:
+    """解析教材：在 /upload 返回的独立目录下执行摄入流水线（支持断点续跑）。
 
-    Args:
-        textbook_path: /upload 返回的教材目录路径（必填）。
+    合并为单个 SSE 请求：任务在请求协程内执行，实时推送进度事件
+    （message 进度 / done 终态 / error 异常），checkpointer 持久化状态。
+    durability="sync" 使每个节点完成后同步落盘，进程/连接中断后可恢复。
 
-    Returns:
-        任务 ID，前端可凭此轮询 /status 或订阅 /events。
+    断点续跑：传入已存在的 task_id（断线重连时复用），后台利用 checkpoint 内置能力
+    （aget_state 判定中断、astream(None, ...) 从上次完成节点续跑），无需自建任务表。
     """
-    if not textbook_path:
-        raise HTTPException(status_code=400, detail="缺少 textbook_path，请先调用 /upload 上传教材")
-    textbook_dir = Path(textbook_path)
-    if not textbook_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"教材目录不存在: {textbook_path}")
+    # 任务标识：缺省则新建；传入则复用（用于断线重连/续跑）
+    task_id = task_id or str(uuid.uuid4())
+    thread_id = f"{user_id}:{task_id}"
+    config = {"configurable": {"thread_id": thread_id}}
 
-    # 创建任务
-    task_id = create_task()
-    update_task(task_id=task_id, status=STATUS_RUNNING, message="开始解析", progress=0.1)
-    # 构建流水线，放入 state["task_id"] 供节点上报进度
-    state: TextBookState = {
-        "textbook_path": textbook_path,
-        "task_id": task_id,
+    # 借助 checkpoint 判断线程是否为「曾被中断且未完成」：next 非空 = 尚有未执行节点。
+    snapshot = await textbook_graph.aget_state(config)
+    prev = (snapshot.values or {}) if snapshot else {}
+    interrupted = bool(prev and not prev.get("ingestion_done") and snapshot.next)
+    # 续跑时沿用 checkpoint 中已持久化的路径；全新任务则校验本次传入路径
+    resolved_path = (prev.get("textbook_path") if interrupted else None) or textbook_path
+    if not interrupted:
+        if not resolved_path:
+            raise HTTPException(status_code=400, detail="缺少 textbook_path，请先调用 /upload 上传教材")
+        if not Path(resolved_path).is_dir():
+            raise HTTPException(status_code=404, detail=f"教材目录不存在: {resolved_path}")
+
+    # 续跑时输入传 None：LangGraph 据此从断点继续，不做重头解析
+    fresh_state: TextBookState = {
+        "textbook_exists": False,
+        "user_id": user_id,
+        "textbook_path": resolved_path,
     }
-    graph = build_graph()
-    # 后台线程执行同步流水线，避免阻塞事件循环
-    threading.Thread(target=_run_pipeline, args=(graph, state, task_id), daemon=True).start()
+    run_input = None if interrupted else fresh_state
 
-    return JSONResponse({"task_id": task_id, "message": "任务已创建"})
-
-
-@app.get("/events", summary="订阅任务进度", description="SSE 实时推送任务进度，前端按 task_id 订阅")
-async def task_events(task_id: str):
-    """订阅任务进度事件流（SSE）。
-
-    Args:
-        task_id: 任务 ID。
-
-    Returns:
-        text/event-stream 流：status 快照 → message 增量 → heartbeat 保活 → done 终态。
-    """
+    async def event_gen():
+        try:
+            if interrupted:
+                payload = json.dumps(
+                    {"type": "info", "task_id": task_id, "resumed": True, "message": "检测到中断，正在从断点续跑…"},
+                    ensure_ascii=False,
+                )
+            else:
+                payload = json.dumps(
+                    {"type": "info", "task_id": task_id, "resumed": False, "message": "开始解析", "progress": 0.0},
+                    ensure_ascii=False,
+                )
+            yield f"data: {payload}\n\n"
+            async for event in textbook_graph.astream(
+                run_input, config=config, stream_mode="custom", durability="sync"
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({"type": "done", "task_id": task_id}, ensure_ascii=False)}\n\n"
+        except ValueError as exc:
+            # 教材未找到等业务错误
+            payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
+            yield f"data: {payload}"
+        except Exception as exc:
+            logger.exception(f"解析任务 {task_id} 执行异常: {exc}")
+            payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
+            yield f"data: {payload}"
     return StreamingResponse(
-        _sse_stream(task_id),
+        event_gen(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-@app.get("/status", summary="获取任务状态", description="获取任务状态")
-async def get_task_status(task_id: str):
-    """获取任务状态"""
-    current_task = get_task(task_id)
-    return JSONResponse(current_task)
-
-
-@app.get("/list", summary="获取所有教材", description="获取所有教材")
+@router.get("/list", summary="获取所有教材", description="获取所有教材（教材库全局共享，不按用户隔离）")
 async def get_all_textbooks():
     """获取所有教材"""
     textbooks = list_textbooks()
     return JSONResponse(textbooks)
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

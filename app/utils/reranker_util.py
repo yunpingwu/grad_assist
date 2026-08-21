@@ -33,9 +33,7 @@ def _get_reranker() -> FlagReranker:
     elif "/" in rerank_config.model_name:
         model_name_or_path = rerank_config.model_name
     else:
-        raise ValueError(
-            f"BGE-Reranker 模型路径不存在且模型名不是 HF ID: {path!r} / {rerank_config.model_name!r}"
-        )
+        raise ValueError(f"BGE-Reranker 模型路径不存在且模型名不是 HF ID: {path!r} / {rerank_config.model_name!r}")
 
     device = rerank_config.device
     use_fp16 = device != "cpu"

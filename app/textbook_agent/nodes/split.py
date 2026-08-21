@@ -1,12 +1,13 @@
+import asyncio
 import json
 import re
 from pathlib import Path
 
+from langgraph.types import StreamWriter
 from pypdf import PdfReader, PdfWriter
 
 from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
-from app.utils import update_task
 
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
@@ -176,14 +177,12 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
 
 
 @log_node
-def split(state: TextBookState):
+async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
     """将整本教材按照章节分割"""
     textbook_path = Path(state.get("textbook_path"))
     output_root = textbook_path / "pdf_split"
 
-    task_id = state.get("task_id")
-    if task_id:
-        update_task(task_id=task_id, message="开始按章节切割教材", progress=0.4)
+    writer({"type": "message", "status": "running", "message": "开始按章节切割教材", "progress": 0.4})
 
     # 幂等：如果 pdf_split 已有切割结果，直接复用
     if output_root.exists() and any(output_root.iterdir()):
@@ -192,8 +191,7 @@ def split(state: TextBookState):
         ]
         state["sub_pdf_paths"] = sub_pdf_paths
         logger.info(f"pdf_split 已存在，跳过切割，共 {len(sub_pdf_paths)} 个教材目录")
-        if task_id:
-            update_task(task_id=task_id, message="章节切割结果已存在，直接复用", progress=0.55)
+        writer({"type": "message", "status": "running", "message": "章节切割结果已存在，直接复用", "progress": 0.55})
         return state
 
     extract_dirs_list = state.get("extracted_contents_dirs", [])
@@ -203,17 +201,27 @@ def split(state: TextBookState):
         all_match.extend(get_pre_offset(Path(d)))
     for match in all_match:
         logger.info(f"[{match['text'][:20]}] {match['page_idx']}")
-    # 按章节切割教材
-    sub_pdf_paths = split_chapter(textbook_path, all_match)
+    # 按章节切割教材（pypdf 属 CPU/IO 密集，放线程池避免阻塞事件循环）
+    sub_pdf_paths = await asyncio.to_thread(split_chapter, textbook_path, all_match)
     state["sub_pdf_paths"] = sub_pdf_paths
-    if task_id:
-        update_task(task_id=task_id, message=f"章节切割完成，共 {len(sub_pdf_paths)} 本教材", progress=0.55)
+    writer(
+        {
+            "type": "message",
+            "status": "running",
+            "message": f"章节切割完成，共 {len(sub_pdf_paths)} 本教材",
+            "progress": 0.55,
+        }
+    )
     return state
 
 
 # 单元测试
 if __name__ == "__main__":
+    import asyncio
     from pathlib import Path
+
+    def writer(chunk):
+        print("event:", chunk)
 
     textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
     extract_dirs = textbook_path / "mineru_toc"
@@ -224,4 +232,4 @@ if __name__ == "__main__":
         "extracted_contents_dirs": [str(extract_dirs)],
     }
 
-    split(state)
+    asyncio.run(split(state, writer=writer))

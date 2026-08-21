@@ -1,7 +1,10 @@
+import asyncio
 import json
 import re
 import uuid
 from pathlib import Path
+
+from langgraph.types import StreamWriter
 
 from app.clients import milvus_client
 from app.core import log_node, logger
@@ -11,7 +14,6 @@ from app.utils import (
     get_collection_by_name,
     next_collection_name,
     register_textbook,
-    update_task,
     upload_and_map,
 )
 
@@ -242,7 +244,7 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
 _EMBED_BATCH_SIZE = 64
 
 
-def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
+async def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
     """将切割好的 chunks 向量化后存入 Milvus。
 
     策略：
@@ -321,7 +323,8 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
         batch_entries = entries[batch_start : batch_start + _EMBED_BATCH_SIZE]
         texts = [e["text"] for e in batch_entries]
 
-        emb = generate_embeddings(texts)
+        # BGE-M3 编码是 CPU 密集，放线程池避免阻塞事件循环
+        emb = await asyncio.to_thread(generate_embeddings, texts)
         dense_vecs = emb["dense"]
         sparse_vecs = emb["sparse"]
 
@@ -358,7 +361,7 @@ def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
 
 
 @log_node
-def split_text_and_store(state: TextBookState) -> dict:
+async def split_text_and_store(state: TextBookState, *, writer: StreamWriter) -> dict:
     """遍历所有教材的章节解析结果，逐本切割 → 向量化入库"""
 
     # 幂等：如果已完成摄入，直接跳过
@@ -366,16 +369,13 @@ def split_text_and_store(state: TextBookState) -> dict:
         logger.info("ingestion_done 已为 True，跳过重复摄入")
         return state
 
-    task_id = state.get("task_id")
-    if task_id:
-        update_task(task_id=task_id, message="开始切块与向量化入库", progress=0.8)
+    writer({"type": "message", "status": "running", "message": "开始切块与向量化入库", "progress": 0.85})
 
     extracted_dirs = state.get("extracted_dirs", [])
     if not extracted_dirs:
         logger.warning("extracted_dirs 为空，无章节解析结果可处理")
         state["ingestion_done"] = False
-        if task_id:
-            update_task(task_id=task_id, message="无章节解析结果，任务终止", progress=1.0)
+        writer({"type": "message", "status": "running", "message": "无章节解析结果，任务终止", "progress": 1.0})
         return state
 
     # 按教材名分组: mineru_split/{教材名}/{章节名}/
@@ -387,36 +387,48 @@ def split_text_and_store(state: TextBookState) -> dict:
     logger.info(f"共 {len(grouped)} 本教材待处理")
 
     total_chunks = 0
-    all_chunk_contents: list[str] = []
     total_textbooks = len(grouped)
     for idx, (textbook_name, chapter_dirs) in enumerate(grouped.items()):
-        chunks = chunk_textbook(textbook_name, chapter_dirs)
+        # 切块含文件读写与 MinIO 上传，放线程池避免阻塞事件循环
+        chunks = await asyncio.to_thread(chunk_textbook, textbook_name, chapter_dirs)
         if not chunks:
             logger.warning(f"[{textbook_name}] 切割结果为空，跳过")
             continue
 
-        if embed_and_store(textbook_name, chunks):
+        if await embed_and_store(textbook_name, chunks):
             total_chunks += len(chunks)
-            all_chunk_contents.extend(c["content"] for c in chunks)
-            if task_id:
-                progress = 0.8 + 0.2 * (idx + 1) / total_textbooks
-                update_task(
-                    task_id=task_id,
-                    message=f"[{textbook_name}] 入库完成（{len(chunks)} chunks）",
-                    progress=progress,
-                )
+            progress = 0.85 + 0.15 * (idx + 1) / total_textbooks
+            writer(
+                {
+                    "type": "message",
+                    "status": "running",
+                    "message": f"[{textbook_name}] 入库完成（{len(chunks)} chunks）",
+                    "progress": progress,
+                }
+            )
         else:
             logger.error(f"[{textbook_name}] 入库失败")
 
     state["ingestion_done"] = total_chunks > 0
     logger.info(f"全部完成: {total_chunks} 个 chunk 已入库")
-    if task_id:
-        update_task(task_id=task_id, message=f"全部完成：{total_chunks} 个 chunk 已入库", progress=1.0)
+    writer(
+        {
+            "type": "message",
+            "status": "running",
+            "message": f"全部完成：{total_chunks} 个 chunk 已入库",
+            "progress": 1.0,
+        }
+    )
     return state
 
 
 # ==================== 单元测试 ====================
 if __name__ == "__main__":
+    import asyncio
+
+    def writer(chunk):
+        print("event:", chunk)
+
     textbook_path = Path("D:/Projects/grad_assist/textbooks/pdf")
     split_dirs = list((textbook_path / "mineru_split").iterdir())
 
@@ -429,4 +441,4 @@ if __name__ == "__main__":
         "extracted_dirs": [str(d) for d in chapter_dir.iterdir() if d.is_dir()],
     }
 
-    split_text_and_store(state)
+    asyncio.run(split_text_and_store(state, writer=writer))

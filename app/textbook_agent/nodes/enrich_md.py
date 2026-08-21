@@ -5,15 +5,16 @@
 - 代码块后插入「> 代码说明: …」行(保留在正文,供语义类问题感知代码存在)。
 """
 
+import asyncio
 import base64
 import re
-from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.types import StreamWriter
 from PIL import Image
 
 from app.clients.llm import get_llm_client
@@ -65,7 +66,7 @@ def _image_to_base64_data_url(img_path: Path) -> str:
     return f"data:image/jpeg;base64,{b64}"
 
 
-def _caption_image(model: Any, prompt: str, chapter_dir: Path, m: re.Match, raw_text: str) -> str:
+async def _caption_image(model: Any, prompt: str, chapter_dir: Path, m: re.Match, raw_text: str) -> str:
     """为单个图片生成简介,返回替换后的图片行(alt=简介);失败用文件名兜底。"""
     rel = m.group(2)
     img_path = chapter_dir / rel
@@ -81,34 +82,34 @@ def _caption_image(model: Any, prompt: str, chapter_dir: Path, m: re.Match, raw_
                 {"type": "image_url", "image_url": {"url": data_url}},
             ]
         )
-        alt = _call_llm(model, message)
+        alt = await _call_llm(model, message)
     except Exception as exc:
         logger.warning(f"图片简介生成失败({img_path.name}): {exc}")
         alt = ""
     return f"![{alt or rel}]({rel})"
 
 
-def _caption_code(model: Any, prompt: str, m: re.Match, raw_text: str) -> str:
+async def _caption_code(model: Any, prompt: str, m: re.Match, raw_text: str) -> str:
     """为单个代码块生成说明,返回代码块(成功后追加说明行);失败仅返回代码块。"""
     lang, code = m.group(1), m.group(2)
     context = raw_text[max(0, m.start() - _CODE_CONTEXT_CHARS) : m.start()].strip()
     block = f"```{lang}\n{code}\n```"
     try:
         messages = ChatPromptTemplate.from_template(prompt).format_messages(context=context, code=code)
-        desc = _call_llm(model, messages)
+        desc = await _call_llm(model, messages)
     except Exception as exc:
         logger.warning(f"代码说明生成失败: {exc}")
         desc = ""
     return f"{block}\n> 代码说明: {desc}" if desc else block
 
 
-def _call_llm(model: Any, messages: Any) -> str:
-    """统一的 LLM 调用(同步 invoke),返回文本内容;失败返回空串。"""
+async def _call_llm(model: Any, messages: Any) -> str:
+    """统一的 LLM 调用(异步 ainvoke),返回文本内容;失败返回空串。"""
     try:
         # BaseChatModel.invoke 要求 list / PromptValue / str,兼容单个消息
         if not isinstance(messages, list):
             messages = [messages]
-        resp = model.invoke(messages)
+        resp = await model.ainvoke(messages)
         return (resp.content or "").strip()[:_CAPTION_LIMIT]
     except Exception as exc:
         logger.warning(f"LLM 调用失败: {exc}")
@@ -131,12 +132,12 @@ def _rebuild_text(
     return "".join(parts)
 
 
-def code_and_image_caption(extracted_dirs) -> None:
+async def code_and_image_caption(extracted_dirs) -> None:
     """遍历章节目录,为图片/代码生成简介,写入 full.md 的副本 full_captioned.md。
 
     流程:
     1. 收集: 跳过已富化章节(幂等),复制副本,收集各章任务(图片/代码按位置排序);
-    2. 执行: 所有章节的所有任务扁平化,统一线程池并发调 LLM(跨章并行);
+    2. 执行: 所有章节的所有任务扁平化,统一 asyncio.Semaphore 并发调 LLM(跨章并行);
     3. 重组: 按章节分组,位置切片重组后写回各自副本。
     单个任务失败仅降级(图片 alt 用文件名、代码块不插说明行),不阻断整章。
     """
@@ -180,21 +181,22 @@ def code_and_image_caption(extracted_dirs) -> None:
     logger.info(f"开始富化: {len(plans)} 章 / {total_tasks} 个任务,并发 {_LLM_WORKERS}")
     for ci, plan in enumerate(plans):
         n_img = sum(1 for t in plan["tasks"] if t[0] == "image")
-        logger.info(f"  [{ci + 1}/{len(plans)}] 提交: {plan['dir'].name}(图 {n_img} / 码 {len(plan['tasks']) - n_img})")
+        logger.info(f"  [{ci + 1}/{len(plans)}] 提交: {plan['dir'].name}(图片 {n_img} / 代码 {len(plan['tasks']) - n_img})")
 
     # 2. 扁平化所有章节任务,统一并发(跨章并行;上下文取各自 raw_text,天然无污染)
     flat: list[tuple[int, tuple]] = [(ci, task) for ci, plan in enumerate(plans) for task in plan["tasks"]]
+    sem = asyncio.Semaphore(_LLM_WORKERS)
 
-    def _run(item: tuple[int, tuple]) -> str:
+    async def _run(item: tuple[int, tuple]) -> str:
         ci, task = item
         plan = plans[ci]
         kind, m, _, _ = task
-        if kind == "image":
-            return _caption_image(visual_model, image_prompt, plan["dir"], m, plan["raw_text"])
-        return _caption_code(text_model, code_prompt, m, plan["raw_text"])
+        async with sem:
+            if kind == "image":
+                return await _caption_image(visual_model, image_prompt, plan["dir"], m, plan["raw_text"])
+            return await _caption_code(text_model, code_prompt, m, plan["raw_text"])
 
-    with ThreadPoolExecutor(max_workers=_LLM_WORKERS) as ex:
-        results = list(ex.map(_run, flat))  # ex.map 保序,flat[i] ↔ results[i]
+    results = await asyncio.gather(*(_run(item) for item in flat))  # gather 保序,flat[i] ↔ results[i]
 
     # 3. 按章节分组重组,写回各自副本
     per_chapter: list[list[str]] = [[] for _ in plans]
@@ -212,12 +214,14 @@ def code_and_image_caption(extracted_dirs) -> None:
 
 
 @log_node
-def enrich_md(state: TextBookState):
+async def enrich_md(state: TextBookState, *, writer: StreamWriter) -> dict:
     """富化节点:为每章生成带图片简介/代码说明的 full_captioned.md 副本。"""
     extracted_dirs = state.get("extracted_dirs") or []
     if not extracted_dirs:
         logger.warning("extracted_dirs 为空,跳过富化")
         return state
 
-    code_and_image_caption(extracted_dirs)
+    writer({"type": "message", "status": "running", "message": "开始图片/代码富化", "progress": 0.75})
+    await code_and_image_caption(extracted_dirs)
+    writer({"type": "message", "status": "running", "message": "富化完成", "progress": 0.85})
     return state

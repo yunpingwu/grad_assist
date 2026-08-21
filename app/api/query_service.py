@@ -1,12 +1,13 @@
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
+from app.api.deps import get_user_id
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
@@ -19,8 +20,8 @@ router = APIRouter(tags=["query"])
 class ChatRequest(BaseModel):
     textbook_name: str = Field(..., description="教材名")
     query: str = Field(..., min_length=1, description="用户问题")
-    session_id: str | None = Field(default=None, description="会话 ID，缺省时后端生成")
-    is_web_search: bool = Field(default=False, description="是否启用联网搜索（前端按钮控制）")
+    session_id: str | None = Field(default=None, description="会话 ID（裸 ID，缺省时后端生成）")
+    is_web_search: bool = Field(default=True, description="是否启用联网搜索（前端按钮控制）")
 
 
 # 模块级编译一次。
@@ -36,25 +37,26 @@ query_graph = build_graph(checkpointer=checkpointer)
     summary="流式问答",
     description="SSE 事件流：stage 阶段提示 / token 答案增量 / done 收尾(含 session_id) / error 异常",
 )
-async def chat_stream(req: ChatRequest) -> StreamingResponse:
+async def chat_stream(req: ChatRequest, user_id: str = Depends(get_user_id)) -> StreamingResponse:
     """执行一轮问答，以 SSE 实时推送过程事件。
 
-    多轮会话由 LangGraph checkpointer 管理：thread_id = session_id，
+    多轮会话由 LangGraph checkpointer 管理：thread_id = user_id:session_id，
     每轮把用户问题放入 messages（add_messages 追加），checkpointer 自动持久化到 MongoDB。
     """
     session_id = req.session_id or str(uuid.uuid4())
     state: QueryState = {
         "session_id": session_id,
+        "user_id": user_id,
         "textbook_name": req.textbook_name,
         "original_query": req.query,
         "is_web_search": req.is_web_search,
         "messages": [HumanMessage(content=req.query)],
     }
-    config = {"configurable": {"thread_id": session_id}}
+    config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
 
     async def event_gen():
         try:
-            async for chunk in query_graph.astream(state, config=config, stream_mode="custom"):
+            async for chunk in query_graph.astream(state, config=config, stream_mode="custom", durability="sync"):
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
         except ValueError as exc:
             # 教材未登记、问题为空等业务错误
@@ -73,13 +75,18 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
     )
 
 
-@router.get("/sessions", summary="会话列表", description="按教材列出会话摘要（从 checkpoint 读取），最近更新在前")
-async def sessions(textbook_name: str | None = None) -> list[dict]:
-    """列出某教材的全部会话摘要（基于 checkpoints 集合，倒序）。"""
+@router.get(
+    "/sessions",
+    summary="会话列表",
+    description="按教材列出当前用户的会话摘要（从 checkpoint 读取），最近更新在前",
+)
+async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+    """列出当前用户某教材的全部会话摘要（基于 checkpoints 集合，倒序）。"""
     if not textbook_name:
         raise HTTPException(status_code=400, detail="缺少 textbook_name")
 
-    thread_ids = mongo_client.get_collection("checkpoints").distinct("thread_id")
+    prefix = f"{user_id}:"
+    thread_ids = [t for t in mongo_client.get_collection("checkpoints").distinct("thread_id") if t.startswith(prefix)]
     items: list[dict] = []
     for tid in thread_ids:
         snapshot = await query_graph.aget_state({"configurable": {"thread_id": tid}})
@@ -90,7 +97,7 @@ async def sessions(textbook_name: str | None = None) -> list[dict]:
         last_user = next((m for m in reversed(messages) if m.type == "human"), None)
         items.append(
             {
-                "session_id": tid,
+                "session_id": tid.split(":", 1)[1],  # 返回裸 session_id，前端配合 X-User-Id 使用
                 "updated_at": snapshot.created_at or "",
                 "message_count": len(messages),
                 # 返回最新用户问题原文；截断等展示整形由前端负责
@@ -101,14 +108,18 @@ async def sessions(textbook_name: str | None = None) -> list[dict]:
     return items
 
 
-@router.get("/history", summary="会话历史", description="获取某会话的全部消息（从 checkpoint 读取），供历史回显")
-async def history(session_id: str | None = None) -> list[dict]:
+@router.get(
+    "/history",
+    summary="会话历史",
+    description="获取当前用户某会话的全部消息（从 checkpoint 读取），供历史回显",
+)
+async def history(session_id: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
     """获取某会话的结构化消息列表。"""
     if not session_id:
         raise HTTPException(status_code=400, detail="缺少 session_id")
-    snapshot = await query_graph.aget_state({"configurable": {"thread_id": session_id}})
+    snapshot = await query_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
     messages = (snapshot.values or {}).get("messages", [])
-
+    # LangChain 消息 → 前端契约：结构转换留在后端，前端不感知 LangChain 内部结构
     return [
         {
             "role": "user" if m.type == "human" else "assistant",
@@ -118,10 +129,14 @@ async def history(session_id: str | None = None) -> list[dict]:
     ]
 
 
-@router.delete("/sessions/{session_id}", summary="删除会话", description="删除单个会话（删除其全部 checkpoint）")
-async def delete_session(session_id: str) -> Response:
+@router.delete(
+    "/sessions/{session_id}",
+    summary="删除会话",
+    description="删除当前用户的单个会话（删除其全部 checkpoint）",
+)
+async def delete_session(session_id: str, user_id: str = Depends(get_user_id)) -> Response:
     """删除单个会话（幂等：会话不存在也返回 204）。"""
     if not session_id:
         raise HTTPException(status_code=400, detail="缺少 session_id")
-    checkpointer.delete_thread(session_id)
+    checkpointer.delete_thread(f"{user_id}:{session_id}")
     return Response(status_code=204)

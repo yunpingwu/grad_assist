@@ -7,6 +7,8 @@ from langgraph.graph import add_messages
 class QueryState(TypedDict):
     # 会话 ID
     session_id: str
+    # 匿名设备身份（前端 X-User-Id 请求头传入），用于多用户会话隔离
+    user_id: NotRequired[str]
     # 教材名
     textbook_name: str
     # 原始问题
