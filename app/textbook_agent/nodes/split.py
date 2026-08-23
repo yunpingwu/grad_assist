@@ -1,6 +1,8 @@
 import asyncio
 import json
+import os
 import re
+import shutil
 from pathlib import Path
 
 from langgraph.types import StreamWriter
@@ -38,6 +40,8 @@ def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:
                 match_list.append(item)
     if len(match_list) >= 2:
         all_match.append(match_list[1])
+    else:
+        all_match.append({"page_idx": 10, "text": ""}) # 表示没有找到合适的位置，使用兜底值做起始切割点
 
 
 def get_pre_offset(extract_dirs: Path) -> list[dict]:
@@ -91,8 +95,7 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
         re.MULTILINE,
     )
     if len(all_match) != len(pdfs):
-        logger.error(f"偏移量数量({len(all_match)})与PDF数量({len(pdfs)})不一致，终止切割")
-        return
+        raise ValueError(f"偏移量数量({len(all_match)})与PDF数量({len(pdfs)})不一致，无法按章节切割")
 
     sub_pdf_paths = []
     for i, pdf_path in enumerate(pdfs):
@@ -100,12 +103,10 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
         chapter_output_dir = output_root / textbook_name
         sub_pdf_paths.append(str(chapter_output_dir))
 
-        # 删除已有切割文件，便于重复测试
-        if chapter_output_dir.exists():
-            import shutil
-
-            shutil.rmtree(chapter_output_dir)
-            logger.info(f"已删除旧文件: {chapter_output_dir}")
+        # 已完成则跳过：目录原子提交，存在且含章节 PDF 即视为完整
+        if chapter_output_dir.is_dir() and any(p.suffix == ".pdf" for p in chapter_output_dir.iterdir()):
+            logger.info(f"跳过（已存在）: {chapter_output_dir}")
+            continue
 
         logger.info(f"处理教材 [{i + 1}/{len(pdfs)}]: {textbook_name}")
         # 按名称匹配 mineru_toc 目录（排序后索引对应）
@@ -120,7 +121,6 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
         toc_match = re.search(r"##\s*目\s*录", text)
         if not toc_match:
             logger.warning(f"未找到 '## 目录': {full_md}")
-            continue
 
         toc_text = text[toc_match.start() :]
         chapters = []
@@ -150,8 +150,11 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
         total = len(reader.pages)
         offset = all_match[i]["page_idx"] if i < len(all_match) else 0
 
-        # 按章节页码切割 PDF
-        chapter_output_dir.mkdir(parents=True, exist_ok=True)
+        # 在 staging 目录内切割所有章节，全部完成后原子提交，整本教材要么完整要么不存在
+        staging = output_root / f".{textbook_name}.tmp"
+        shutil.rmtree(staging, ignore_errors=True)
+        staging.mkdir(parents=True, exist_ok=True)
+
         for ci, ch in enumerate(chapters):
             start = ch["printed_page"] + offset - 1
             if ci < len(chapters) - 1:
@@ -167,10 +170,14 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
                 writer.add_page(reader.pages[page_idx])
 
             safe_title = re.sub(r'[\\/:*?"<>|]', "-", ch["title"])
-            output_path = chapter_output_dir / f"{ch['num']} {safe_title}.pdf"
+            output_path = staging / f"{ch['num']} {safe_title}.pdf"
             with open(output_path, "wb") as f:
                 writer.write(f)
 
+        # 原子提交：替换旧的半成品目录
+        if chapter_output_dir.exists():
+            shutil.rmtree(chapter_output_dir)
+        os.replace(staging, chapter_output_dir)
         logger.info(f"切割完成: {len(chapters)} 章 → {chapter_output_dir}")
 
     return sub_pdf_paths
@@ -184,11 +191,21 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
 
     writer({"type": "message", "status": "running", "message": "开始按章节切割教材", "progress": 0.4})
 
-    # 幂等：如果 pdf_split 已有切割结果，直接复用
-    if output_root.exists() and any(output_root.iterdir()):
-        sub_pdf_paths = [
-            str(d) for d in output_root.iterdir() if d.is_dir() and any(p.suffix == ".pdf" for p in d.iterdir())
-        ]
+    # 期望切割的教材全集（排除目录页 _toc.pdf）
+    pdfs = sorted(
+        f for f in textbook_path.iterdir() if f.suffix == ".pdf" and not f.name.endswith("_toc.pdf")
+    )
+    if not pdfs:
+        logger.warning(f"未找到 PDF 文件: {textbook_path}")
+        state["sub_pdf_paths"] = []
+        return state
+
+    # 幂等：仅当 “全部教材” 都已切割完成才短路（目录存在且含章节 PDF）
+    if output_root.exists() and all(
+        (output_root / pdf.stem).is_dir() and any(p.suffix == ".pdf" for p in (output_root / pdf.stem).iterdir())
+        for pdf in pdfs
+    ):
+        sub_pdf_paths = [str(output_root / pdf.stem) for pdf in pdfs]
         state["sub_pdf_paths"] = sub_pdf_paths
         logger.info(f"pdf_split 已存在，跳过切割，共 {len(sub_pdf_paths)} 个教材目录")
         writer({"type": "message", "status": "running", "message": "章节切割结果已存在，直接复用", "progress": 0.55})
@@ -204,14 +221,8 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
     # 按章节切割教材（pypdf 属 CPU/IO 密集，放线程池避免阻塞事件循环）
     sub_pdf_paths = await asyncio.to_thread(split_chapter, textbook_path, all_match)
     state["sub_pdf_paths"] = sub_pdf_paths
-    writer(
-        {
-            "type": "message",
-            "status": "running",
-            "message": f"章节切割完成，共 {len(sub_pdf_paths)} 本教材",
-            "progress": 0.55,
-        }
-    )
+    writer({"type": "message","status": "running","message": f"章节切割完成，共 {len(sub_pdf_paths)} 本教材","progress": 0.55})
+
     return state
 
 

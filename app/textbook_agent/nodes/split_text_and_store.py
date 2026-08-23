@@ -10,9 +10,9 @@ from app.clients import milvus_client
 from app.core import log_node, logger
 from app.textbook_agent.state import TextBookState
 from app.utils import (
+    deterministic_collection_name,
     generate_embeddings,
     get_collection_by_name,
-    next_collection_name,
     register_textbook,
     upload_and_map,
 )
@@ -272,13 +272,19 @@ async def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
         logger.info(f"[{textbook_name}] 已入库（collection={existing}），跳过重复摄入")
         return True
 
-    # 分配独立 collection 并确保索引就绪
-    collection_name = next_collection_name()
-    milvus_client.create_collection(collection_name)
-    if not milvus_client.collection_exists(collection_name):
-        logger.error(f"集合 {collection_name} 不存在，入库失败")
-        return False
-    milvus_client.create_indexes(collection_name)
+    # 分配独立 collection：由教材名确定性生成，同一教材重跑复用同一集合
+    collection_name = deterministic_collection_name(textbook_name)
+    if milvus_client.collection_exists(collection_name):
+        # 已存在（上次中断残留的半库）→ 清空后重入，避免孤儿 collection
+        milvus_client.truncate_collection(collection_name)
+    else:
+        milvus_client.create_collection(collection_name)
+
+    # 索引就绪：无索引定义则建索引（内部含加载），否则幂等加载
+    if milvus_client.list_indexes(collection_name):
+        milvus_client.load_collection(collection_name)
+    else:
+        milvus_client.create_indexes(collection_name)
 
     # 收集所有待入库的文本
     entries: list[dict] = []  # {text, block_type, chapter, section, ...}
@@ -398,27 +404,13 @@ async def split_text_and_store(state: TextBookState, *, writer: StreamWriter) ->
         if await embed_and_store(textbook_name, chunks):
             total_chunks += len(chunks)
             progress = 0.85 + 0.15 * (idx + 1) / total_textbooks
-            writer(
-                {
-                    "type": "message",
-                    "status": "running",
-                    "message": f"[{textbook_name}] 入库完成（{len(chunks)} chunks）",
-                    "progress": progress,
-                }
-            )
+            writer({"type": "message","status": "running","message": f"[{textbook_name}] 入库完成（{len(chunks)} chunks）","progress": progress})
         else:
             logger.error(f"[{textbook_name}] 入库失败")
 
     state["ingestion_done"] = total_chunks > 0
     logger.info(f"全部完成: {total_chunks} 个 chunk 已入库")
-    writer(
-        {
-            "type": "message",
-            "status": "running",
-            "message": f"全部完成：{total_chunks} 个 chunk 已入库",
-            "progress": 1.0,
-        }
-    )
+    writer({"type": "message","status": "running","message": f"全部完成：{total_chunks} 个 chunk 已入库","progress": 1.0,})
     return state
 
 

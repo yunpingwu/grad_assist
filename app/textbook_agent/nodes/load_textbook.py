@@ -29,16 +29,9 @@ async def load_textbook(state: TextBookState, *, writer: StreamWriter) -> dict:
     if len(files) == 0:
         raise ValueError("没有找到支持的类型的教材")
 
-    state["textbook_path"] = textbook_path
+    state["textbook_path"] = str(textbook_path)
     logger.info(f"load_textbook:成功加载 {len(files)} 个教材")
-    writer(
-        {
-            "type": "message",
-            "status": "running",
-            "message": f"教材校验通过，共 {len(files)} 个文件",
-            "progress": 0.1,
-        }
-    )
+    writer({"type": "message","status": "running","message": f"教材校验通过，共 {len(files)} 个文件","progress": 0.1})
     return state
 
 

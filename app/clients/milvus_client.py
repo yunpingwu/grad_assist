@@ -111,6 +111,16 @@ def create_indexes(collection_name: str) -> None:
     logger.info(f"集合 {collection_name} 索引创建完成，已加载到内存")
 
 
+def load_collection(collection_name: str) -> None:
+    """幂等加载集合到内存（检索前必须加载）。"""
+    get_client().load_collection(collection_name)
+
+
+def list_indexes(collection_name: str) -> list[str]:
+    """列出集合的索引名列表；空列表表示尚无索引定义。"""
+    return get_client().list_indexes(collection_name)
+
+
 def batch_insert(collection_name: str, rows: list[dict]) -> int:
     """批量插入，返回实际插入行数"""
     if not rows:
@@ -121,6 +131,12 @@ def batch_insert(collection_name: str, rows: list[dict]) -> int:
     count = int(result.get("insert_count", len(rows)))
     logger.info(f"插入 {count} 行")
     return count
+
+
+def truncate_collection(collection_name: str) -> None:
+    """清空集合数据（保留 schema 与索引），用于未登记教材的重入。"""
+    get_client().truncate_collection(collection_name)
+    logger.info(f"集合 {collection_name} 已清空（truncate）")
 
 
 def drop_collection(collection_name: str) -> None:

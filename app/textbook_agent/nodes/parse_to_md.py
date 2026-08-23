@@ -36,10 +36,22 @@ async def mineru_parse_chapters(textbook_path: Path, grouped: dict[str, list[Pat
 
     for textbook_name, pdfs in grouped.items():
         output_dir = textbook_path / "mineru_split" / textbook_name
-        full_zip_urls = await mineru_upload_and_poll(pdfs, output_dir)
-        names = [pdf.stem for pdf in pdfs]
-        dirs = await mineru_download_and_extract(full_zip_urls, output_dir, names=names)
-        all_dirs.extend(dirs)
+
+        # 仅上传尚未解析（无 full.md）的章节，避免重复上传浪费 MinerU 调用
+        pending_pdfs = []
+        pending_names = []
+        for pdf in pdfs:
+            if (output_dir / pdf.stem / "full.md").exists():
+                continue
+            pending_pdfs.append(pdf)
+            pending_names.append(pdf.stem)
+
+        if pending_pdfs:
+            full_zip_urls = await mineru_upload_and_poll(pending_pdfs, output_dir)
+            await mineru_download_and_extract(full_zip_urls, output_dir, names=pending_names)
+
+        # 全部章节目录（按 pdfs 顺序）
+        all_dirs.extend(str(output_dir / pdf.stem) for pdf in pdfs)
 
     return all_dirs
 
@@ -53,31 +65,31 @@ async def parse_to_md(state: TextBookState, *, writer: StreamWriter) -> dict:
 
     writer({"type": "message", "status": "running", "message": "开始解析章节 Markdown（MinerU）", "progress": 0.55})
 
-    # 幂等：如果 mineru_split 已有解析结果，直接复用
-    if output_dir.exists() and any(
-        chapter_dir.is_dir() and (chapter_dir / "full.md").exists()
-        for textbook_dir in output_dir.iterdir()
-        if textbook_dir.is_dir()
-        for chapter_dir in textbook_dir.iterdir()
+    sub_pdf_paths = state.get("sub_pdf_paths", [])
+
+    # 按教材分组收集章节 PDF（期望解析的章节全集）
+    grouped = collect_chapter_pdfs(sub_pdf_paths)
+    if not grouped:
+        state["extracted_dirs"] = []
+        return state
+
+    # 幂等：仅当 “全部章节” 的 full.md 都完整存在才短路，避免半成品被当成已完成
+    if output_dir.exists() and all(
+        (output_dir / textbook_name / pdf.stem / "full.md").exists()
+        for textbook_name, pdfs in grouped.items()
+        for pdf in pdfs
     ):
-        extracted_dirs: list[str] = []
-        for textbook_dir in output_dir.iterdir():
-            if not textbook_dir.is_dir():
-                continue
-            for chapter_dir in textbook_dir.iterdir():
-                if chapter_dir.is_dir() and (chapter_dir / "full.md").exists():
-                    extracted_dirs.append(str(chapter_dir))
+        extracted_dirs = [
+            str(output_dir / textbook_name / pdf.stem)
+            for textbook_name, pdfs in grouped.items()
+            for pdf in pdfs
+        ]
         state["extracted_dirs"] = extracted_dirs
         logger.info(f"mineru_split 已存在，跳过解析，共 {len(extracted_dirs)} 个章节目录")
         writer({"type": "message", "status": "running", "message": "章节解析结果已存在，直接复用", "progress": 0.8})
         return state
 
-    sub_pdf_paths = state.get("sub_pdf_paths", [])
-
-    # 按教材分组收集章节 PDF
-    grouped = collect_chapter_pdfs(sub_pdf_paths)
-
-    # 分组解析
+    # 分组解析（内部按章节跳过已完成项）
     extracted_dirs = await mineru_parse_chapters(textbook_path, grouped)
     state["extracted_dirs"] = extracted_dirs
     writer(

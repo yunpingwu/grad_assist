@@ -9,9 +9,9 @@ from app.utils.chat_util import (
 from app.utils.embedding_util import generate_embeddings
 from app.utils.milvus_util import (
     create_hybrid_search_requests,
+    deterministic_collection_name,
     get_collection_by_name,
     list_textbooks,
-    next_collection_name,
     register_textbook,
 )
 from app.utils.minio_util import upload_and_map
@@ -25,9 +25,9 @@ __all__ = [
     "list_sessions",
     "load_chat_history",
     "create_hybrid_search_requests",
+    "deterministic_collection_name",
     "get_collection_by_name",
     "list_textbooks",
-    "next_collection_name",
     "register_textbook",
     "upload_and_map",
 ]

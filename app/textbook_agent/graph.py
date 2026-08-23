@@ -40,6 +40,7 @@ def build_graph(checkpointer=None) -> StateGraph:
 # 单元测试
 if __name__ == "__main__":
     from IPython.display import Image, display
+    import asyncio
 
     state: TextBookState = {
         "textbook_exists": False,
@@ -51,5 +52,5 @@ if __name__ == "__main__":
     image = graph.get_graph().draw_mermaid_png()
     display(Image(image))
 
-    graph.invoke(state)
+    asyncio.run(graph.ainvoke(state))
     print("\nGraph 流水线执行完成")
