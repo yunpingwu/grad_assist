@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 
 from app.config import mineru_config
 from app.core import log_node, logger
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 
 def find_pdfs(path: Path) -> list[Path]:

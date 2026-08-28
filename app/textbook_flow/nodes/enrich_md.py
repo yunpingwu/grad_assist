@@ -20,7 +20,7 @@ from PIL import Image
 from app.clients.llm import get_llm_client
 from app.config import llm_config
 from app.core import load_prompt, log_node, logger
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 # 匹配 Markdown 图片语法: ![alt](images/xxx.jpg),捕获 (alt, 相对路径)
 _IMAGE_PATTERN = re.compile(r"!\[(.*?)\]\((images/.*?)\)")

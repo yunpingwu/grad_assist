@@ -3,7 +3,7 @@ from pathlib import Path
 from langgraph.types import StreamWriter
 
 from app.core import log_node, logger
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 
 @log_node

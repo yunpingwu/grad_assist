@@ -14,7 +14,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from app.config import llm_config, web_search_config
 from app.core import log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 
 
 async def _search_web(query: str, count: int | None = None) -> list[dict]:

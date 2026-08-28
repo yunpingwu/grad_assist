@@ -11,8 +11,8 @@ from app.api.deps import get_user_id
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
-from app.textbook_agent.graph import build_graph
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.graph import build_graph
+from app.textbook_flow.state import TextBookState
 from app.utils import list_textbooks
 
 # 教材根目录（本文件位于 app/api/ 下，项目根为 parents[2]）。

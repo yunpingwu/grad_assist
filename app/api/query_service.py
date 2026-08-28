@@ -11,8 +11,8 @@ from app.api.deps import get_user_id
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
-from app.query_agent.graph import build_graph
-from app.query_agent.state import QueryState
+from app.query_flow.graph import build_graph
+from app.query_flow.state import QueryState
 
 router = APIRouter(tags=["query"])
 

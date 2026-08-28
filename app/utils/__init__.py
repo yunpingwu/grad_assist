@@ -11,6 +11,7 @@ from app.utils.milvus_util import (
     create_hybrid_search_requests,
     deterministic_collection_name,
     get_collection_by_name,
+    list_chapters,
     list_textbooks,
     register_textbook,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "create_hybrid_search_requests",
     "deterministic_collection_name",
     "get_collection_by_name",
+    "list_chapters",
     "list_textbooks",
     "register_textbook",
     "upload_and_map",

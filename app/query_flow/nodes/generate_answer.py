@@ -8,7 +8,7 @@ from langgraph.types import StreamWriter
 
 from app.clients.llm import get_llm_client
 from app.core import load_prompt, log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 
 
 def _extract_image_urls(answer: str) -> list[dict]:

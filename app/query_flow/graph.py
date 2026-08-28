@@ -1,7 +1,7 @@
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
-from app.query_agent.nodes import (
+from app.query_flow.nodes import (
     embedding_search,
     generate_answer,
     hyde_embedding_search,
@@ -10,7 +10,7 @@ from app.query_agent.nodes import (
     rewrite_query,
     web_search,
 )
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 
 
 def _route_after_merge(state: QueryState) -> str:

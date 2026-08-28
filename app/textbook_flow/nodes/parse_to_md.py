@@ -4,11 +4,11 @@ from pathlib import Path
 from langgraph.types import StreamWriter
 
 from app.core import log_node, logger
-from app.textbook_agent.nodes.split_contents import (
+from app.textbook_flow.nodes.split_contents import (
     mineru_download_and_extract,
     mineru_upload_and_poll,
 )
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 
 def collect_chapter_pdfs(sub_pdf_paths: list[str]) -> dict[str, list[Path]]:

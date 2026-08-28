@@ -10,7 +10,7 @@ from langgraph.types import StreamWriter
 
 from app.config import rerank_config
 from app.core import log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 from app.utils.reranker_util import compute_rerank_scores
 
 

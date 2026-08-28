@@ -1,7 +1,7 @@
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
-from app.textbook_agent.nodes import (
+from app.textbook_flow.nodes import (
     enrich_md,
     load_textbook,
     parse_to_md,
@@ -9,7 +9,7 @@ from app.textbook_agent.nodes import (
     split_contents,
     split_text_and_store,
 )
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 
 def build_graph(checkpointer=None) -> StateGraph:

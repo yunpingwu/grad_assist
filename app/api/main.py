@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.query_service import router as query_router
+from app.api.study_service import router as study_router
 from app.api.textbook_service import router as textbook_router
 from app.core import logger
 
@@ -41,9 +42,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 教材摄入与检索问答路由：共享同一 app、端口与 CORS
+# 教材摄入、检索问答与学习任务路由：共享同一 app、端口与 CORS
 app.include_router(textbook_router)
 app.include_router(query_router)
+app.include_router(study_router)
 
 
 if __name__ == "__main__":

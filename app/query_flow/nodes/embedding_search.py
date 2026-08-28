@@ -3,17 +3,18 @@ from pymilvus import WeightedRanker
 
 from app.clients.milvus_client import get_client
 from app.core import log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 from app.utils.embedding_util import generate_embeddings
 from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
 
 
-async def rewrite_query_search(textbook_name: str, rewrite_query: str) -> list[dict]:
-    """根据重写后的问题进行向量搜索。
+async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
+    """根据重写后的问题进行向量搜索（可选按章节过滤）。
 
     Args:
         textbook_name: 教材名。
         rewrite_query: 重写后的问题。
+        chapter: 限定章节名（可选，转义后作为 Milvus 过滤表达式），缺省全书检索。
 
     Returns:
         检索到的 TOP5 文本片段。
@@ -30,11 +31,17 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str) -> list[d
     collection_name = get_collection_by_name(textbook_name)
     if not collection_name:
         raise ValueError(f"教材未登记: {textbook_name}")
+    # 章节过滤表达式：转义双引号，防止破坏 filter 语法（与注册表查询同一策略）
+    chapter_expr = None
+    if chapter:
+        safe_chapter = chapter.replace('"', '\\"')
+        chapter_expr = f'chapter == "{safe_chapter}"'
     # 构造混合搜索请求
     reqs = create_hybrid_search_requests(
         dense_vector=dense_vec,  # 取用户问题的稠密向量（单条，故取索引0）
         sparse_vector=sparse_vec,  # 取用户问题的稀疏向量（单条，故取索引0）
         limit=10,  # 底层检索返回数量
+        expr=chapter_expr,  # 可选章节过滤
     )
     # 执行混合搜索
     client = get_client()

@@ -20,9 +20,8 @@ def get_llm_client(model: str | None = None, *, max_retries: int = 2, timeout: i
 
     Args:
         model: 模型名，缺省用 llm_config.model。
-        max_retries: 网络错误 / 429 / 5xx 的自动重试次数（透传 ChatOpenAI）。
-        timeout: 单次请求超时秒数（透传 ChatOpenAI；SDK 默认 600s 过长,
-                 配合重试会放大故障静默时间）。
+        max_retries: 网络错误 / 429 / 5xx 的自动重试次数。
+        timeout: 单次请求超时秒数。
 
     Returns:
         配置好的 Chat 模型，支持 ``ainvoke`` / ``bind_tools``。

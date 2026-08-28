@@ -115,6 +115,57 @@ def list_textbooks() -> list[dict]:
     )
 
 
+def list_chapters(textbook_name: str) -> list[dict]:
+    """列出教材的章节结构（chapter/section 聚合去重，按首次出现顺序）。
+
+    供复习资料生成 Agent 了解教材骨架、决定按章检索的范围。
+
+    Args:
+        textbook_name: 教材名（须已登记）。
+
+    Returns:
+        形如 [{"chapter": "第1章 绪论", "sections": ["1.1 概述", ...]}, ...] 的列表；
+        无 section 的聚合块 sections 为空列表。
+
+    Raises:
+        ValueError: 教材未登记。
+    """
+    collection_name = get_collection_by_name(textbook_name)
+    if not collection_name:
+        raise ValueError(f"教材未登记: {textbook_name}")
+
+    client = milvus_client.get_client()
+    # 迭代器分批拉取全部 chapter/section（避免单次 query 1000 条上限截断）
+    chapter_order: list[str] = []
+    sections_by_chapter: dict[str, list[str]] = {}
+    iterator = client.query_iterator(
+        collection_name,
+        filter="",
+        batch_size=100,
+        output_fields=["chapter", "section"],
+    )
+    while True:
+        try:
+            batch = iterator.next()
+        except StopIteration:
+            break
+        if not batch:
+            break
+        for row in batch:
+            chapter = (row.get("chapter") or "").strip()
+            section = (row.get("section") or "").strip()
+            if not chapter or not section:
+                continue
+            if chapter not in sections_by_chapter:
+                sections_by_chapter[chapter] = []
+                chapter_order.append(chapter)
+            if section not in sections_by_chapter[chapter]:
+                sections_by_chapter[chapter].append(section)
+
+    logger.info(f"教材 {textbook_name} 章节结构: {len(chapter_order)} 章")
+    return [{"chapter": ch, "sections": sections_by_chapter[ch]} for ch in chapter_order]
+
+
 # ── 混合检索 ──────────────────────────────────────────────
 
 # 向量字段名（与 clients/milvus_client.py 的 create_collection 保持一致）

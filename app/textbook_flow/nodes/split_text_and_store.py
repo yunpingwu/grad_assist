@@ -8,7 +8,7 @@ from langgraph.types import StreamWriter
 
 from app.clients import milvus_client
 from app.core import log_node, logger
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 from app.utils import (
     deterministic_collection_name,
     generate_embeddings,

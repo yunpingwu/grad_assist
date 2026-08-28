@@ -9,7 +9,7 @@ from langgraph.types import StreamWriter
 from pypdf import PdfReader, PdfWriter
 
 from app.core import log_node, logger
-from app.textbook_agent.state import TextBookState
+from app.textbook_flow.state import TextBookState
 
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:

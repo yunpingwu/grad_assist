@@ -6,7 +6,7 @@ from pymilvus import WeightedRanker
 from app.clients.llm import get_llm_client
 from app.clients.milvus_client import get_client
 from app.core import load_prompt, log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 from app.utils.embedding_util import generate_embeddings
 from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
 

@@ -1,7 +1,7 @@
 from langgraph.types import StreamWriter
 
 from app.core import log_node, logger
-from app.query_agent.state import QueryState
+from app.query_flow.state import QueryState
 
 # RRF 平滑常数 k（默认 60，越小排名权重越突出）
 RRF_K = 60

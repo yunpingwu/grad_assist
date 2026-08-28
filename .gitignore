@@ -41,6 +41,9 @@ Thumbs.db
 # 本地教材及其解析产物
 textbooks/
 
+# 复习资料生成产物
+materials/
+
 # Docker 配置
 docker/
 
