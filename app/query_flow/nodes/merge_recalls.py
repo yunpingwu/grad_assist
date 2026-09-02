@@ -1,7 +1,11 @@
-from langgraph.types import StreamWriter
+"""RRF 融合工具函数：供 search_textbook 深度路径融合两路召回。
 
-from app.core import log_node, logger
-from app.query_flow.state import QueryState
+从 query_flow 收编而来：仅保留纯函数 rrf_merge（原节点封装已移除）。
+"""
+
+from __future__ import annotations
+
+from app.core import logger
 
 # RRF 平滑常数 k（默认 60，越小排名权重越突出）
 RRF_K = 60
@@ -39,69 +43,32 @@ async def rrf_merge(
         key=lambda e: e["rrf_score"],
         reverse=True,
     )
+    logger.info(f"RRF 融合完成：普通 {len(embedding_chunks)} 条 + HyDE {len(hyde_chunks)} 条 → {len(merged)} 条")
     return merged
 
 
-@log_node
-async def merge_recalls(state: QueryState, *, writer: StreamWriter) -> dict:
-    """用 RRF 融合普通检索与 HyDE 检索两路召回。
-
-    Args:
-        state: 含 ``embedding_chunks`` 与 ``hyde_embedding_chunks`` 两路召回。
-        writer: 流式 writer，推送融合阶段提示。
-
-    Returns:
-        写回 ``merged_chunks``（RRF 融合结果），同时保留 ``distance`` 供后续 rerank 使用。
-    """
-    writer({"type": "stage", "stage": "merge", "message": "正在融合检索结果…"})
-    embedding_chunks = state.get("embedding_chunks", [])
-    hyde_chunks = state.get("hyde_embedding_chunks", [])
-
-    merged = await rrf_merge(embedding_chunks, hyde_chunks)
-    # 仅把原始 hit 写入 state（RRF 分数不进 graph state，避免污染下游），
-    # 但保留 hit 自带的 distance 字段（阶段2 reranker 需要）
-    merged_hits = [entry["hit"] for entry in merged]
-    logger.info(f"RRF 融合完成：普通 {len(embedding_chunks)} 条 + HyDE {len(hyde_chunks)} 条 → {len(merged)} 条")
-    # 只返回本节点写入的字段（风格与并行检索节点统一）
-    return {"merged_chunks": merged_hits}
-
-
-# 冒烟测试：rrf_merge 为纯函数，桩掉 writer 即可确定性验证
+# 冒烟测试：rrf_merge 为纯函数，构造两路召回即可确定性验证
 if __name__ == "__main__":
     import asyncio
 
-    # 构造两路召回的模拟 hit（含 id/distance/entity）
     def _hit(doc_id: str, distance: float, text: str) -> dict:
         return {"id": doc_id, "distance": distance, "entity": {"text": text}}
 
-    emb = [
+    embedding = [
         _hit("doc_a", 0.8, "普通召回A"),
         _hit("doc_b", 0.7, "普通召回B"),
         _hit("doc_c", 0.6, "普通召回C"),
     ]
-    hyd = [
+    hyde = [
         _hit("doc_b", 0.75, "HyDE召回B"),  # 与普通召回重复 → 分数叠加
         _hit("doc_d", 0.5, "HyDE召回D"),
     ]
 
-    test_state: QueryState = {
-        "session_id": "test",
-        "textbook_name": "test",
-        "original_query": "test",
-        "rewritten_query": "test",
-        "embedding_chunks": emb,
-        "hyde_embedding_chunks": hyd,
-    }
-
-    def writer(chunk):
-        pass
-
-    result = asyncio.run(merge_recalls(test_state, writer=writer))
-    merged = result["merged_chunks"]
+    merged = asyncio.run(rrf_merge(embedding, hyde))
     assert len(merged) == 4, f"两路共 5 条召回、doc_b 重复，去重应为 4 条，实际 {len(merged)}"
-    ids = [h["id"] for h in merged]
+    ids = [e["hit"]["id"] for e in merged]
     assert ids[0] == "doc_b", "doc_b 被两路召回，RRF 分数叠加应排第一"
     assert set(ids) == {"doc_a", "doc_b", "doc_c", "doc_d"}, f"id 集不正确: {ids}"
-    assert merged[0]["distance"] == 0.7, "应保留原 hit 的 distance（供 rerank 使用）"
+    assert merged[0]["hit"]["distance"] == 0.7, "应保留原 hit 的 distance（供精排使用）"
     print(f"融合顺序: {ids}")
-    print("merge_recalls 测试通过")
+    print("rrf_merge 测试通过")

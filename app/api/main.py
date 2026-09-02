@@ -1,14 +1,14 @@
 """FastAPI 应用入口：负责应用实例、生命周期与路由装配。
 
-教材摄入（textbook_service）与检索问答（query_service）均以 APIRouter 挂载于此，
-共享同一端口与 CORS 配置，统一由本模块作为 uvicorn 启动入口。
+教材摄入（textbook_service）与统一教材助手（study_service，含对话/资料生成与
+检索问答）均以 APIRouter 挂载于此，共享同一端口与 CORS 配置，统一由本模块作为
+uvicorn 启动入口。
 """
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api.query_service import router as query_router
 from app.api.study_service import router as study_router
 from app.api.textbook_service import router as textbook_router
 from app.core import logger
@@ -42,9 +42,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 教材摄入、检索问答与学习任务路由：共享同一 app、端口与 CORS
+# 教材摄入与统一教材助手路由：共享同一 app、端口与 CORS
 app.include_router(textbook_router)
-app.include_router(query_router)
 app.include_router(study_router)
 
 

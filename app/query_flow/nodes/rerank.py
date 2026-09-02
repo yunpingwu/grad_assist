@@ -1,16 +1,15 @@
-"""Rerank 精排节点：对 RRF 融合后的候选片段做交叉编码重排序，截取 TOP-K 供生成。
+"""Rerank 精排工具函数：对 RRF 融合后的候选片段做交叉编码重排序，截取 TOP-K。
 
-- 打分由 ``app.utils.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker，
-  模型单例在 util 模块内部维护，节点只拿分数、不接触模型实例）；
-- 候选仅 ≤10 条，本地 CPU 精排约 0.5~2s，CUDA 更快；
-- 任何失败均降级：不写回 reranked_chunks，生成节点回退 RRF 结果，不阻断主链路。
+从 query_flow 收编而来：仅保留纯函数 rerank_chunks（原节点封装已移除）。
+
+- 打分由 ``app.utils.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker），
+  模型单例在 util 模块内部维护，本函数只拿分数、不接触模型实例；
+- 候选仅 ≤10 条，本地 CPU 精排约 0.5~2s，CUDA 更快；任何失败由调用方降级回退。
 """
 
-from langgraph.types import StreamWriter
+from __future__ import annotations
 
-from app.config import rerank_config
-from app.core import log_node, logger
-from app.query_flow.state import QueryState
+from app.core import logger
 from app.utils.reranker_util import compute_rerank_scores
 
 
@@ -33,7 +32,7 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
     if not query:
         raise ValueError("精排查询为空")
 
-    # 提取片段文本（Milvus hit 的 entity.text，与 generate_answer 的解析保持一致）
+    # 提取片段文本（Milvus hit 的 entity.text）
     texts = []
     for hit in chunks:
         entity = hit.get("entity") or hit
@@ -46,37 +45,16 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
     # 把分数挂到对应 hit 上 → 降序排序 → 截取 TOP-K
     ranked = []
     for hit, score in zip(chunks, scores, strict=True):
-        item = dict(hit)  # 浅拷贝，避免污染 state 中的原始 hit
+        item = dict(hit)  # 浅拷贝，避免污染调用方的原始 hit
         item["rerank_score"] = float(score)
         ranked.append(item)
     ranked.sort(key=lambda h: h["rerank_score"], reverse=True)
     return ranked[:top_k]
 
 
-@log_node
-async def rerank(state: QueryState, *, writer: StreamWriter) -> dict:
-    """对 RRF 融合结果做精排，写回 reranked_chunks（TOP-K）。
-
-    - 失败降级：仅告警并返回空 dict，生成节点回退 merged_chunks，主链路不受影响。
-    """
-    writer({"type": "stage", "stage": "rerank", "message": "正在精排检索结果…"})
-    chunks = state.get("merged_chunks", []) or []
-    query = state.get("rewritten_query") or state.get("original_query", "")
-    top_k = min(rerank_config.top_k, len(chunks)) if chunks else 0
-
-    try:
-        reranked = rerank_chunks(query, chunks, top_k)
-    except Exception as exc:
-        logger.warning(f"Rerank 失败，回退 RRF 结果: {exc}")
-        return {}
-    logger.info(f"Rerank 输出 {len(reranked)} 条: {[h.get('id') for h in reranked]}")
-    return {"reranked_chunks": reranked}
-
-
-# 单元测试
+# 单元测试：用桩分数替换公共打分 API，避免单测加载真实模型
 if __name__ == "__main__":
-    # 用桩分数替换公共打分 API，避免单测加载真实模型
-    def _fake_scores() -> list[float]:
+    def _fake_scores(query: str, texts: list[str]) -> list[float]:
         return [0.9, 0.1, 0.8]
 
     compute_rerank_scores = _fake_scores  # 覆盖模块级导入的绑定，只验证内联精排逻辑

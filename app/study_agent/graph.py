@@ -29,7 +29,7 @@ def build_graph(checkpointer=None):
     """构建教材知识学习 Agent（create_agent 单层 ReAct）。
 
     Args:
-        checkpointer: 状态持久化器（断点续跑），建议传 MongoDBSaver。
+        checkpointer: 状态持久化器（断点续跑），传 MongoDBSaver。
 
     Returns:
         编译后的 CompiledStateGraph，可直接 stream / invoke。
@@ -38,12 +38,14 @@ def build_graph(checkpointer=None):
         model=get_llm_client(),
         tools=[search_textbook, list_chapters, search_web,
                write_file, append_file, read_file, edit_file, list_files],
-        system_prompt=load_prompt("study_agent"),
+        system_prompt=load_prompt("study_chat"),
         state_schema=StudyState,  # 需含 messages(add_messages)
         checkpointer=checkpointer,
         middleware=[
             ModelCallLimitMiddleware(run_limit=20),  # 护栏1：步数上限（到顶 end 收尾）
-            SummarizationMiddleware(model=get_llm_client()),  # 护栏2：自动上下文压缩
-            HumanInTheLoopMiddleware(interrupt_on={"write_file": True}),  # 可选：写文件前人工确认
+            SummarizationMiddleware(model=get_llm_client(), keep=("messages", 5)),  # 护栏2：自动上下文压缩
+            HumanInTheLoopMiddleware(
+                interrupt_on={"write_file": True, "edit_file": True, "append_file": True}
+            ),  # 护栏：所有写盘动作写前人工确认
         ],
     )

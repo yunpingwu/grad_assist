@@ -15,10 +15,10 @@ from app.utils.milvus_util import list_chapters as _list_chapters
 async def list_chapters(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
 ) -> str:
-    """列出教材的完整章节结构（章节 + 小节），了解教材骨架。
+    """开工前先看教材骨架，列出完整章节结构（章节 + 小节）。
 
-    适合在开工前调用，确定按哪些章节检索与组织内容；search_textbook 的
-    chapter 参数必须传本工具返回的 chapter 原文。
+    search_textbook 的 chapter 参数必须传本工具返回的 chapter 原文；先了解骨架，
+    便于确定按哪些章节检索与组织内容。
 
     Returns:
         教材「章 → 节」结构清单。

@@ -26,13 +26,14 @@ from langgraph.prebuilt import InjectedState
 from app.core import logger
 
 # 文件落盘根目录：任务文件落在 {MATERIAL_ROOT}/{教材名}/{task_id}/ 下
-MATERIAL_ROOT = Path(__file__).parents[4] / "study"
+MATERIAL_ROOT = Path(__file__).parents[3] / "study"
 
 # 读文件每页行数（对齐 SWE-agent 文件查看器每次约 100 行的分页策略）
 READ_PAGE_LINES = 100
 
-# 本进程内「已读过」的文件集合（edit 前置校验；进程内单写者场景足够）
-_read_once: set[Path] = set()
+# 本进程内「已知内容」的文件集合：read_file 读过 / write_file·append_file 刚写过
+# （edit 前置校验；进程内单写者场景足够）
+_known_files: set[Path] = set()
 
 # 追加/编辑的每文件锁（同进程内串行化同一文件的并发改写）
 _locks: dict[Path, threading.Lock] = {}
@@ -46,7 +47,7 @@ async def write_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """在任务文件目录内创建或整体覆盖一个文本文件（建议 Markdown，自动建父目录）。
+    """创建或整体覆盖一个文本文件（建议 Markdown，自动建父目录）——仅当用户要求把资料保存成文件时使用。
 
     Args:
         filename: 相对文件名，可含子目录，如「第3章/知识点总结.md」。
@@ -75,6 +76,7 @@ async def write_file(
         os.replace(tmp, path)
 
     logger.info(f"write_file: {path}（{path.stat().st_size} 字节）")
+    _known_files.add(path)  # 内容为本 agent 所写，视为已知，edit 可免 read 直接改
     return f"已写入 {path.as_posix()}（{path.stat().st_size} 字节）"
 
 
@@ -85,7 +87,7 @@ async def append_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """向已有文件追加内容（长文档分段写入用，避免整文重写）。
+    """续写已有资料时用：向文件末尾追加内容（长文档分段写入用，避免整文重写）。
 
     Args:
         filename: 相对文件名（必须已由 write_file 创建）。
@@ -113,6 +115,7 @@ async def append_file(
             fh.write(content)
 
     logger.info(f"append_file: {filename} +{len(content)} 字符")
+    _known_files.add(path)  # 追加内容为本 agent 所写，同样视为已知
     return f"已向 {filename} 追加 {len(content)} 字符（现 {path.stat().st_size} 字节）"
 
 
@@ -124,7 +127,7 @@ async def read_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """按行范围分页读取沙箱内文件（写前检查、续写定位、edit 前必读）。
+    """查看资料内容：按行范围分页读取沙箱内文件（写前检查、续写定位、edit 前必读）。
 
     Args:
         filename: 相对文件名。
@@ -149,7 +152,7 @@ async def read_file(
     if not path.is_file():
         raise ValueError(f"文件不存在: {filename}")
 
-    _read_once.add(path)  # 记录已读，供 edit_file 前置校验
+    _known_files.add(path)  # 记录已读，供 edit_file 前置校验
     lines = path.read_text(encoding="utf-8").splitlines()
     total = len(lines)
     if offset < 1 or offset > total:
@@ -170,7 +173,7 @@ async def edit_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """对已写文件做精确文本替换（调用前必须先 read_file 读取该文件）。
+    """修改已生成资料：对已知内容文件做精确文本替换（须先 read_file 读过，或本任务内 write_file 写过）。
 
     Args:
         filename: 相对文件名。
@@ -179,7 +182,7 @@ async def edit_file(
         replace_all: True 时替换全部匹配（默认 False）。
 
     Returns:
-        替换结果（命中次数与替换处上下文）。
+        替换结果（命中次数与替换处上下文）；前置不满足时返回引导提示（供模型自愈，不抛异常）。
     """
     # 同 write_file 的路径解析与校验
     root = (MATERIAL_ROOT / (textbook_name or "") / (task_id or "")).resolve()
@@ -194,9 +197,13 @@ async def edit_file(
             raise ValueError(f"路径越出任务沙箱: {filename!r}")
 
     if not path.is_file():
-        raise ValueError(f"文件不存在: {filename}")
-    if path not in _read_once:
-        raise ValueError(f"编辑前必须先 read_file 读取该文件（对应文件: {path.name}）")
+        return f"工具提示：文件不存在（请先 write_file 创建该文件）: {filename}"
+    if path not in _known_files:
+        # 返回引导文本而非抛异常：错误会以工具结果回给模型，模型可自动 read_file 后重试（自愈循环）
+        return (
+            f"工具提示：编辑前需要先确认文件内容——请先调用 read_file 读取该文件"
+            f"（或先在本任务内 write_file 写入它）后再编辑: {path.name}"
+        )
 
     with _locks.setdefault(path, threading.Lock()):
         text = path.read_text(encoding="utf-8")
@@ -223,7 +230,7 @@ async def list_files(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """列出本任务文件目录内已生成的全部文件。
+    """查或改已有资料前先定位：列出本任务文件目录内已生成的全部文件。
 
     Returns:
         相对路径 + 字节数清单。
@@ -269,15 +276,26 @@ if __name__ == "__main__":
             # 2) 写入 / 追加 / 读取 / 编辑闭环
             await files_mod.write_file.coroutine(filename="第1章/总结.md", content="# 第1章\n正文A\n", textbook_name=tb, task_id=tk)
             await files_mod.append_file.coroutine(filename="第1章/总结.md", content="正文B\n", textbook_name=tb, task_id=tk)
-            # 未 read 先 edit 应报错
-            try:
-                await files_mod.edit_file.coroutine(filename="第1章/总结.md", old_string="正文A", new_string="甲", textbook_name=tb, task_id=tk)
-                raise AssertionError("未 read 先 edit 应报错")
-            except ValueError:
-                pass
+            # 刚 write 过的文件视为已知内容，edit 免 read 直接可改
+            edited = await files_mod.edit_file.coroutine(filename="第1章/总结.md", old_string="正文A", new_string="甲", textbook_name=tb, task_id=tk)
+            assert "已替换 1 处" in edited, edited
+            # 未 read 也未 write 的既有文件：edit 返回引导提示（不崩，模型可自愈）
+            (Path(tmp) / tb / "pre_existing").mkdir(parents=True, exist_ok=True)
+            (Path(tmp) / tb / "pre_existing" / "旧.md").write_text("旧内容\n", encoding="utf-8")
+            fe = await files_mod.edit_file.coroutine(
+                filename="旧.md", old_string="旧内容", new_string="新内容", textbook_name=tb, task_id="pre_existing"
+            )
+            assert "read_file" in fe, fe
+            page = await files_mod.read_file.coroutine(filename="旧.md", textbook_name=tb, task_id="pre_existing")
+            assert "旧内容" in page, page
+            edited = await files_mod.edit_file.coroutine(
+                filename="旧.md", old_string="旧内容", new_string="新内容", textbook_name=tb, task_id="pre_existing"
+            )
+            assert "已替换 1 处" in edited, edited
             page = await files_mod.read_file.coroutine(filename="第1章/总结.md", textbook_name=tb, task_id=tk)
             assert "共 3 行" in page, page
-            edited = await files_mod.edit_file.coroutine(filename="第1章/总结.md", old_string="正文A", new_string="甲", textbook_name=tb, task_id=tk)
+            # read 后编辑同理放行
+            edited = await files_mod.edit_file.coroutine(filename="第1章/总结.md", old_string="甲", new_string="正文A", textbook_name=tb, task_id=tk)
             assert "已替换 1 处" in edited, edited
             # 不唯一匹配应报错
             await files_mod.append_file.coroutine(filename="第1章/总结.md", content="正文A\n正文A\n", textbook_name=tb, task_id=tk)
@@ -290,7 +308,7 @@ if __name__ == "__main__":
             edited = await files_mod.edit_file.coroutine(
                 filename="第1章/总结.md", old_string="正文A", new_string="乙", replace_all=True, textbook_name=tb, task_id=tk
             )
-            assert "已替换 2 处" in edited, edited
+            assert "已替换 3 处" in edited, edited
             listing = await files_mod.list_files.coroutine(textbook_name=tb, task_id=tk)
             assert "第1章/总结.md" in listing, listing
 
