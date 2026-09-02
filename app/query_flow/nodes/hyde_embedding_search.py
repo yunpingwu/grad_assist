@@ -1,12 +1,18 @@
+"""HyDE 假设文档检索工具函数：供 search_textbook 深度路径做第二路召回。
+
+从 query_flow 收编而来：仅保留纯函数 hyde_doc_generate / hyde_doc_search
+（原节点封装已移除）。
+"""
+
+from __future__ import annotations
+
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.types import StreamWriter
 from pymilvus import WeightedRanker
 
 from app.clients.llm import get_llm_client
 from app.clients.milvus_client import get_client
-from app.core import load_prompt, log_node, logger
-from app.query_flow.state import QueryState
+from app.core import load_prompt, logger
 from app.utils.embedding_util import generate_embeddings
 from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
 
@@ -70,55 +76,31 @@ async def hyde_doc_search(hyde_doc: str, rewritten_query: str, textbook_name: st
     if not collection_name:
         raise ValueError(f"教材未登记: {textbook_name}")
     res = milvus_client.hybrid_search(
-        collection_name=collection_name,  # 检索的目标集合名（文本片段向量集合）
-        reqs=reqs,  # 构造好的混合搜索请求对象（稠密+稀疏）
-        ranker=WeightedRanker(0.8, 0.2),  # 稠/稀疏向量评分权重配比
-        limit=5,  # 获取的TOP5相似度最高结果
-        output_fields=["text", "chapter", "section", "metadata_json"],  # 输出的字段
+        collection_name=collection_name,
+        reqs=reqs,
+        ranker=WeightedRanker(0.8, 0.2),
+        limit=5,
+        output_fields=["text", "chapter", "section", "metadata_json"],
     )
     logger.info(f"查询向量搜索结果: {res}")
     return res[0]
 
 
-@log_node
-async def hyde_embedding_search(state: QueryState, *, writer: StreamWriter) -> dict:
-    """根据重写的问题生成假设性文档，向量化之后查询"""
-    writer({"type": "stage", "stage": "search", "message": "正在检索教材内容…"})
-    rewritten_query = state.get("rewritten_query")
-    textbook_name = state.get("textbook_name")
-    # 假设性文档生成
-    hyde_doc = await hyde_doc_generate(rewritten_query)
-    # 向量检索
-    hyde_embedding_chunks = await hyde_doc_search(hyde_doc, rewritten_query, textbook_name)
-
-    return {"hyde_embedding_chunks": hyde_embedding_chunks}
-
-
-# 冒烟测试：桩掉 LLM 与检索（依赖真实模型/Milvus），只验证节点编排
+# 冒烟测试：仅验证空输入守卫（真实验证依赖 LLM/Milvus，由 search_textbook 集成覆盖）
 if __name__ == "__main__":
     import asyncio
 
-    async def _fake_generate(rewritten_query: str) -> str:
-        return f"假设性文档: {rewritten_query}"
+    async def _run() -> None:
+        for fn, args in [
+            (hyde_doc_generate, ("",)),
+            (hyde_doc_search, ("", "问题", "教材")),
+            (hyde_doc_search, ("文档", "", "教材")),
+        ]:
+            try:
+                await fn(*args)
+                raise AssertionError("空输入应当抛出 ValueError")
+            except ValueError as exc:
+                assert "为空" in str(exc)
+        print("hyde 空输入守卫通过")
 
-    async def _fake_search(hyde_doc: str, rewritten_query: str, textbook_name: str) -> list[dict]:
-        return [
-            {"id": "h1", "distance": 0.6, "entity": {"text": hyde_doc}},
-        ]
-
-    hyde_doc_generate = _fake_generate  # 覆盖真实 LLM 生成
-    hyde_doc_search = _fake_search  # 覆盖真实向量检索
-
-    def writer(chunk):
-        print(f"  [writer] {chunk}")
-
-    state: QueryState = {
-        "session_id": "test",
-        "textbook_name": "C语言程序设计",
-        "original_query": "C语言如何使用指针?",
-        "rewritten_query": "C语言如何使用指针?",
-    }
-    result = asyncio.run(hyde_embedding_search(state, writer=writer))
-    chunks = result["hyde_embedding_chunks"]
-    assert len(chunks) == 1 and chunks[0]["id"] == "h1", f"hyde_embedding_chunks 不正确: {chunks}"
-    print(f"hyde_embedding_search 测试通过，HyDE 召回 {len(chunks)} 条")
+    asyncio.run(_run())

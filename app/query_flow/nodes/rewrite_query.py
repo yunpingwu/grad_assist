@@ -1,18 +1,27 @@
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+"""查询重写工具函数：供 search_textbook 消歧多轮指代/省略。
+
+从 query_flow 收编而来：仅保留纯函数 rewrite / format_questions（原节点封装
+rewrite_query 已随 query_flow 图一并移除）。
+"""
+
+from __future__ import annotations
+
+from langchain_core.messages import AnyMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.types import StreamWriter
 
 from app.clients.llm import get_llm_client
-from app.core import load_prompt, log_node, logger
-from app.query_flow.state import QueryState
+from app.core import load_prompt
 
 
 def format_questions(messages: list[AnyMessage]) -> str:
-    """将 LangChain 消息列表转为str供 LLM 输入。
+    """将 LangChain 消息列表转为 str 供 LLM 输入。
 
     Args:
+        messages: 对话消息列表（取除最新一条外的历史用户问题）。
 
+    Returns:
+        纯文本的历史用户问题；无历史返回空字符串。
     """
     questions = []
     for m in messages[:-1]:
@@ -47,31 +56,11 @@ async def rewrite(original_query: str, textbook_name: str = "", questions_histor
     return output.strip()
 
 
-@log_node
-async def rewrite_query(state: QueryState, *, writer: StreamWriter) -> dict:
-    """将原始问题重写为更适合检索的查询。
-
-    多轮对话的入口：先加载最近几轮历史（缺省 session_id 时生成并写回 state），
-    供 rewrite 消歧；writer 推送阶段提示。
-    """
-    writer({"type": "stage", "stage": "rewrite", "message": "正在改写问题…"})
-    original_query = state.get("original_query")
-    textbook_name = state.get("textbook_name", "")
-    session_id = state.get("session_id")
-    messages = state.get("messages", [])
-
-    questions_history = format_questions(messages)
-    logger.info(f"会话 {session_id}: 加载历史问题 {len(questions_history)} 字符")
-
-    rewritten_query = await rewrite(original_query, textbook_name, questions_history)
-    logger.info(f"重写问题：{original_query} → {rewritten_query}")
-
-    return {"rewritten_query": rewritten_query}
-
-
-# 冒烟测试：桩掉 LLM 重写，验证历史拼装与 rewritten_query 写回
+# 冒烟测试：桩掉 LLM 重写，验证历史拼装与重写输出
 if __name__ == "__main__":
     import asyncio
+
+    from langchain_core.messages import AIMessage, HumanMessage
 
     async def _fake_rewrite(original_query: str, textbook_name: str, questions_history: str) -> str:
         assert "什么是指针?" in questions_history, f"多轮历史未拼进重写输入: {questions_history!r}"
@@ -79,20 +68,11 @@ if __name__ == "__main__":
 
     rewrite = _fake_rewrite  # 覆盖真实 LLM 调用
 
-    def writer(chunk):
-        print(f"  [writer] {chunk}")
+    async def _run() -> None:
+        history = [HumanMessage(content="什么是指针?"), AIMessage(content="指针是一种…")]
+        rewritten = await rewrite("如何使用它?", "C语言程序设计", format_questions(history))
+        assert rewritten and "如何使用它?" in rewritten, rewritten
+        print(f"重写问题: {rewritten}")
+        print("rewrite_query 测试通过")
 
-    test_state: QueryState = {
-        "session_id": "test",
-        "textbook_name": "C语言程序设计",
-        "original_query": "如何使用它?",
-        "messages": [
-            HumanMessage(content="什么是指针?"),  # 第1轮 问
-            AIMessage(content="指针是一种…"),  # 第1轮 答
-        ],
-    }
-    result = asyncio.run(rewrite_query(test_state, writer=writer))
-    rewritten = result["rewritten_query"]
-    assert rewritten and "如何使用它?" in rewritten, f"rewritten_query 不正确: {rewritten!r}"
-    print(f"重写问题: {rewritten}")
-    print("rewrite_query 测试通过")
+    asyncio.run(_run())

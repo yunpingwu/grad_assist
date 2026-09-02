@@ -42,7 +42,7 @@ Thumbs.db
 textbooks/
 
 # 复习资料生成产物
-materials/
+study/
 
 # Docker 配置
 docker/

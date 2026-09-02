@@ -1,22 +1,25 @@
-"""教材知识学习服务路由：SSE 流式执行 Agent + 产物文件读取。
+"""统一教材助手服务路由：SSE 流式对话（含写盘确认续跑）+ 产物文件读取。
 
-契约对齐 query_service：thread_id = user_id:study:task_id，独立 checkpoint
-collection（study_checkpoints），多用户按 X-User-Id 软隔离。
+对话 thread_id = user_id:session_id，独立 checkpoint collection（study_checkpoints），
+多用户按 X-User-Id 软隔离。多轮交互的消息结构调试信息输出到控制台并追加写
+``logs/messages.log``。
 """
 
 from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.mongodb import MongoDBSaver
-from pydantic import BaseModel, Field
-from starlette.responses import StreamingResponse
+from langgraph.types import Command
+from starlette.responses import Response, StreamingResponse
 
 from app.api.deps import get_user_id
+from app.api.req import ChatRequest
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
@@ -26,8 +29,8 @@ from app.study_agent.tools.files import MATERIAL_ROOT
 
 router = APIRouter(tags=["study"])
 
-# 缺省任务指令：用户未填 requirement 时的兜底目标
-DEFAULT_REQUIREMENT = "结合教材内容，生成一份完整的知识点总结学习笔记。"
+# 消息结构 trace 的落盘目录（项目根 logs/）
+LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
 
 # 模块级编译一次：独立 checkpoint collection，避免与 query/textbook 图 thread 冲突
 checkpointer = MongoDBSaver(
@@ -39,43 +42,54 @@ checkpointer = MongoDBSaver(
 study_graph = build_graph(checkpointer=checkpointer)
 
 
-class RunRequest(BaseModel):
-    """学习任务请求。"""
-
-    textbook_name: str = Field(..., description="教材名（已解析入库）")
-    requirement: str = Field(default="", description="任务要求（如生成哪些学习资料/回答什么问题），留空用默认指令")
-    task_id: str | None = Field(default=None, description="任务 ID（断点续跑用，缺省自动生成）")
-
-
 @router.post(
-    "/study/run",
-    summary="执行学习任务",
-    description="SSE 事件流：stage 阶段提示 / tool 工具调用 / token 增量 / done 收尾 / error 异常",
+    "/study/chat",
+    summary="统一助手对话（含写盘确认续跑）",
+    description="SSE 事件流：tool / thought / token / ask_confirm / done / error；多轮经 session_id 续接；"
+    "对停留在写盘确认的会话传 decision=approve|reject 统一放行/拒绝",
 )
-async def run(req: RunRequest, user_id: str = Depends(get_user_id)) -> StreamingResponse:
-    """执行一轮学习任务（Agent 自主检索教材并产出文件），以 SSE 实时推送过程事件。"""
-    task_id = req.task_id or str(uuid.uuid4())
+async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> StreamingResponse:
+    """统一对话入口：新问题直接跑；上轮停在写盘确认时按 decision 放行/拒绝后续跑同一线程。"""
+    session_id = req.session_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
     state: StudyState = {
         "user_id": user_id,
-        "task_id": task_id,
+        "task_id": session_id,
         "textbook_name": req.textbook_name,
-        "requirement": req.requirement or DEFAULT_REQUIREMENT,
-        "messages": [HumanMessage(content=req.requirement or DEFAULT_REQUIREMENT)],
+        "requirement": req.query,
+        "messages": [HumanMessage(content=req.query)],
     }
-    config = {"configurable": {"thread_id": f"{user_id}:study:{task_id}"}}
+
+    # 判断线程是否停在 HumanInTheLoop 写盘确认中断
+    snapshot = await study_graph.aget_state(config)
+    pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
+        task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
+    )
+    agent_input: dict | Command = state
+    if pending_interrupt:
+        pending_count = max(len(getattr(snapshot, "tasks", ())), 1)  # 无快照时兜底 1
+        if req.decision in ("approve", "reject"):
+            # 用户回应上轮确认：对全部 pending 中断统一生效，续跑同一线程
+            agent_input = Command(resume={"decisions": [{"type": req.decision}] * pending_count})
+        else:
+            # 方案A：停在中断却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
+            logger.info(f"session {session_id} 停在写盘确认但收到新问题，自动拒绝本次写盘")
+            await study_graph.ainvoke(
+                Command(resume={"decisions": [{"type": "reject"}] * pending_count}), config
+            )
+            agent_input = state
 
     async def event_gen():
         try:
-            async for event in study_graph.astream(state, config=config, stream_mode="custom", durability="sync"):
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            async for ev in stream_agent(agent_input, config, session_id):
+                yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
         except ValueError as exc:
             # 教材未登记等业务错误
             payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
             yield f"data: {payload}\n\n"
         except Exception as exc:
-            # LLM / Milvus / 文件系统等基础设施错误
-            logger.exception(f"学习任务执行失败: {exc}")
-            payload = json.dumps({"type": "error", "message": "任务执行失败"}, ensure_ascii=False)
+            logger.exception(f"统一对话执行失败: {exc}")
+            payload = json.dumps({"type": "error", "message": "回答生成失败"}, ensure_ascii=False)
             yield f"data: {payload}\n\n"
 
     return StreamingResponse(
@@ -83,6 +97,126 @@ async def run(req: RunRequest, user_id: str = Depends(get_user_id)) -> Streaming
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+async def stream_agent(agent_input: dict | Command, config: dict, session_id: str):
+    """以 SSE 事件流消费统一 agent 的一轮执行（消息级 + 断点续跑共用）。
+
+    事件协议（按前端展示规则）：
+    - ``thought``：模型在调工具前后的思考/推理内容（能看清大模型的思路），单独推送；
+    - ``token``：仅最终回答正文；
+    - ``tool``：工具执行结果（name + content），全部推送，前端按时间线穿插展示；
+    - ``ask_confirm`` / ``done``：写盘确认 / 收尾。
+
+    Args:
+        agent_input: 本轮输入（新会话传 state 字典；续跑传 Command(resume=...)）。
+        config: 含 thread_id 的运行时配置。
+        session_id: 会话 ID，随 done / ask_confirm 回传。
+
+    Yields:
+        形如 {"type": "thought"|"token"|"tool"|"ask_confirm"|"done", ...} 的事件字典。
+    """
+    async for chunk, meta in study_graph.astream(
+        agent_input, config=config, stream_mode="messages", durability="sync"
+    ):
+        node = (meta or {}).get("langgraph_node")
+        if node == "model":
+            # 工具调用回合：模型先"说"的一段（如「教材已定位到…我再取回代码」）放在 content，
+            real_calls = [tc for tc in (getattr(chunk, "tool_call_chunks", None) or []) if tc.get("name")]
+            speech = getattr(chunk, "content", "") or ""
+            reasoning = getattr(chunk, "reasoning_content", None)
+            if not reasoning:
+                reasoning = (getattr(chunk, "additional_kwargs", {}) or {}).get("reasoning_content")
+            if real_calls:
+                seg = (str(reasoning) if reasoning else "") + ("\n" if reasoning and speech else "") + speech
+                if seg.strip():
+                    yield {"type": "thought", "content": seg.strip()}
+                continue
+            # 纯正文回合：推理 → thought；正文 → 最终回答 token
+            if reasoning:
+                yield {"type": "thought", "content": str(reasoning)}
+            if speech:
+                yield {"type": "token", "content": speech}
+        elif node == "tools":
+            # 工具结果：前端展示
+            tm_name = getattr(chunk, "name", None)
+            if tm_name:
+                yield {"type": "tool","status": "done","name": tm_name,"content": getattr(chunk, "content", "") or "",}
+
+    # 检测是否停留在写盘确认中断（HumanInTheLoop 暂停后的线程 next 非空且 tasks 带 interrupts）
+    snapshot = await study_graph.aget_state(config)
+    # 调试：多轮交互消息的全量结构只在后端控制台/日志文件输出（不推送前端）
+    _all = _dump_messages((snapshot.values or {}).get("messages", []))
+    _write_message_trace(session_id, _all)
+    # 停在 HumanInTheLoop 写盘中断（next 非空且 tasks 带 interrupts）→ 等确认；否则正常收尾
+    pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
+        task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
+    )
+    if pending_interrupt:
+        yield {
+            "type": "ask_confirm",
+            "session_id": session_id,
+            "message": "助手准备写入文件以生成学习资料，是否允许？",
+        }
+    else:
+        yield {"type": "done", "session_id": session_id}
+
+
+def _dump_messages(messages: list) -> list[dict]:
+    """把线程消息抽成可读结构，供调试查看 agent 与 LLM 的多轮交互。
+
+    每种消息保留关键字段：type（human/ai/tool）、content（全量）、tool_calls（模型要调的工具）、
+    tool_call_id（工具回填对应哪个调用）、name（工具名）。字段不存在则不出现。
+
+    Args:
+        messages: 线程状态里的 messages 列表（LangChain BaseMessage）。
+
+    Returns:
+        结构化的消息字典列表。
+    """
+    out: list[dict] = []
+    for m in messages:
+        item: dict = {"type": m.type, "content": str(m.content)}
+        reasoning = getattr(m, "reasoning_content", None)
+        if not reasoning:
+            reasoning = (getattr(m, "additional_kwargs", {}) or {}).get("reasoning_content")
+        if reasoning:
+            item["reasoning_content"] = str(reasoning)
+        tool_calls = getattr(m, "tool_calls", None)
+        if tool_calls:
+            item["tool_calls"] = [
+                {"name": tc.get("name"), "args": tc.get("args"), "id": tc.get("id")} for tc in tool_calls
+            ]
+        tool_call_id = getattr(m, "tool_call_id", None)
+        if tool_call_id:
+            item["tool_call_id"] = tool_call_id
+        name = getattr(m, "name", None)
+        if name:
+            item["name"] = name
+        out.append(item)
+    return out
+
+
+def _write_message_trace(session_id: str, dump: list[dict]) -> None:
+    """把一轮消息结构按 JSONL 追加到 logs/messages.log（失败仅告警，不影响主链路）。
+
+    Args:
+        session_id: 会话 ID。
+        dump: _dump_messages 的结构化消息列表。
+    """
+    try:
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(
+            {"ts": datetime.now().isoformat(timespec="seconds"), "session_id": session_id, "messages": dump},
+            ensure_ascii=False,
+        )
+        with (LOGS_DIR / "messages.log").open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+    except Exception as exc:
+        logger.warning(f"写入消息 trace 失败(session_id={session_id}): {exc}")
+
+
+CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
 
 
 @router.get("/study/files", summary="任务产物文件列表", description="列出某任务目录内已生成的文件（相对路径 + 大小）")
@@ -118,3 +252,94 @@ async def read_file(task_id: str, textbook_name: str, path: str) -> dict:
     if not target.is_file():
         raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
     return {"path": path, "content": target.read_text(encoding="utf-8")}
+
+
+@router.get(
+    "/sessions",
+    summary="会话列表",
+    description="按教材列出当前用户的对话会话摘要（从 study checkpoint 读取），最近更新在前，排除资料任务线程",
+)
+async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+    """列出当前用户某教材的全部对话会话摘要（基于 study_checkpoints，倒序）。"""
+    if not textbook_name:
+        raise HTTPException(status_code=400, detail="缺少 textbook_name")
+
+    prefix = f"{user_id}:"
+    thread_ids = [
+        t
+        for t in mongo_client.get_collection("study_checkpoints").distinct("thread_id")
+        if t.startswith(prefix) and CHAT_THREAD_MARKER not in t
+    ]
+    items: list[dict] = []
+    for tid in thread_ids:
+        snapshot = await study_graph.aget_state({"configurable": {"thread_id": tid}})
+        values = snapshot.values or {}
+        if values.get("textbook_name") != textbook_name:
+            continue
+        messages = values.get("messages", [])
+        # 会话条目数只统计可回显的消息（用户 + 最终回答），过滤工具消息/中间轮次
+        chat_count = sum(
+            1
+            for m in messages
+            if m.type == "human" or (m.type == "ai" and not getattr(m, "tool_calls", None))
+        )
+        last_user = next((m for m in reversed(messages) if m.type == "human"), None)
+        items.append(
+            {
+                "session_id": tid.split(":", 1)[1],  # 返回裸 session_id，前端配合 X-User-Id 使用
+                "updated_at": snapshot.created_at or "",
+                "message_count": chat_count,
+                # 返回最新用户问题原文；截断等展示整形由前端负责
+                "last_question": str(last_user.content) if last_user else "",
+            }
+        )
+    items.sort(key=lambda s: s["updated_at"], reverse=True)
+    return items
+
+
+@router.get(
+    "/history",
+    summary="会话历史",
+    description="获取当前用户某会话的全部消息（从 study checkpoint 读取），供历史回显",
+)
+async def history(session_id: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+    """获取某会话的结构化消息列表。"""
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 session_id")
+    snapshot = await study_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
+    messages = (snapshot.values or {}).get("messages", [])
+    # 历史回显：只保留「用户 + 最终助手回答」；思考与检索结果按消息真实顺序折进对应回答的 steps 时间线
+    items: list[dict] = []
+    pending_steps: list[dict] = []
+    for m in messages:
+        if m.type == "human":
+            items.append({"role": "user", "content": str(m.content)})
+        elif m.type == "ai":
+            reasoning = getattr(m, "reasoning_content", None)
+            if not reasoning:
+                reasoning = (getattr(m, "additional_kwargs", {}) or {}).get("reasoning_content")
+            # 带 tool_calls 的中间回合：推理也进时间线（穿插在工具结果之前）
+            if reasoning:
+                pending_steps.append({"type": "thought", "content": str(reasoning)})
+            if getattr(m, "tool_calls", None):
+                continue  # 中间的工具调用回合，不单独展示
+            items.append({"role": "assistant", "content": str(m.content), "steps": pending_steps[:]})
+            pending_steps = []
+        elif m.type == "tool":
+            tm_name = getattr(m, "name", None)
+            if tm_name:
+                pending_steps.append({"type": "tool", "name": tm_name, "content": str(m.content)})
+    return items
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    summary="删除会话",
+    description="删除当前用户的单个对话会话（删除其全部 checkpoint）",
+)
+async def delete_session(session_id: str, user_id: str = Depends(get_user_id)) -> Response:
+    """删除单个会话（幂等：会话不存在也返回 204）。"""
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 session_id")
+    checkpointer.delete_thread(f"{user_id}:{session_id}")
+    return Response(status_code=204)
