@@ -1,6 +1,6 @@
 """search_textbook 工具：叠加强化检索（重写消歧 + 多路召回 + 精排），供 agent 自主调用。
 
-将 query_flow 的核心能力折叠进单一检索工具，最终回答统一由 agent 模型生成，本工具只返回检索片段：
+将 query_functions 的核心能力折叠进单一检索工具，最终回答统一由 agent 模型生成，本工具只返回检索片段：
 - 始终先做问题重写（利用对话历史消歧），提升召回针对性；
 - ``deep=False`` 快速路径：混合召回（稠密+稀疏）后直接返回 TOP-K，适合反复取素材；
 - ``deep=True`` 深度路径：再叠加 HyDE 假设文档召回 → RRF 融合 → 交叉编码精排，适合严谨作答。
@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Annotated
 
 from langchain_core.tools import tool
@@ -16,65 +17,111 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import logger
-from app.query_flow.nodes.embedding_search import rewrite_query_search
-from app.query_flow.nodes.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
-from app.query_flow.nodes.merge_recalls import rrf_merge
-from app.query_flow.nodes.rerank import rerank_chunks
-from app.query_flow.nodes.rewrite_query import format_questions, rewrite
+from app.study_agent.query_functions.embedding_search import rewrite_query_search
+from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
+from app.study_agent.query_functions.merge_recalls import rrf_merge
+from app.study_agent.query_functions.rerank import rerank_chunks
+from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
 
-# 单片段最大字符数（压缩护栏：防止原文过长挤爆上下文）
-MAX_CHARS_PER_HIT = 600
+# 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
+_FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
+
+def _collect_hit_images(hit: dict) -> dict[str, str]:
+    """提取单个片段附带的图片映射：简介(正文【图】标记 alt) → MinIO url。
+
+    Args:
+        hit: 检索引擎返回的单条 hit（实体须含 ``metadata_json`` 字段）。
+
+    Returns:
+        {简介: url} 映射；无图片或缺 url 返回空 dict。
+    """
+    entity = hit.get("entity") or hit
+    meta_raw = entity.get("metadata_json")
+    if not meta_raw:
+        return {}
+    try:
+        meta = json.loads(meta_raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    url_by_desc: dict[str, str] = {}
+    for img in meta.get("images", []) or []:
+        url = img.get("url")
+        desc = (img.get("description") or "").strip()
+        if not url or not desc or desc in url_by_desc:
+            continue
+        url_by_desc[desc] = url
+    return url_by_desc
+
+
+def _render_text_entity(entity: dict, url_by_desc: dict[str, str]) -> str:
+    """回绑图片 url 到正文图标记并返回正文文本。
+
+    Args:
+        entity: 单条 hit 的 entity（含 text 字段）。
+        url_by_desc: 简介 → url 映射（来自 metadata_json.images）。
+
+    Returns:
+        回绑后的正文文本。
+    """
+    text = (entity.get("text") or "").strip()
+    if url_by_desc:
+        def _replace(m: re.Match) -> str:
+            desc = m.group(1).strip()
+            url = url_by_desc.get(desc)
+            # 简介未匹配到 url（旧教材/元数据缺失）时保留原图标记
+            return f"【图: {desc}】({url})" if url else m.group(0)
+
+        text = _FIGURE_MARK_PATTERN.sub(_replace, text)
+    return text
 
 
 def _format_hits(chunks: list[dict]) -> str:
     """将 hit 列表格式化为编号的 TOP-K 片段文本。
 
+    处理顺序：
+    1. 渲染文本片段（含图片 url 回绑到「【图: 简介】」标记处），记录各
+       (chapter, section) 对应的片段位置；
+    2. 将代码块（block_type="code"）拼回同 (chapter, section) 的正文片段末尾，
+       无对应正文时作为独立片段展示（标注「代码」）。
+
     Args:
         chunks: 检索引擎返回的 hit 列表（含 entity 或扁平字段）。
 
     Returns:
-        编号的片段文本；供 deep 快速/深度两路返回复用。
+        编号的片段文本（章节 + 小节 + 正文，代码块已拼回所属小节）。
     """
     parts: list[str] = []
-    for i, hit in enumerate(chunks, start=1):
+    section_to_part: dict[tuple[str, str], int] = {}
+    code_entities: list[dict] = []
+
+    for hit in chunks:
         entity = hit.get("entity") or hit
-        text = (entity.get("text") or "").strip()
+        # 代码块独立成段：先收集，待正文渲染完成后按其小节位置拼回
+        if entity.get("block_type") == "code":
+            code_entities.append(entity)
+            continue
         chapter = entity.get("chapter") or ""
         section = entity.get("section") or ""
         location = " > ".join(x for x in (chapter, section) if x)
-        truncated = text if len(text) <= MAX_CHARS_PER_HIT else text[:MAX_CHARS_PER_HIT] + "…"
-        parts.append(f"[片段{i}｜{location or '未标注位置'}] {truncated}")
+        text = _render_text_entity(entity, _collect_hit_images(hit))
+        parts.append(f"[片段{len(parts) + 1}｜{location or '未标注位置'}] {text}")
+        # 记录该小节首个正文片段的索引，供后续代码块拼回定位
+        key = (chapter, section)
+        if key not in section_to_part:
+            section_to_part[key] = len(parts) - 1
+
+    for entity in code_entities:
+        chapter = entity.get("chapter") or ""
+        section = entity.get("section") or ""
+        code_text = (entity.get("text") or "").strip()
+        key = (chapter, section)
+        if key in section_to_part:
+            parts[section_to_part[key]] += "\n\n" + code_text
+        else:
+            location = " > ".join(x for x in (chapter, section) if x)
+            parts.append(f"[代码｜{location or '未标注位置'}] {code_text}")
+
     return "\n\n".join(parts)
-
-
-def _collect_image_candidates(chunks: list[dict]) -> list[str]:
-    """从召回片段中收集图片候选（简介 + 可复制 markdown 引用），供 agent 插入回答。
-
-    Args:
-        chunks: 检索引擎返回的 hit 列表（实体须含 ``metadata_json`` 字段）。
-
-    Returns:
-        形如 ["- 简介: …\n  引用: ![图注](url)"] 的行列表；无候选返回空列表。
-    """
-    lines: list[str] = []
-    seen: set[str] = set()
-    for hit in chunks:
-        entity = hit.get("entity") or hit
-        meta_raw = entity.get("metadata_json")
-        if not meta_raw:
-            continue
-        try:
-            meta = json.loads(meta_raw)
-        except (json.JSONDecodeError, TypeError):
-            continue
-        for img in meta.get("images", []) or []:
-            url = img.get("url")
-            desc = (img.get("description") or "").strip()
-            if not url or not desc or url in seen:
-                continue
-            seen.add(url)
-            lines.append(f"- 简介: {desc}\n  引用: ![{desc}]({url})")
-    return lines
 
 
 @tool
@@ -97,7 +144,7 @@ async def search_textbook(
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
     Returns:
-        编号的 TOP-K 片段（章节 + 小节 + 正文截断），无结果或失败时返回友好提示。
+        编号的 TOP-K 片段（章节 + 小节 + 正文，图片 url 已附加到正文图标记处），无结果或失败时返回友好提示。
     """
     textbook_name = textbook_name or ""
     try:
@@ -131,12 +178,8 @@ async def search_textbook(
         return "（未检索到相关片段，请换个问法或去掉章节限定）"
 
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
-    result = _format_hits(hits)
-    # 附带图片候选：简介 + 可复制引用，供 agent 决定是否在回答中插入（图片指令见 system prompt）
-    img_lines = _collect_image_candidates(hits)
-    if img_lines:
-        result += "\n\n【图片候选】\n" + "\n".join(img_lines)
-    return result
+    # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
+    return _format_hits(hits)
 
 
 # 冒烟测试：桩掉 LLM/检索/精排（依赖真实模型/Milvus），只验证编排与拼接
@@ -152,10 +195,18 @@ if __name__ == "__main__":
     async def _fake_hybrid(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
         return [
             {"id": "c1", "distance": 0.8, "entity": {
-                "text": "指针是C语言的核心概念。", "chapter": "第3章", "section": "3.1",
+                "text": "指针是C语言的核心概念。【图: 指针示意图】", "chapter": "第3章", "section": "3.1",
                 "metadata_json": json.dumps({"images": [{"url": "https://x/y.png", "description": "指针示意图"}]}),
             }},
+            {"id": "c3_code", "distance": 0.6, "entity": {
+                "text": "```c\nint main() { return 0; }\n```", "chapter": "第3章", "section": "3.1",
+                "block_type": "code",
+            }},
             {"id": "c2", "distance": 0.7, "entity": {"text": "数组是相同类型元素的集合。", "chapter": "第3章", "section": "3.2"}},
+            {"id": "c4_code", "distance": 0.5, "entity": {
+                "text": "```python\nprint(1)\n```", "chapter": "第4章", "section": "4.1",
+                "block_type": "code",
+            }},
         ]
 
     async def _fake_hyde_generate(rewritten_query: str) -> str:
@@ -189,7 +240,10 @@ if __name__ == "__main__":
             query="它有什么用途?", textbook_name="C语言程序设计", messages=history
         )
         assert "[片段1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
-        assert "【图片候选】" in fast and "指针示意图" in fast, "图片候选未装配"
+        assert "【图: 指针示意图】(https://x/y.png)" in fast, "url 未回绑到正文图标记"
+        assert "int main()" in fast, "代码块未拼回所属小节正文"
+        assert "[代码｜第4章 > 4.1]" in fast and "print(1)" in fast, "无对应正文的代码块未独立展示"
+        assert "配图:" not in fast and "【图片候选】" not in fast, "不应再有独立图片行"
         print("--- fast ---\n" + fast)
 
         # 深度路径：触发 HyDE + 融合 + 精排，取精排后片段

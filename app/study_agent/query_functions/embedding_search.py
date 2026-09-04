@@ -1,6 +1,6 @@
 """向量混合检索工具函数：供 search_textbook 做稠密+稀疏混合召回。
 
-从 query_flow 收编而来：仅保留纯函数 rewrite_query_search（原节点封装已移除）。
+从 query_functions 收编而来：仅保留纯函数 rewrite_query_search（原节点封装已移除）。
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: 
         reqs=reqs,
         ranker=WeightedRanker(0.8, 0.2),
         limit=5,
-        output_fields=["text", "chapter", "section", "metadata_json"],
+        output_fields=["text", "chapter", "section", "metadata_json", "block_type"],
     )
     logger.info(f"查询向量搜索结果: {res}")
     return res[0]

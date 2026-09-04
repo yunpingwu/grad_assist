@@ -1,6 +1,6 @@
 """search_web 工具：通过百炼 WebSearch MCP 联网搜索（降级兜底，旁路增强）。
 
-从 query_flow 收编而来：原 web_search 节点的搜索逻辑并入本工具模块，
+从 query_functions 收编而来：原 web_search 节点的搜索逻辑并入本工具模块，
 联网搜索作为 agent 的旁路补充能力，失败降级为空结果、不阻断主链路。
 """
 

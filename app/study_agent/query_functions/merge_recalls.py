@@ -1,6 +1,6 @@
 """RRF 融合工具函数：供 search_textbook 深度路径融合两路召回。
 
-从 query_flow 收编而来：仅保留纯函数 rrf_merge（原节点封装已移除）。
+从 query_functions 收编而来：仅保留纯函数 rrf_merge（原节点封装已移除）。
 """
 
 from __future__ import annotations

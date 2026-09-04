@@ -1,7 +1,7 @@
 """复习资料生成 Agent 的状态定义。
 
 单层 ReAct 方案：状态即 create_agent（LangChain Agent）的输入输出，
-附加任务信息与收尾产物字段，风格与 query_flow/QueryState 保持一致。
+附加任务信息与收尾产物字段，风格与 query_functions/QueryState 保持一致。
 """
 
 from typing import Annotated, NotRequired, TypedDict

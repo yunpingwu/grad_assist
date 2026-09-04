@@ -1,6 +1,6 @@
 """Rerank 精排工具函数：对 RRF 融合后的候选片段做交叉编码重排序，截取 TOP-K。
 
-从 query_flow 收编而来：仅保留纯函数 rerank_chunks（原节点封装已移除）。
+从 query_functions 收编而来：仅保留纯函数 rerank_chunks（原节点封装已移除）。
 
 - 打分由 ``app.utils.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker），
   模型单例在 util 模块内部维护，本函数只拿分数、不接触模型实例；

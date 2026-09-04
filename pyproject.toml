@@ -17,13 +17,14 @@ dependencies = [
     "python-multipart>=0.0.32",
     "flagembedding>=1.4.0",
     "transformers>=4.44.2,<5",
-    "torch>=2.7",
+    #"torch>=2.7",
     "loguru>=0.7.3",
     "pymongo>=4.12.0,<4.17.0",
     "pillow>=12.3.0",
-    "mcp>=2.0.0",
+    "mcp[cli]>=2.0.0",
     "pydantic-settings>=2.15.0",
-    "langgraph-checkpoint-mongodb>=0.4.0"
+    "langgraph-checkpoint-mongodb>=0.4.0",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -47,14 +48,14 @@ select = ["E", "F", "W", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "app/api/*.py" = ["B008"]
 
-# 指定 PyTorch CUDA 12.8 软件源
+# 指定 PyTorch CPU 软件源
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
-# 强制 PyTorch 相关依赖从 CUDA 软件源安装
+# 强制 PyTorch 相关依赖从 CPU 软件源安装
 [tool.uv.sources]
-torch = { index = "pytorch-cu128" }
+torch = { index = "pytorch-cpu" }
 
 

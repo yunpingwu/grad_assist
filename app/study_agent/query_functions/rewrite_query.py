@@ -1,7 +1,7 @@
 """查询重写工具函数：供 search_textbook 消歧多轮指代/省略。
 
-从 query_flow 收编而来：仅保留纯函数 rewrite / format_questions（原节点封装
-rewrite_query 已随 query_flow 图一并移除）。
+从 query_functions 收编而来：仅保留纯函数 rewrite / format_questions（原节点封装
+rewrite_query 已随 query_functions 图一并移除）。
 """
 
 from __future__ import annotations
