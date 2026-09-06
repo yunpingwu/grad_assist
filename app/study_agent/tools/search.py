@@ -17,6 +17,7 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import logger
+from app.utils import get_collection_by_name, query_section_codes
 from app.study_agent.query_functions.embedding_search import rewrite_query_search
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
 from app.study_agent.query_functions.merge_recalls import rrf_merge
@@ -124,6 +125,93 @@ def _format_hits(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+# 召回后二次补拉代码块的上限（控制检索延迟与 prompt 体积）
+_MAX_PULL_SECTIONS = 3        # 最多补拉前几个正文命中节
+_MAX_CODES_PER_SECTION = 20   # 每节最多补拉的代码块条数
+_MAX_CODE_CHARS = 2000        # 单个代码块超长时截断
+
+
+def _enrich_hits_with_section_codes(textbook_name: str, hits: list[dict]) -> list[dict]:
+    """正文命中后，按 (chapter, section) 二次补拉该节代码块，实现粗粒度代码协同召回。
+
+    只补拉正文 hit 所在节、且 primary 召回中未出现的代码块（按 id 去重）；
+    任一步失败都降级为仅返回原 hits，不阻断主流程。
+
+    Args:
+        textbook_name: 教材名（须已登记）。
+        hits: 检索引擎返回的 hit 列表（含 id 与 entity）。
+
+    Returns:
+        原 hits + 补拉的代码块 hit（结构一致，entity.block_type="code"）。
+    """
+    if not hits:
+        return hits
+
+    try:
+        collection_name = get_collection_by_name(textbook_name)
+    except Exception as exc:  # 定位集合失败不影响主召回
+        logger.warning(f"二次补拉代码块：定位集合失败，跳过: {exc}")
+        return hits
+    if not collection_name:
+        return hits
+
+    # primary 召回已直接带出的代码块 id（补拉时跳过，避免重复拼接）
+    seen_code_ids = {
+        str(h.get("id"))
+        for h in hits
+        if (h.get("entity") or h).get("block_type") == "code"
+    }
+
+    # 正文 hit 的 distinct (chapter, section)，保序、去空章
+    sections: list[tuple[str, str]] = []
+    seen_sections: set[tuple[str, str]] = set()
+    for h in hits:
+        entity = h.get("entity") or h
+        if entity.get("block_type") == "code":
+            continue
+        chapter = (entity.get("chapter") or "").strip()
+        section = (entity.get("section") or "").strip()
+        key = (chapter, section)
+        if not chapter or key in seen_sections:
+            continue
+        seen_sections.add(key)
+        sections.append(key)
+    sections = sections[:_MAX_PULL_SECTIONS]
+
+    extra: list[dict] = []
+    for chapter, section in sections:
+        try:
+            rows = query_section_codes(collection_name, chapter, section, _MAX_CODES_PER_SECTION)
+        except Exception as exc:
+            logger.warning(f"二次补拉代码块失败({chapter} > {section})，跳过: {exc}")
+            continue
+        for row in rows:
+            row_id = str(row.get("id"))
+            if not row_id or row_id in seen_code_ids:
+                continue
+            text = (row.get("text") or "").strip()
+            if not text:
+                continue
+            if len(text) > _MAX_CODE_CHARS:
+                text = text[:_MAX_CODE_CHARS] + "\n# …（代码过长，已截断）"
+            seen_code_ids.add(row_id)
+            extra.append(
+                {
+                    "id": row_id,
+                    "entity": {
+                        "text": text,
+                        "chapter": chapter,
+                        "section": section,
+                        "block_type": "code",
+                    },
+                }
+            )
+
+    if extra:
+        logger.info(f"二次补拉代码块: {len(sections)} 节 → 补 {len(extra)} 个代码块")
+    return hits + extra
+
+
 @tool
 async def search_textbook(
     query: str,
@@ -178,6 +266,8 @@ async def search_textbook(
         return "（未检索到相关片段，请换个问法或去掉章节限定）"
 
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
+    # 正文命中后按节补拉代码块（粗粒度协同召回），使自然语言问代码能取回代码原文
+    hits = _enrich_hits_with_section_codes(textbook_name, hits)
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
     return _format_hits(hits)
 
@@ -223,6 +313,9 @@ if __name__ == "__main__":
         item["rerank_score"] = 0.99
         return [item]
 
+    def _fake_enrich(textbook_name: str, hits: list[dict]) -> list[dict]:
+        return hits  # 冒烟测试不依赖真实 Milvus，二次补拉原样透传
+
     # 覆盖模块级绑定，只验证工具内部编排
     rewrite = _fake_rewrite
     rewrite_query_search = _fake_hybrid
@@ -230,6 +323,7 @@ if __name__ == "__main__":
     hyde_doc_search = _fake_hyde_search
     rrf_merge = _fake_rrf
     rerank_chunks = _fake_rerank
+    _enrich_hits_with_section_codes = _fake_enrich
 
     async def _run() -> None:
         # 模拟一轮已作答的历史：保证消歧历史被拼进重写输入

@@ -103,16 +103,29 @@ def get_collection_by_name(textbook_name: str) -> str | None:
     return res[0]["collection_name"] if res else None
 
 
-def list_textbooks() -> list[dict]:
-    """列出注册表中所有教材（前端教材下拉列表用）。"""
+def list_textbooks(page: int = 1, page_size: int = 20) -> dict:
+    """分页列出注册表中的教材（前端教材下拉列表/书架用）。
+
+    Args:
+        page: 页码，从 1 开始。
+        page_size: 每页条数。
+
+    Returns:
+        {"items": [...], "total": int, "page": int, "page_size": int}，
+        items 元素含 textbook_name/collection_name/chunk_count/created_at。
+    """
     ensure_registry()
     client = milvus_client.get_client()
-    return client.query(
+    total = client.get_collection_stats(REGISTRY_COLLECTION).get("row_count", 0)
+    offset = (page - 1) * page_size
+    items = client.query(
         REGISTRY_COLLECTION,
         filter="",
         output_fields=["textbook_name", "collection_name", "chunk_count", "created_at"],
-        limit=1000,
+        offset=offset,
+        limit=page_size,
     )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 def list_chapters(textbook_name: str) -> list[dict]:
@@ -215,3 +228,35 @@ def create_hybrid_search_requests(
             expr=expr or "",
         ),
     ]
+
+
+def query_section_codes(
+    collection_name: str,
+    chapter: str,
+    section: str,
+    limit: int = 20,
+) -> list[dict]:
+    """查询某 (chapter, section) 下的代码块记录，供召回后补全正文配码。
+
+    Args:
+        collection_name: 教材数据集合名。
+        chapter: 章节名。
+        section: 小节名。
+        limit: 最多返回的代码块条数。
+
+    Returns:
+        [{id, text, chapter, section, block_type}, ...]，无则返回空列表。
+    """
+    client = milvus_client.get_client()
+    safe_chapter = chapter.replace('"', '\\"')
+    safe_section = section.replace('"', '\\"')
+    expr = (
+        'block_type == "code" and '
+        f'chapter == "{safe_chapter}" and section == "{safe_section}"'
+    )
+    return client.query(
+        collection_name,
+        filter=expr,
+        output_fields=["id", "text", "chapter", "section", "block_type"],
+        limit=limit,
+    )

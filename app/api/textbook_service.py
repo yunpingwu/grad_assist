@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -149,8 +149,11 @@ async def resolve_textbooks(
     )
 
 
-@router.get("/list", summary="获取所有教材", description="获取所有教材（教材库全局共享，不按用户隔离）")
-async def get_all_textbooks():
-    """获取所有教材"""
-    textbooks = list_textbooks()
-    return JSONResponse(textbooks)
+@router.get("/list", summary="获取所有教材", description="获取所有教材（教材库全局共享，不按用户隔离），支持分页")
+async def get_all_textbooks(
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页条数"),
+):
+    """分页获取教材"""
+    result = list_textbooks(page=page, page_size=page_size)
+    return JSONResponse(result)

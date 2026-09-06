@@ -37,8 +37,9 @@ _SECTION_SPLIT = re.compile(r"(?=^## )", re.MULTILINE)
 def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
     """从文本中提取图片引用和代码块，返回(清理后文本, 图片列表, 代码列表)。
 
-    - 图片项: {path, description},description 取自富化副本的 alt(视觉模型简介,
-      富化时已用文件名兜底,故始终非空)。
+    - 图片项: {path, description, offset},description 取自富化副本的 alt(视觉模型
+      简介,富化时已用文件名兜底,故始终非空);offset 为「【图: 简介】」标记在
+      clean_text 中的字符偏移,供超长小节硬切时把图片精确归属到标记所在子块。
     - 图片行原位替换为「【图: 简介】」文本(而非删除),让简介与引导句、后续解释
       处于同一 chunk 向量,检索绑定更紧;metadata 的 {url, description} 供回答注入。
     - 代码块从正文删除,但副本中紧随其后的「> 代码说明: …」行不在代码块内,
@@ -55,17 +56,49 @@ def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
     codes = [{"language": m.group(1) or "text", "code": m.group(2).strip()} for m in _CODE_PATTERN.finditer(text)]
     text = _CODE_PATTERN.sub("", text)
 
-    return text.strip(), images, codes
+    clean_text = text.strip()
+
+    # 原位替换使 images 与「【图: 简介】」标记按顺序一一对应(富化副本 alt 恒非空)；
+    # 但代码删除/strip 会改变字符偏移，故在最终的 clean_text 上重新定位每个标记，回填
+    # offset 供硬切分支把图片精确归属到图标记实际所在的子块。
+    mark_matches = list(re.finditer(r"【图: .*?】", clean_text))
+    if len(mark_matches) == len(images):
+        for img, m in zip(images, mark_matches):
+            img["offset"] = m.start()
+
+    return clean_text, images, codes
 
 
-def _char_split(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) -> list[str]:
-    """按字符数硬切，带 overlap"""
-    chunks = []
+def _char_split_with_offsets(
+    text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP
+) -> list[tuple[str, int]]:
+    """按字符数硬切，带 overlap；返回每个子块的 (text, start)。
+
+    start 为子块起始字符偏移，供硬切分支把图片精确归属到图标记所在子块。
+    """
+    chunks: list[tuple[str, int]] = []
     start = 0
     while start < len(text):
-        chunks.append(text[start : start + chunk_size])
+        chunks.append((text[start : start + chunk_size], start))
         start += chunk_size - overlap
     return chunks
+
+
+def _assign_images_to_blocks(images: list[dict], sub_texts: list[tuple[str, int]]) -> list[list[dict]]:
+    """把图片按 offset 精确归属到各子块，返回与 sub_texts 等长的列表。
+
+    图片的 offset 即图标记在 clean_text 中的字符偏移。子块区间为
+    [start, start+len(text))；相邻子块因 overlap 有重叠区，图标记落入重叠区时归属
+    第一个(更靠前)包含它的子块，避免跨 hit 重复回绑。images 已按出现顺序升序。
+    """
+    assigned: list[list[dict]] = [[] for _ in sub_texts]
+    img_idx = 0
+    for bi, (sub, sub_start) in enumerate(sub_texts):
+        sub_end = sub_start + len(sub)
+        while img_idx < len(images) and sub_start <= images[img_idx].get("offset", 0) < sub_end:
+            assigned[bi].append(images[img_idx])
+            img_idx += 1
+    return assigned
 
 
 def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
@@ -218,9 +251,11 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
                 }
                 all_chunks.append(chunk)
             else:
-                sub_texts = _char_split(clean_text)
+                sub_texts = _char_split_with_offsets(clean_text)
                 total = len(sub_texts)
-                for idx, sub in enumerate(sub_texts):
+                # 图片按图标记 offset 精确归属到所在子块，保证「图标记文本」与「url 元数据」同块
+                images_by_block = _assign_images_to_blocks(images, sub_texts)
+                for idx, (sub, _sub_start) in enumerate(sub_texts):
                     chunk = {
                         "content": f"# {chapter_title} > ## {current_section_title}\n{sub}",
                         "textbook_name": textbook_name,
@@ -228,7 +263,7 @@ def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
                         "section": current_section_title,
                         "chunk_index": idx,
                         "total_chunks": total,
-                        "images": images if idx == 0 else [],
+                        "images": images_by_block[idx],
                         "codes": codes if idx == 0 else [],
                     }
                     all_chunks.append(chunk)
@@ -275,10 +310,10 @@ async def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
     # 分配独立 collection：由教材名确定性生成，同一教材重跑复用同一集合
     collection_name = deterministic_collection_name(textbook_name)
     if milvus_client.collection_exists(collection_name):
-        # 已存在（上次中断残留的半库）→ 清空后重入，避免孤儿 collection
-        milvus_client.truncate_collection(collection_name)
-    else:
-        milvus_client.create_collection(collection_name)
+        # 已存在（上次中断残留的半库）→ 删除后重建再重入，避免孤儿 collection；
+        # 服务端 2.4.10 不支持 truncate RPC，用 drop + create 等效清空（schema/索引下方统一重建）
+        milvus_client.drop_collection(collection_name)
+    milvus_client.create_collection(collection_name)
 
     # 索引就绪：无索引定义则建索引（内部含加载），否则幂等加载
     if milvus_client.list_indexes(collection_name):

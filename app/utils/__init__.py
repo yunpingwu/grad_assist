@@ -13,6 +13,7 @@ from app.utils.milvus_util import (
     get_collection_by_name,
     list_chapters,
     list_textbooks,
+    query_section_codes,
     register_textbook,
 )
 from app.utils.minio_util import upload_and_map
@@ -30,6 +31,7 @@ __all__ = [
     "get_collection_by_name",
     "list_chapters",
     "list_textbooks",
+    "query_section_codes",
     "register_textbook",
     "upload_and_map",
 ]
