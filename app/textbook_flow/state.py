@@ -26,6 +26,9 @@ class TextBookState(TypedDict):
     sub_pdf_paths: NotRequired[list[str]]
     # 目录页 mineru 解析后解压的目录路径列表
     extracted_contents_dirs: NotRequired[list[str]]
+    # 章节页码偏移（每本教材「物理页码−印刷页码」），可预先注入跳过人工确认，
+    # 或在 split 节点经前端校准后写入；元素形如 {"textbook_name": str, "offset": int}
+    offsets: NotRequired[list[dict]]
     # 章节 mineru 解析后解压的目录路径列表
     extracted_dirs: NotRequired[list[str]]
     # 向量化入库是否完成

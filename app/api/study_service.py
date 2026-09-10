@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,13 @@ from app.api.deps import get_user_id
 from app.api.req import ChatRequest
 from app.clients import mongo_client
 from app.config import mongo_config
-from app.core import logger
+from app.core import (
+    end_request,
+    flush_metrics,
+    logger,
+    mark_stage,
+    start_request,
+)
 from app.study_agent.graph import build_graph
 from app.study_agent.state import StudyState
 from app.study_agent.tools.files import MATERIAL_ROOT
@@ -80,17 +87,26 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
             agent_input = state
 
     async def event_gen():
+        metrics = start_request(session_id, req.query)
+        t_start = time.perf_counter()
         try:
             async for ev in stream_agent(agent_input, config, session_id):
                 yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
         except ValueError as exc:
             # 教材未登记等业务错误
+            metrics.error_type = type(exc).__name__
             payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
             yield f"data: {payload}\n\n"
         except Exception as exc:
+            metrics.error_type = type(exc).__name__
             logger.exception(f"统一对话执行失败: {exc}")
             payload = json.dumps({"type": "error", "message": "回答生成失败"}, ensure_ascii=False)
             yield f"data: {payload}\n\n"
+        finally:
+            # 总耗时 = 请求进入到最后一条事件（含收尾落盘前），随后聚合落库
+            mark_stage("total_ms", (time.perf_counter() - t_start) * 1000)
+            flush_metrics()
+            end_request()
 
     return StreamingResponse(
         event_gen(),
@@ -116,6 +132,8 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
     Yields:
         形如 {"type": "thought"|"token"|"tool"|"ask_confirm"|"done", ...} 的事件字典。
     """
+    t0 = time.perf_counter()
+    first_token = False
     async for chunk, meta in study_graph.astream(
         agent_input, config=config, stream_mode="messages", durability="sync"
     ):
@@ -136,12 +154,19 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
             if reasoning:
                 yield {"type": "thought", "content": str(reasoning)}
             if speech:
+                if not first_token:
+                    # 首个回答正文 token 距开始执行的延迟（首 token 延迟）
+                    mark_stage("llm_first_token_ms", (time.perf_counter() - t0) * 1000)
+                    first_token = True
                 yield {"type": "token", "content": speech}
         elif node == "tools":
             # 工具结果：前端展示
             tm_name = getattr(chunk, "name", None)
             if tm_name:
                 yield {"type": "tool","status": "done","name": tm_name,"content": getattr(chunk, "content", "") or "",}
+
+    # 回答生成结束（含工具调用与最终回答），记录生成阶段总耗时
+    mark_stage("llm_total_ms", (time.perf_counter() - t0) * 1000)
 
     # 检测是否停留在写盘确认中断（HumanInTheLoop 暂停后的线程 next 非空且 tasks 带 interrupts）
     snapshot = await study_graph.aget_state(config)

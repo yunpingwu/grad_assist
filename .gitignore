@@ -43,6 +43,9 @@ textbooks/
 # 复习资料生成产物
 study/
 
+# RAG评估结果数据
+/data
+
 # Docker 配置
 docker/
 

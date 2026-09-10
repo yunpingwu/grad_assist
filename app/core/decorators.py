@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from langgraph.errors import GraphInterrupt
+
 from app.core.logger import logger
 
 
@@ -43,6 +45,8 @@ def log_node(func: Callable) -> Callable:
         t0 = time.perf_counter()
         try:
             return await func(*args, **kwargs)
+        except GraphInterrupt:
+            raise
         except Exception:
             logger.error(f"━━━ {node_name} 异常 ━━━  耗时 {time.perf_counter() - t0:.3f}s")
             raise

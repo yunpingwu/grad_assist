@@ -13,6 +13,7 @@ from pymilvus import (
     CollectionSchema,
     DataType,
     FieldSchema,
+    WeightedRanker,
 )
 from pymilvus.milvus_client.index import IndexParams
 
@@ -185,6 +186,9 @@ def list_chapters(textbook_name: str) -> list[dict]:
 DENSE_FIELD = "embedding"
 SPARSE_FIELD = "sparse_embedding"
 
+# 混合检索默认返回字段（检索问答需要的标量字段，不含向量）
+SEARCH_OUTPUT_FIELDS = ["text", "chapter", "section", "metadata_json", "block_type"]
+
 
 def create_hybrid_search_requests(
     dense_vector: list[float],
@@ -228,6 +232,50 @@ def create_hybrid_search_requests(
             expr=expr or "",
         ),
     ]
+
+
+def hybrid_search(
+    dense_vector: list[float],
+    sparse_vector: dict[int, float],
+    collection_name: str,
+    *,
+    expr: str | None = None,
+    limit: int = 5,
+    output_fields: list[str] | None = None,
+) -> list[dict]:
+    """用预生成的 dense/sparse 向量在指定集合执行混合检索，返回 TOP 命中列表。
+
+    与 ``create_hybrid_search_requests`` 配套：接收已算好的向量，忽略 embedding 生成，
+    便于多路检索共享一次批量 embedding 的产物（见 search_textbook 深度路径）。
+
+    Args:
+        dense_vector: 查询的稠密向量（单条）。
+        sparse_vector: 查询的稀疏向量（单条）。
+        collection_name: 教材数据集合名。
+        expr: 标量过滤表达式（如章节过滤），缺省不过滤。
+        limit: 融合后返回的最大命中数。
+        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
+
+    Returns:
+        混合检索的 TOP 命中列表（``res[0]``），元素含 id/entity/distance。
+    """
+    reqs = create_hybrid_search_requests(
+        dense_vector=dense_vector,
+        sparse_vector=sparse_vector,
+        limit=10,
+        expr=expr,
+    )
+    client = milvus_client.get_client()
+    if not client:
+        raise ValueError("Milvus 客户端无法连接")
+    res = client.hybrid_search(
+        collection_name=collection_name,
+        reqs=reqs,
+        ranker=WeightedRanker(0.8, 0.2),
+        limit=limit,
+        output_fields=output_fields or SEARCH_OUTPUT_FIELDS,
+    )
+    return res[0]
 
 
 def query_section_codes(

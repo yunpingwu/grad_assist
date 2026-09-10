@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from app.core import logger
 from app.utils.reranker_util import compute_rerank_scores
 
@@ -50,6 +52,24 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
         ranked.append(item)
     ranked.sort(key=lambda h: h["rerank_score"], reverse=True)
     return ranked[:top_k]
+
+
+async def arerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
+    """异步版 rerank_chunks：把交叉编码精排丢到线程池，避免阻塞事件循环。
+
+    与 ``rerank_chunks`` 结果一致，仅把同步计算移出事件循环；模型前向的线程串行化
+    由 ``compute_rerank_scores`` 内部的 ``_rerank_lock`` 保证。耗时埋点由调用方在
+    协程层用 ``astage`` 记录。
+
+    Args:
+        query: 重写后的查询。
+        chunks: RRF 融合后的候选 hit 列表。
+        top_k: 精排后保留的 TOP-K 片段数。
+
+    Returns:
+        按精排分数降序的 TOP-K hit 列表。
+    """
+    return await asyncio.to_thread(rerank_chunks, query, chunks, top_k)
 
 
 # 单元测试：用桩分数替换公共打分 API，避免单测加载真实模型

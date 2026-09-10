@@ -6,7 +6,7 @@ from app.utils.chat_util import (
     list_sessions,
     load_chat_history,
 )
-from app.utils.embedding_util import generate_embeddings
+from app.utils.embedding_util import agenerate_embeddings, generate_embeddings
 from app.utils.milvus_util import (
     create_hybrid_search_requests,
     deterministic_collection_name,
@@ -21,6 +21,7 @@ from app.utils.reranker_util import compute_rerank_scores
 
 __all__ = [
     "generate_embeddings",
+    "agenerate_embeddings",
     "compute_rerank_scores",
     "append_turn",
     "get_session_messages",

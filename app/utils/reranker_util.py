@@ -9,13 +9,18 @@
 """
 
 import os
+import threading
+import time
 
 from FlagEmbedding import FlagReranker
 
 from app.config import rerank_config
-from app.core import logger
+from app.core import logger, mark_stage
 
 _reranker = None
+
+# 串行化交叉编码前向：同 embedding，多线程并发调用同一单例不安全
+_rerank_lock = threading.Lock()
 
 
 def _get_reranker() -> FlagReranker:
@@ -38,12 +43,16 @@ def _get_reranker() -> FlagReranker:
     device = rerank_config.device
     use_fp16 = device != "cpu"
     logger.info(f"加载 BGE-Reranker: {model_name_or_path} (device={device}, fp16={use_fp16})")
+    t0 = time.perf_counter()
     _reranker = FlagReranker(
         model_name_or_path,
         use_fp16=use_fp16,
         devices=device,
         normalize=True,  # sigmoid 归一化，分数落在 (0,1) 便于理解与后续阈值
     )
+    # 记入当前请求指标（冷启动首个精排请求暴露加载耗时）；无上下文时静默跳过
+    mark_stage("rerank_model_load_ms", (time.perf_counter() - t0) * 1000)
+    logger.info(f"BGE-Reranker 模型加载完成，耗时 {(time.perf_counter() - t0) * 1000:.0f}ms")
     return _reranker
 
 
@@ -63,8 +72,9 @@ def compute_rerank_scores(query: str, texts: list[str]) -> list[float]:
     if not texts:
         raise ValueError("texts 必须是非空列表")
 
-    reranker = _get_reranker()
-    scores = reranker.compute_score([(query, text) for text in texts])
+    with _rerank_lock:
+        reranker = _get_reranker()
+        scores = reranker.compute_score([(query, text) for text in texts])
     if isinstance(scores, float):  # 单对输入时返回标量
         scores = [scores]
     return [float(s) for s in scores]

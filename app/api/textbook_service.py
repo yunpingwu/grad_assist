@@ -3,8 +3,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.types import Command
 from starlette.responses import JSONResponse, StreamingResponse
 
 from app.api.deps import get_user_id
@@ -81,6 +82,7 @@ async def resolve_textbooks(
     textbook_path: str | None = None,
     task_id: str | None = None,
     user_id: str = Depends(get_user_id),
+    offsets: list[dict] | None = Body(default=None),
 ) -> StreamingResponse:
     """解析教材：在 /upload 返回的独立目录下执行摄入流水线（支持断点续跑）。
 
@@ -96,31 +98,45 @@ async def resolve_textbooks(
     thread_id = f"{user_id}:{task_id}"
     config = {"configurable": {"thread_id": thread_id}}
 
-    # 借助 checkpoint 判断线程是否为「曾被中断且未完成」：next 非空 = 尚有未执行节点。
+    # 借助 checkpoint 判断线程所处状态：
+    # - 停在 offset 人工确认中断（tasks 带 interrupts，value.type=="offset_review"）
+    # - 因断线停在节点边界、尚未完成（next 非空）
     snapshot = await textbook_graph.aget_state(config)
     prev = (snapshot.values or {}) if snapshot else {}
-    interrupted = bool(prev and not prev.get("ingestion_done") and snapshot.next)
-    # 续跑时沿用 checkpoint 中已持久化的路径；全新任务则校验本次传入路径
-    resolved_path = (prev.get("textbook_path") if interrupted else None) or textbook_path
-    if not interrupted:
-        if not resolved_path:
-            raise HTTPException(status_code=400, detail="缺少 textbook_path，请先调用 /upload 上传教材")
-        if not Path(resolved_path).is_dir():
-            raise HTTPException(status_code=404, detail=f"教材目录不存在: {resolved_path}")
 
-    # 续跑时输入传 None：LangGraph 据此从断点继续，不做重头解析
-    fresh_state: TextBookState = {
-        "textbook_exists": False,
-        "user_id": user_id,
-        "textbook_path": resolved_path,
-    }
-    run_input = None if interrupted else fresh_state
+    pending_offset = any(
+        (getattr(i, "value", None) or {}).get("type") == "offset_review"
+        for task in (getattr(snapshot, "tasks", None) or ())
+        for i in (getattr(task, "interrupts", None) or ())
+    )
+    resumable = bool(prev and not prev.get("ingestion_done") and getattr(snapshot, "next", None))
+
+    if pending_offset:
+        if not offsets:
+            raise HTTPException(status_code=400, detail="缺少 offsets：请先确认章节页码偏移后再续跑")
+        run_input = Command(resume={"offsets": offsets})
+        resolved_path = prev.get("textbook_path") if prev else None
+    elif resumable:
+        # 断点续跑：输入传 None，从上次完成节点继续，不做重头解析
+        run_input = None
+        resolved_path = prev.get("textbook_path") if prev else None
+    else:
+        if not textbook_path:
+            raise HTTPException(status_code=400, detail="缺少 textbook_path，请先调用 /upload 上传教材")
+        if not Path(textbook_path).is_dir():
+            raise HTTPException(status_code=404, detail=f"教材目录不存在: {textbook_path}")
+        resolved_path = textbook_path
+        run_input: TextBookState = {
+            "textbook_exists": False,
+            "user_id": user_id,
+            "textbook_path": resolved_path,
+        }
 
     async def event_gen():
         try:
-            if interrupted:
+            if pending_offset or resumable:
                 payload = json.dumps(
-                    {"type": "info", "task_id": task_id, "resumed": True, "message": "检测到中断，正在从断点续跑…"},
+                    {"type": "info", "task_id": task_id, "resumed": True, "message": "检测到中断，正在续跑…"},
                     ensure_ascii=False,
                 )
             else:
@@ -133,7 +149,15 @@ async def resolve_textbooks(
                 run_input, config=config, stream_mode="custom", durability="sync"
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({"type": "done", "task_id": task_id}, ensure_ascii=False)}\n\n"
+            # 流结束后确认是否停在 offset 确认中断：停在中断不发 done，由 ask_offset 事件收尾
+            snap_after = await textbook_graph.aget_state(config)
+            awaiting_offset = any(
+                (getattr(i, "value", None) or {}).get("type") == "offset_review"
+                for task in (getattr(snap_after, "tasks", None) or ())
+                for i in (getattr(task, "interrupts", None) or ())
+            )
+            if not awaiting_offset:
+                yield f"data: {json.dumps({"type": "done", "task_id": task_id}, ensure_ascii=False)}\n\n"
         except ValueError as exc:
             # 教材未找到等业务错误
             payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)

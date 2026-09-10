@@ -1,16 +1,47 @@
 """向量混合检索工具函数：供 search_textbook 做稠密+稀疏混合召回。
 
-从 query_functions 收编而来：仅保留纯函数 rewrite_query_search（原节点封装已移除）。
+从 query_functions 收编而来：``search_by_vectors`` 为「向量 → 检索」纯函数，
+``rewrite_query_search`` 在其之上补 embedding 生成，供快速路径使用；深度路径
+直接用 ``search_by_vectors`` 复用一次批量 embedding 的产物。
 """
 
 from __future__ import annotations
 
-from pymilvus import WeightedRanker
+from app.core import logger, stage
+from app.utils.embedding_util import agenerate_embeddings
+from app.utils.milvus_util import get_collection_by_name, hybrid_search
 
-from app.clients.milvus_client import get_client
-from app.core import logger
-from app.utils.embedding_util import generate_embeddings
-from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
+
+async def search_by_vectors(
+    textbook_name: str,
+    dense_vec: list[float],
+    sparse_vec: dict[int, float],
+    chapter: str | None = None,
+) -> list[dict]:
+    """用预生成的 dense/sparse 向量在教材集合执行混合检索（可选章节过滤）。
+
+    不生成 embedding，接收调用方已算好的向量，供深度路径对 query/hyde 两路
+    共享一次批量 embedding 的结果。
+
+    Args:
+        textbook_name: 教材名（须已登记）。
+        dense_vec: 查询稠密向量（单条）。
+        sparse_vec: 查询稀疏向量（单条）。
+        chapter: 限定章节名（可选，转义后作为 Milvus 过滤表达式），缺省全书检索。
+
+    Returns:
+        检索到的 TOP 文本片段列表。
+    """
+    collection_name = get_collection_by_name(textbook_name)
+    if not collection_name:
+        raise ValueError(f"教材未登记: {textbook_name}")
+    # 章节过滤表达式：转义双引号，防止破坏 filter 语法（与注册表查询同一策略）
+    chapter_expr = None
+    if chapter:
+        safe_chapter = chapter.replace('"', '\\"')
+        chapter_expr = f'chapter == "{safe_chapter}"'
+    with stage("milvus_search_ms"):
+        return hybrid_search(dense_vec, sparse_vec, collection_name, expr=chapter_expr)
 
 
 async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
@@ -26,41 +57,15 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: 
     """
     if not rewrite_query:
         raise ValueError("问题重写为空")
-    # 生成问题向量
-    query_embedding = generate_embeddings([rewrite_query])
-    dense_vec = query_embedding.get("dense")[0]
-    sparse_vec = query_embedding.get("sparse")[0]
+    # 生成问题向量（异步派发到线程池，避免阻塞事件循环）
+    query_embedding = await agenerate_embeddings([rewrite_query])
     logger.info(f"提问向量生成结果: {query_embedding}")
-
-    # 按教材名定位集合（注册表精确匹配，内部已处理名称转义）
-    collection_name = get_collection_by_name(textbook_name)
-    if not collection_name:
-        raise ValueError(f"教材未登记: {textbook_name}")
-    # 章节过滤表达式：转义双引号，防止破坏 filter 语法（与注册表查询同一策略）
-    chapter_expr = None
-    if chapter:
-        safe_chapter = chapter.replace('"', '\\"')
-        chapter_expr = f'chapter == "{safe_chapter}"'
-    # 构造混合搜索请求
-    reqs = create_hybrid_search_requests(
-        dense_vector=dense_vec,
-        sparse_vector=sparse_vec,
-        limit=10,
-        expr=chapter_expr,
+    return await search_by_vectors(
+        textbook_name,
+        query_embedding.get("dense")[0],
+        query_embedding.get("sparse")[0],
+        chapter,
     )
-    # 执行混合搜索
-    client = get_client()
-    if not client:
-        raise ValueError("Milvus 客户端无法连接")
-    res = client.hybrid_search(
-        collection_name=collection_name,
-        reqs=reqs,
-        ranker=WeightedRanker(0.8, 0.2),
-        limit=5,
-        output_fields=["text", "chapter", "section", "metadata_json", "block_type"],
-    )
-    logger.info(f"查询向量搜索结果: {res}")
-    return res[0]
 
 
 # 冒烟测试：仅验证空查询守卫（真实检索依赖 Milvus + embedding 模型，由 search_textbook 集成验证）

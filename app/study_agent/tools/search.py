@@ -16,12 +16,12 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
-from app.core import logger
-from app.utils import get_collection_by_name, query_section_codes
-from app.study_agent.query_functions.embedding_search import rewrite_query_search
-from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
+from app.core import astage, get_metrics, logger
+from app.utils import agenerate_embeddings, get_collection_by_name, query_section_codes
+from app.study_agent.query_functions.embedding_search import rewrite_query_search, search_by_vectors
+from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
-from app.study_agent.query_functions.rerank import rerank_chunks
+from app.study_agent.query_functions.rerank import arerank_chunks
 from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
 
 # 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
@@ -235,25 +235,42 @@ async def search_textbook(
         编号的 TOP-K 片段（章节 + 小节 + 正文，图片 url 已附加到正文图标记处），无结果或失败时返回友好提示。
     """
     textbook_name = textbook_name or ""
+    metrics = get_metrics()
     try:
         # 1) 问题重写消歧：多轮指代/省略由 agent 上下文保留，此处重写为独立检索问句
         questions_history = format_questions(messages or [])
-        rewritten = await rewrite(query, textbook_name, questions_history)
+        async with astage("query_rewrite_ms"):
+            rewritten = await rewrite(query, textbook_name, questions_history)
+        if metrics is not None:
+            metrics.rewrite_query = rewritten
+            metrics.deep = bool(deep)
         logger.info(f"search_textbook 重写: {query!r} → {rewritten!r}")
 
         if not deep:
             # 快速路径：单路混合召回（稠密 + 稀疏）后截取 TOP-K
             chunks = await rewrite_query_search(textbook_name, rewritten, chapter)
+            if metrics is not None:
+                metrics.recall_count = len(chunks)
             hits = chunks[:rerank_config.top_k]
         else:
             # 深度路径：两路召回（混合 + HyDE）→ RRF 融合 → 精排 TOP-K
-            embedding_chunks = await rewrite_query_search(textbook_name, rewritten, chapter)
-            hyde_doc = await hyde_doc_generate(rewritten)
-            hyde_chunks = await hyde_doc_search(hyde_doc, rewritten, textbook_name)
+            async with astage("hyde_ms"):
+                hyde_doc = await hyde_doc_generate(rewritten)
+            # 一次批量：query 与 hyde_doc 的向量合并计算，省一次模型前向（embedding_ms 只累加一次）
+            embeddings = await agenerate_embeddings([rewritten, hyde_doc + rewritten])
+            embedding_chunks = await search_by_vectors(
+                textbook_name, embeddings["dense"][0], embeddings["sparse"][0], chapter
+            )
+            hyde_chunks = await search_by_vectors(
+                textbook_name, embeddings["dense"][1], embeddings["sparse"][1]
+            )
             merged = await rrf_merge(embedding_chunks, hyde_chunks)
             merged_hits = [entry["hit"] for entry in merged]
+            if metrics is not None:
+                metrics.recall_count = len(merged_hits)
             try:
-                hits = rerank_chunks(rewritten, merged_hits, min(rerank_config.top_k, len(merged_hits)))
+                async with astage("rerank_ms"):
+                    hits = await arerank_chunks(rewritten, merged_hits, min(rerank_config.top_k, len(merged_hits)))
             except Exception as exc:  # 精排降级：回退 RRF 融合结果，不阻断
                 logger.warning(f"deep 检索精排失败，回退 RRF：{exc}")
                 hits = merged_hits[:rerank_config.top_k]
@@ -261,6 +278,10 @@ async def search_textbook(
         # 检索失败降级：只告警并返回友好提示，交由 agent 决定回退 web 或如实说明
         logger.warning(f"search_textbook({query!r}, deep={deep}) 失败: {exc}")
         return f"（检索教材失败：{exc}）"
+
+    if metrics is not None:
+        # 精排后保留的片段数（仅深度路径精排；快速路径无精排，记最终返回条数）
+        metrics.rerank_count = len(hits) if deep else 0
 
     if not hits:
         return "（未检索到相关片段，请换个问法或去掉章节限定）"
@@ -302,13 +323,24 @@ if __name__ == "__main__":
     async def _fake_hyde_generate(rewritten_query: str) -> str:
         return f"假设性文档: {rewritten_query}"
 
-    async def _fake_hyde_search(hyde_doc: str, rewritten_query: str, textbook_name: str) -> list[dict]:
+    async def _fake_generate_embeddings(texts: list[str]) -> dict:
+        # 每条文本给一个占位 dense/sparse 向量，仅满足 [0]/[1] 索引取值
+        n = len(texts)
+        return {"dense": [[0.0] for _ in range(n)], "sparse": [{0: 1.0} for _ in range(n)]}
+
+    _vector_search_calls = {"n": 0}
+
+    async def _fake_search_by_vectors(textbook_name, dense_vec, sparse_vec, chapter=None):
+        # 第一次调用 = query 路普通召回；第二次 = hyde 路召回
+        _vector_search_calls["n"] += 1
+        if _vector_search_calls["n"] == 1:
+            return await _fake_hybrid(textbook_name, "", chapter)
         return [{"id": "h1", "distance": 0.5, "entity": {"text": "HyDE 补充片段", "chapter": "第3章", "section": "3.3"}}]
 
     async def _fake_rrf(embedding_chunks: list[dict], hyde_chunks: list[dict], k: int = 60) -> list[dict]:
         return [{"rrf_score": 1.0, "hit": embedding_chunks[0]}, {"rrf_score": 0.8, "hit": hyde_chunks[0]}]
 
-    def _fake_rerank(query: str, chunks: list[dict], top_k: int) -> list[dict]:
+    async def _fake_arerank(query: str, chunks: list[dict], top_k: int) -> list[dict]:
         item = dict(chunks[0])
         item["rerank_score"] = 0.99
         return [item]
@@ -320,9 +352,10 @@ if __name__ == "__main__":
     rewrite = _fake_rewrite
     rewrite_query_search = _fake_hybrid
     hyde_doc_generate = _fake_hyde_generate
-    hyde_doc_search = _fake_hyde_search
+    agenerate_embeddings = _fake_generate_embeddings
+    search_by_vectors = _fake_search_by_vectors
     rrf_merge = _fake_rrf
-    rerank_chunks = _fake_rerank
+    arerank_chunks = _fake_arerank
     _enrich_hits_with_section_codes = _fake_enrich
 
     async def _run() -> None:

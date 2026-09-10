@@ -1,20 +1,19 @@
 """HyDE 假设文档检索工具函数：供 search_textbook 深度路径做第二路召回。
 
-从 query_functions 收编而来：仅保留纯函数 hyde_doc_generate / hyde_doc_search
-（原节点封装已移除）。
+从 query_functions 收编而来：``hyde_doc_generate`` 生成假设文档，``hyde_doc_search``
+将其向量化后检索——检索部分复用 ``embedding_search.search_by_vectors``，与
+query 路共享同一次批量 embedding 的产物。
 """
 
 from __future__ import annotations
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from pymilvus import WeightedRanker
 
 from app.clients.llm import get_llm_client
-from app.clients.milvus_client import get_client
 from app.core import load_prompt, logger
-from app.utils.embedding_util import generate_embeddings
-from app.utils.milvus_util import create_hybrid_search_requests, get_collection_by_name
+from app.study_agent.query_functions.embedding_search import search_by_vectors
+from app.utils.embedding_util import agenerate_embeddings
 
 
 async def hyde_doc_generate(rewritten_query: str) -> str:
@@ -43,7 +42,7 @@ async def hyde_doc_generate(rewritten_query: str) -> str:
     return hyde_doc
 
 
-async def hyde_doc_search(hyde_doc: str, rewritten_query: str, textbook_name: str):
+async def hyde_doc_search(hyde_doc: str, rewritten_query: str, textbook_name: str) -> list[dict]:
     """将假设性文档向量化后进行查询。
 
     Args:
@@ -59,31 +58,13 @@ async def hyde_doc_search(hyde_doc: str, rewritten_query: str, textbook_name: st
     if not rewritten_query:
         raise ValueError("问题重写为空")
     hyde_doc = hyde_doc + rewritten_query
-    hyde_doc_embedding = generate_embeddings([hyde_doc])
-    dense_vec = hyde_doc_embedding.get("dense")[0]
-    sparse_vec = hyde_doc_embedding.get("sparse")[0]
+    hyde_doc_embedding = await agenerate_embeddings([hyde_doc])
     logger.info(f"假设性文档向量生成结果: {hyde_doc_embedding}")
-    reqs = create_hybrid_search_requests(
-        dense_vector=dense_vec,
-        sparse_vector=sparse_vec,
-        limit=10,
+    return await search_by_vectors(
+        textbook_name,
+        hyde_doc_embedding.get("dense")[0],
+        hyde_doc_embedding.get("sparse")[0],
     )
-    milvus_client = get_client()
-    if not milvus_client:
-        raise ValueError("Milvus无法连接")
-    # 按教材名定位集合（注册表精确匹配，内部已处理名称转义）
-    collection_name = get_collection_by_name(textbook_name)
-    if not collection_name:
-        raise ValueError(f"教材未登记: {textbook_name}")
-    res = milvus_client.hybrid_search(
-        collection_name=collection_name,
-        reqs=reqs,
-        ranker=WeightedRanker(0.8, 0.2),
-        limit=5,
-        output_fields=["text", "chapter", "section", "metadata_json", "block_type"],
-    )
-    logger.info(f"查询向量搜索结果: {res}")
-    return res[0]
 
 
 # 冒烟测试：仅验证空输入守卫（真实验证依赖 LLM/Milvus，由 search_textbook 集成覆盖）
