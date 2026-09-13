@@ -38,6 +38,10 @@ class StudyState(TypedDict):
     textbook_name: str
     # 用户的要求（缺省有默认指令）
     requirement: str
+    # 意图分类（前置 query 理解识别；explain/generate/quiz/plan/chat/unclear），system prompt 据此选块
+    intent: NotRequired[str]
+    # 消歧后的检索问句（前置 query 理解产出），search_textbook 直接使用
+    rewritten_query: NotRequired[str]
     # 多轮对话（create_agent 依赖；add_messages 每轮追加而非覆盖）
     messages: Annotated[list[AnyMessage], add_messages]
     # 落盘清单（收尾后写回）

@@ -44,7 +44,7 @@ async def rewrite(original_query: str, textbook_name: str = "", questions_histor
     # 加载模板（lru_cache 缓存，不带后缀）
     template = load_prompt("rewrite_query")
     prompt = ChatPromptTemplate.from_template(template)
-    llm = get_llm_client()
+    llm = get_llm_client(model="")
     chain = prompt | llm | StrOutputParser()
     output = await chain.ainvoke(
         {

@@ -22,7 +22,6 @@ from app.study_agent.query_functions.embedding_search import rewrite_query_searc
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks
-from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
 
 # 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
 _FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
@@ -214,20 +213,21 @@ def _enrich_hits_with_section_codes(textbook_name: str, hits: list[dict]) -> lis
 
 @tool
 async def search_textbook(
-    query: str,
+    query: str | None = None,
     deep: bool = False,
     chapter: str | None = None,
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
-    messages: Annotated[list, InjectedState("messages")] = None,
+    rewritten_query: Annotated[str, InjectedState("rewritten_query")] = None,
 ) -> str:
-    """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段（自动消歧 + 可选深度召回精排）。
+    """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段（可选深度召回精排）。
 
-    每次检索都会自动用对话历史消歧当前问句；默认快速混合召回（稠密+稀疏），如需更高质量（如严谨作答、
+    检索问句已由系统前置消歧（rewritten_query，基于对话历史重写）；本工具默认直接用该问句，
+    也可用 query 显式覆盖检索词。默认快速混合召回（稠密+稀疏），如需更高质量（如严谨作答、
     快速检索无果时扩大召回）请设 deep=True：多做一次 HyDE 假设文档召回，再经 RRF
     融合与交叉编码精排——结果更准但更慢。
 
     Args:
-        query: 检索查询，用完整问句描述想找的知识点，如「栈的先进后出特性是什么」。
+        query: 检索查询（可选），显式指定想检索的内容时传；缺省用系统消歧后的问句。
         deep: 是否启用深度召回（HyDE + 精排），默认 False；对答案质量要求高或快检索无果时设为 True。
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
@@ -237,14 +237,14 @@ async def search_textbook(
     textbook_name = textbook_name or ""
     metrics = get_metrics()
     try:
-        # 1) 问题重写消歧：多轮指代/省略由 agent 上下文保留，此处重写为独立检索问句
-        questions_history = format_questions(messages or [])
-        async with astage("query_rewrite_ms"):
-            rewritten = await rewrite(query, textbook_name, questions_history)
+        # 检索问句：优先用 LLM 显式传入的 query，缺省用前置 query 理解消歧好的 rewritten_query
+        rewritten = query or rewritten_query or ""
+        if not rewritten:
+            return "（未提供检索问句，请重试）"
         if metrics is not None:
             metrics.rewrite_query = rewritten
             metrics.deep = bool(deep)
-        logger.info(f"search_textbook 重写: {query!r} → {rewritten!r}")
+        logger.info(f"search_textbook 检索问句: {rewritten!r}")
 
         if not deep:
             # 快速路径：单路混合召回（稠密 + 稀疏）后截取 TOP-K
@@ -297,12 +297,6 @@ async def search_textbook(
 if __name__ == "__main__":
     import asyncio
 
-    from langchain_core.messages import AIMessage, HumanMessage
-
-    async def _fake_rewrite(original_query: str, textbook_name: str, questions_history: str) -> str:
-        assert "什么是指针?" in questions_history, f"多轮历史未拼进重写: {questions_history!r}"
-        return original_query
-
     async def _fake_hybrid(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
         return [
             {"id": "c1", "distance": 0.8, "entity": {
@@ -349,7 +343,6 @@ if __name__ == "__main__":
         return hits  # 冒烟测试不依赖真实 Milvus，二次补拉原样透传
 
     # 覆盖模块级绑定，只验证工具内部编排
-    rewrite = _fake_rewrite
     rewrite_query_search = _fake_hybrid
     hyde_doc_generate = _fake_hyde_generate
     agenerate_embeddings = _fake_generate_embeddings
@@ -359,12 +352,9 @@ if __name__ == "__main__":
     _enrich_hits_with_section_codes = _fake_enrich
 
     async def _run() -> None:
-        # 模拟一轮已作答的历史：保证消歧历史被拼进重写输入
-        history = [HumanMessage(content="什么是指针?"), AIMessage(content="指针是…")]
-
-        # 快速路径：重写 + 混合召回，返回 TOP-K 片段
+        # 快速路径：用前置消歧好的问句检索，返回 TOP-K 片段
         fast = await search_textbook.coroutine(
-            query="它有什么用途?", textbook_name="C语言程序设计", messages=history
+            textbook_name="C语言程序设计", rewritten_query="指针有什么用途?"
         )
         assert "[片段1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
         assert "【图: 指针示意图】(https://x/y.png)" in fast, "url 未回绑到正文图标记"
@@ -375,7 +365,7 @@ if __name__ == "__main__":
 
         # 深度路径：触发 HyDE + 融合 + 精排，取精排后片段
         deep = await search_textbook.coroutine(
-            query="它有什么用途?", deep=True, textbook_name="C语言程序设计", messages=history
+            deep=True, textbook_name="C语言程序设计", rewritten_query="指针有什么用途?"
         )
         assert "指针是C语言的核心概念" in deep, deep
         print("--- deep ---\n" + deep)

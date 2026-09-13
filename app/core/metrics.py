@@ -40,6 +40,8 @@ class RequestMetrics:
     session_id: str = ""
     query: str = ""
     rewrite_query: str = ""
+    intent: str = ""
+    intent_source: str = ""
     deep: bool = False
     # 各阶段耗时(ms)，同名阶段多次触发时累加求和
     stage_ms: dict[str, float] = field(default_factory=dict)

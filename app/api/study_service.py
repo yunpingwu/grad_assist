@@ -1,8 +1,7 @@
 """统一教材助手服务路由：SSE 流式对话（含写盘确认续跑）+ 产物文件读取。
 
 对话 thread_id = user_id:session_id，独立 checkpoint collection（study_checkpoints），
-多用户按 X-User-Id 软隔离。多轮交互的消息结构调试信息输出到控制台并追加写
-``logs/messages.log``。
+多用户按 X-User-Id 软隔离。多轮交互的消息结构调试信息仅输出到控制台。
 """
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -35,9 +33,6 @@ from app.study_agent.state import StudyState
 from app.study_agent.tools.files import MATERIAL_ROOT
 
 router = APIRouter(tags=["study"])
-
-# 消息结构 trace 的落盘目录（项目根 logs/）
-LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
 
 # 模块级编译一次：独立 checkpoint collection，避免与 query/textbook 图 thread 冲突
 checkpointer = MongoDBSaver(
@@ -170,9 +165,11 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
 
     # 检测是否停留在写盘确认中断（HumanInTheLoop 暂停后的线程 next 非空且 tasks 带 interrupts）
     snapshot = await study_graph.aget_state(config)
-    # 调试：多轮交互消息的全量结构只在后端控制台/日志文件输出（不推送前端）
-    _all = _dump_messages((snapshot.values or {}).get("messages", []))
-    _write_message_trace(session_id, _all)
+    # 调试：多轮交互消息的全量结构仅输出到控制台（不推送前端、不落盘）
+    logger.info(
+        f"消息结构(session {session_id}): "
+        f"{json.dumps(_dump_messages((snapshot.values or {}).get('messages', [])), ensure_ascii=False)}"
+    )
     # 停在 HumanInTheLoop 写盘中断（next 非空且 tasks 带 interrupts）→ 等确认；否则正常收尾
     pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
         task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
@@ -220,25 +217,6 @@ def _dump_messages(messages: list) -> list[dict]:
             item["name"] = name
         out.append(item)
     return out
-
-
-def _write_message_trace(session_id: str, dump: list[dict]) -> None:
-    """把一轮消息结构按 JSONL 追加到 logs/messages.log（失败仅告警，不影响主链路）。
-
-    Args:
-        session_id: 会话 ID。
-        dump: _dump_messages 的结构化消息列表。
-    """
-    try:
-        LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(
-            {"ts": datetime.now().isoformat(timespec="seconds"), "session_id": session_id, "messages": dump},
-            ensure_ascii=False,
-        )
-        with (LOGS_DIR / "messages.log").open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
-    except Exception as exc:
-        logger.warning(f"写入消息 trace 失败(session_id={session_id}): {exc}")
 
 
 CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
