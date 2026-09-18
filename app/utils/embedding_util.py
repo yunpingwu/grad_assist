@@ -6,21 +6,17 @@ Embedding 工具
 模型加载优先级: config.model_path (本地) → config.model_name (HuggingFace ID)
 """
 
-import asyncio
+from __future__ import annotations
+
 import os
-import threading
 import time
 
 from FlagEmbedding import BGEM3FlagModel
 
 from app.config import embedding_config
-from app.core import astage, logger, mark_stage
+from app.core import logger, mark_stage
 
 _model = None
-
-# 串行化模型前向：PyTorch 推理在多线程并发下不安全（encode 内含 model.to/float 等状态变更），
-# 多用户并发时用锁排队，避免同一单例被并发调用
-_encode_lock = threading.Lock()
 
 
 def _get_model():
@@ -58,15 +54,14 @@ def generate_embeddings(texts: list[str]) -> dict:
     if not isinstance(texts, list) or len(texts) == 0:
         raise ValueError("texts 必须是非空列表")
 
-    with _encode_lock:
-        model = _get_model()
-        output = model.encode(
-            texts,
-            return_dense=True,
-            return_sparse=True,
-            batch_size=32,
-            max_length=8192,
-        )
+    model = _get_model()
+    output = model.encode(
+        texts,
+        return_dense=True,
+        return_sparse=True,
+        batch_size=32,
+        max_length=8192,
+    )
 
     # dense: ndarray → list
     dense = output["dense_vecs"].tolist()
@@ -85,22 +80,4 @@ def generate_embeddings(texts: list[str]) -> dict:
     return {"dense": dense, "sparse": sparse}
 
 
-async def agenerate_embeddings(texts: list[str]) -> dict:
-    """异步版 generate_embeddings：把同步 encode 丢到线程池，避免阻塞事件循环。
-
-    适用多用户并发场景——同步 ``generate_embeddings`` 是 CPU/GPU 密集的 PyTorch 前向，
-    在 async 调用链里直接执行会占住事件循环，串行等待其他请求。本函数借 to_thread 把
-    计算移出事件循环；模型前向的线程串行化由 ``generate_embeddings`` 内部的
-    ``_encode_lock`` 保证。
-
-    注意：耗时埋点 ``embedding_ms`` 在此协程层记录（用 ``astage``），因为 to_thread
-    会隔离 contextvar，同步函数内无法写入请求指标上下文。
-
-    Args:
-        texts: 待编码文本列表。
-
-    Returns:
-        同 generate_embeddings 的 ``{"dense": ..., "sparse": ...}`` 结构。
-    """
-    async with astage("embedding_ms"):
-        return await asyncio.to_thread(generate_embeddings, texts)
+# 动态攒批（BatchEmbedder / agenerate_embeddings）已迁至 app.utils.batch_manager.embedder

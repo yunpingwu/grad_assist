@@ -7,12 +7,13 @@
 - LLM 调用次数与 token 用量由 ``LLMMetricsCallbackHandler`` 统一统计，经
   ``register_configure_hook(inheritable=True)`` 全局注入（每次 LLM 调用时自动挂上该 handler），
   因此能同时覆盖 create_agent 内部调用与检索工具内部的 rewrite/hyde 调用，无需改 ``llm.py``。
-- 落库为 ``logs/metrics.log`` 逐行 JSON，失败仅告警不阻断主链路。
+- 落库为 ``logs/metrics.log`` 的格式化 JSON 记录，包含检索 chunk ID 与最终回答内容；失败仅告警不阻断主链路。
 """
 
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 from collections.abc import AsyncIterator, Iterator
@@ -30,6 +31,7 @@ from app.core.logger import logger
 
 # 指标落盘目录（项目根 logs/，与 study_service 的 messages.log 同目录）
 LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
+_LOG_WRITE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -40,9 +42,13 @@ class RequestMetrics:
     session_id: str = ""
     query: str = ""
     rewrite_query: str = ""
+    rewrite_mode: str = ""
     intent: str = ""
     intent_source: str = ""
     deep: bool = False
+    # 检索链路与最终回答，供离线评测和线上问题复盘使用
+    retrieved_chunk_ids: list[str] = field(default_factory=list)
+    answer_content: str = ""
     # 各阶段耗时(ms)，同名阶段多次触发时累加求和
     stage_ms: dict[str, float] = field(default_factory=dict)
     recall_count: int = 0
@@ -162,7 +168,7 @@ async def astage(name: str) -> AsyncIterator[None]:
 
 
 def flush_metrics() -> None:
-    """把当前请求指标合并 LLM 计数后序列化为一行 JSON 追加到 logs/metrics.log。
+    """把当前请求指标合并 LLM 计数后序列化为格式化 JSON 追加到 logs/metrics.log。
 
     失败仅告警不阻断；无观测上下文时静默跳过。
     """
@@ -181,16 +187,39 @@ def flush_metrics() -> None:
 
 
 def _write_metrics_line(metrics: RequestMetrics) -> None:
-    """把一条指标写入 metrics.log（毫秒保留 2 位小数）。"""
+    """把一条格式化指标记录写入 metrics.log（毫秒保留 2 位小数）。
+
+    每条记录使用一个缩进 JSON 块，记录之间用空行分隔，方便人工查看长回答；
+    使用进程内写锁，避免并发请求的多行记录交错写入。
+    """
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        record = asdict(metrics)
-        record["ts"] = datetime.now().astimezone().isoformat(timespec="milliseconds")
-        record["stage_ms"] = {
-            k: round(v, 2) for k, v in metrics.stage_ms.items()
+        raw = asdict(metrics)
+        # 显式排列字段：时间和请求标识靠前，回答/检索证据紧随其后，耗时与 token 指标置于末尾。
+        record = {
+            "ts": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+            "request_id": raw["request_id"],
+            "session_id": raw["session_id"],
+            "query": raw["query"],
+            "answer_content": raw["answer_content"],
+            "retrieved_chunk_ids": raw["retrieved_chunk_ids"],
+            "rewrite_query": raw["rewrite_query"],
+            "rewrite_mode": raw["rewrite_mode"],
+            "intent": raw["intent"],
+            "intent_source": raw["intent_source"],
+            "deep": raw["deep"],
+            "recall_count": raw["recall_count"],
+            "rerank_count": raw["rerank_count"],
+            "stage_ms": {k: round(v, 2) for k, v in raw["stage_ms"].items()},
+            "llm_calls": raw["llm_calls"],
+            "prompt_tokens": raw["prompt_tokens"],
+            "completion_tokens": raw["completion_tokens"],
+            "total_tokens": raw["total_tokens"],
+            "error_type": raw["error_type"],
         }
-        line = json.dumps(record, ensure_ascii=False)
-        with (LOGS_DIR / "metrics.log").open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        formatted = json.dumps(record, ensure_ascii=False, indent=2)
+        with _LOG_WRITE_LOCK:
+            with (LOGS_DIR / "metrics.log").open("a", encoding="utf-8") as fh:
+                fh.write(formatted + "\n\n")
     except Exception as exc:
         logger.warning(f"写入 metrics 失败(request_id={metrics.request_id}): {exc}")

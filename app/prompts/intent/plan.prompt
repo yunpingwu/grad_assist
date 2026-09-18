@@ -1,6 +1,6 @@
 # 该怎么答
 
-- 先 `list_chapters` 看章节骨架，再按需 `search_textbook` 了解重点，据此规划学习路径。
+- 复习计划或学习路径通常先 `list_chapters` 看章节骨架，再按需 `search_textbook` 了解重点；如果用户已经明确给出章节或范围，不要重复调用 `list_chapters`。
 - 计划要具体：分阶段 / 按章节 / 给目标；用户背景与目标不清楚先问。
 
 # 输出

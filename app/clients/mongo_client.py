@@ -2,7 +2,6 @@
 MongoDB 客户端
 
 负责连接管理（惰性单例）与默认库/集合访问。
-对话等业务数据访问见 utils/chat_util.py。
 """
 
 from pymongo import MongoClient

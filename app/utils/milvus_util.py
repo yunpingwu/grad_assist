@@ -6,8 +6,10 @@ Milvus 教材域工具
 """
 
 import hashlib
+import threading
 from datetime import datetime
 
+from cachetools import TTLCache
 from pymilvus import (
     AnnSearchRequest,
     CollectionSchema,
@@ -26,29 +28,55 @@ COLLECTION_PREFIX = "tb"
 REGISTRY_COLLECTION = "textbook_registry"
 
 
+# ── 进程级缓存（教材域）──────────────────────────────────────
+# 教材名 → 集合名的映射短缓存：映射仅在重摄入 register_textbook 时变化，
+# 60s TTL + 显式失效兜底，避免每次检索都打一次 Milvus 注册表查询。
+# （cachetools TTLCache 内部无锁，本项目所有访问均发生在 uvicorn 事件循环单一线程内）
+_COLLECTION_CACHE_TTL = 60.0
+_collection_cache = TTLCache(maxsize=1024, ttl=_COLLECTION_CACHE_TTL)
+
+# 注册表集合存在性探测缓存：确认存在后进程内常驻，不再重复 has_collection RPC。
+# 注：注册表集合一旦创建便不再变化，缓存失效风险可忽略。
+_registry_exists = False
+_registry_lock = threading.Lock()
+
+# 章节结构缓存：全表扫描结果（教材入库后不变），进程级 10 分钟 TTL，
+# 超过进程寿命即失效重扫——TTL 内存缓存放热数据足够，不需要磁盘层。
+_CHAPTERS_CACHE_TTL = 600.0
+_chapters_cache = TTLCache(maxsize=64, ttl=_CHAPTERS_CACHE_TTL)
+
+
 def ensure_registry() -> None:
-    """确保教材注册表集合存在（幂等）。"""
-    client = milvus_client.get_client()
-    if client.has_collection(REGISTRY_COLLECTION):
+    """确保教材注册表集合存在（幂等，存在性探测结果进程内缓存）。
+
+    首次调用做一次 has_collection RPC；确认存在后缓存标记，后续调用零 RPC。
+    """
+    global _registry_exists
+    if _registry_exists:
         return
 
-    fields = [
-        FieldSchema(name="textbook_name", dtype=DataType.VARCHAR, is_primary=True, max_length=255),
-        FieldSchema(name="collection_name", dtype=DataType.VARCHAR, max_length=64),
-        FieldSchema(name="chunk_count", dtype=DataType.INT64),
-        FieldSchema(name="created_at", dtype=DataType.VARCHAR, max_length=32),
-        # Milvus 要求集合至少一个向量字段，注册表仅用标量查询，占位即可
-        FieldSchema(name="dummy_embedding", dtype=DataType.FLOAT_VECTOR, dim=2),
-    ]
-    schema = CollectionSchema(fields, description="教材名 → 集合名 映射注册表")
-    client.create_collection(REGISTRY_COLLECTION, schema=schema)
+    client = milvus_client.get_client()
+    if not client.has_collection(REGISTRY_COLLECTION):
+        fields = [
+            FieldSchema(name="textbook_name", dtype=DataType.VARCHAR, is_primary=True, max_length=255),
+            FieldSchema(name="collection_name", dtype=DataType.VARCHAR, max_length=64),
+            FieldSchema(name="chunk_count", dtype=DataType.INT64),
+            FieldSchema(name="created_at", dtype=DataType.VARCHAR, max_length=32),
+            # Milvus 要求集合至少一个向量字段，注册表仅用标量查询，占位即可
+            FieldSchema(name="dummy_embedding", dtype=DataType.FLOAT_VECTOR, dim=2),
+        ]
+        schema = CollectionSchema(fields, description="教材名 → 集合名 映射注册表")
+        client.create_collection(REGISTRY_COLLECTION, schema=schema)
 
-    params = IndexParams()
-    params.add_index(field_name="dummy_embedding", index_type="FLAT", metric_type="L2", index_name="idx_dummy")
-    params.add_index(field_name="collection_name", index_type="TRIE", index_name="idx_collection_name")
-    client.create_index(REGISTRY_COLLECTION, params)
-    client.load_collection(REGISTRY_COLLECTION)
-    logger.info(f"注册表集合 {REGISTRY_COLLECTION} 创建成功")
+        params = IndexParams()
+        params.add_index(field_name="dummy_embedding", index_type="FLAT", metric_type="L2", index_name="idx_dummy")
+        params.add_index(field_name="collection_name", index_type="TRIE", index_name="idx_collection_name")
+        client.create_index(REGISTRY_COLLECTION, params)
+        client.load_collection(REGISTRY_COLLECTION)
+        logger.info(f"注册表集合 {REGISTRY_COLLECTION} 创建成功")
+
+    with _registry_lock:
+        _registry_exists = True
 
 
 def deterministic_collection_name(textbook_name: str) -> str:
@@ -86,22 +114,49 @@ def register_textbook(textbook_name: str, collection_name: str, chunk_count: int
         ],
     )
     client.flush(REGISTRY_COLLECTION)
+    # 登记即数据变更提交点：失效该教材的映射与章节结构缓存，检索侧即刻可见
+    _invalidate_textbook_caches(textbook_name)
     logger.info(f"注册教材: {textbook_name} → {collection_name}（{chunk_count} chunk）")
 
 
+def _invalidate_textbook_caches(textbook_name: str) -> None:
+    """失效教材维度的进程缓存（重摄入后调用，保证检索侧新鲜）。"""
+    _collection_cache.pop(textbook_name, None)
+    _chapters_cache.pop(textbook_name, None)
+
+
+def escape_expr_value(value: str) -> str:
+    """转义 Milvus 表达式中的字符串字面量值。
+
+    Milvus 布尔表达式仅支持 JSON 风格转义（\\\\ " / b f n r t），值里出现的
+    反斜杠（如小节标题 ``\\* 8.5.4 ...``）与双引号都会导致解析失败，须先转义
+    反斜杠、再转义双引号（顺序不可颠倒）。
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def get_collection_by_name(textbook_name: str) -> str | None:
-    """按教材名查注册表，返回对应的集合名；未登记返回 None。"""
+    """按教材名查注册表，返回对应的集合名；未登记返回 None。
+
+    结果做进程级 60s TTL 缓存（含未登记负缓存，避免反复查询未知教材）；
+    重摄入 register_textbook 时显式失效，保证映射新鲜。
+    """
+    cached = _collection_cache.get(textbook_name)
+    if cached is not None:
+        return cached or None
     ensure_registry()
     client = milvus_client.get_client()
-    # 转义教材名中的双引号，避免破坏 filter 表达式
-    safe_name = textbook_name.replace('"', '\\"')
+    # 转义教材名中的反斜杠/双引号，避免破坏 filter 表达式
+    safe_name = escape_expr_value(textbook_name)
     res = client.query(
         REGISTRY_COLLECTION,
         filter=f'textbook_name == "{safe_name}"',
         output_fields=["collection_name"],
         limit=1,
     )
-    return res[0]["collection_name"] if res else None
+    collection_name = res[0]["collection_name"] if res else ""
+    _collection_cache[textbook_name] = collection_name
+    return collection_name or None
 
 
 def list_textbooks(page: int = 1, page_size: int = 20) -> dict:
@@ -134,6 +189,9 @@ def list_chapters(textbook_name: str) -> list[dict]:
 
     供复习资料生成 Agent 了解教材骨架、决定按章检索的范围。
 
+    缓存策略（全表扫描结果，教材入库后不变）：进程级 10 分钟 TTL 缓存，
+    命中即返回；MISS 才 query_iterator 全表扫描并回填。
+
     Args:
         textbook_name: 教材名（须已登记）。
 
@@ -144,6 +202,17 @@ def list_chapters(textbook_name: str) -> list[dict]:
     Raises:
         ValueError: 教材未登记。
     """
+    cached = _chapters_cache.get(textbook_name)
+    if cached is not None:
+        return cached
+
+    chapters = _scan_chapters(textbook_name)
+    _chapters_cache[textbook_name] = chapters
+    return chapters
+
+
+def _scan_chapters(textbook_name: str) -> list[dict]:
+    """全表扫描教材集合聚合章节结构（无缓存的原始实现）。"""
     collection_name = get_collection_by_name(textbook_name)
     if not collection_name:
         raise ValueError(f"教材未登记: {textbook_name}")
@@ -241,6 +310,7 @@ def hybrid_search(
     *,
     expr: str | None = None,
     limit: int = 5,
+    weights: tuple[float, float] = (0.8, 0.2),
     output_fields: list[str] | None = None,
 ) -> list[dict]:
     """用预生成的 dense/sparse 向量在指定集合执行混合检索，返回 TOP 命中列表。
@@ -254,6 +324,8 @@ def hybrid_search(
         collection_name: 教材数据集合名。
         expr: 标量过滤表达式（如章节过滤），缺省不过滤。
         limit: 融合后返回的最大命中数。
+        weights: WeightedRanker 的 (dense, sparse) 权重，默认 (0.8, 0.2)；
+                 消融实验通过该参数做权重扫描。
         output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
 
     Returns:
@@ -262,7 +334,9 @@ def hybrid_search(
     reqs = create_hybrid_search_requests(
         dense_vector=dense_vector,
         sparse_vector=sparse_vector,
-        limit=10,
+        # 底层单路召回数至少覆盖融合返回数：快速路径 limit=5 时维持 10 条（原状），
+        # 深度路径评测扩候选池（limit≥10）时按池子大小扩容，精排才有候选空间
+        limit=max(limit, 10),
         expr=expr,
     )
     client = milvus_client.get_client()
@@ -271,8 +345,78 @@ def hybrid_search(
     res = client.hybrid_search(
         collection_name=collection_name,
         reqs=reqs,
-        ranker=WeightedRanker(0.8, 0.2),
+        ranker=WeightedRanker(*weights),
         limit=limit,
+        output_fields=output_fields or SEARCH_OUTPUT_FIELDS,
+    )
+    return res[0]
+
+
+def dense_search(
+    dense_vector: list[float],
+    collection_name: str,
+    *,
+    expr: str | None = None,
+    limit: int = 5,
+    output_fields: list[str] | None = None,
+) -> list[dict]:
+    """仅用稠密向量做单路检索（COSINE），供消融实验对比 dense-only 基线的排序质量。
+
+    Args:
+        dense_vector: 查询的稠密向量（单条）。
+        collection_name: 教材数据集合名。
+        expr: 标量过滤表达式，缺省不过滤。
+        limit: 返回的最大命中数。
+        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
+
+    Returns:
+        TOP 命中列表（``res[0]``），元素含 id/entity/distance。
+    """
+    if not dense_vector:
+        raise ValueError("dense_vector 不能为空")
+    client = milvus_client.get_client()
+    res = client.search(
+        collection_name=collection_name,
+        data=[dense_vector],
+        anns_field=DENSE_FIELD,
+        search_params={"metric_type": "COSINE", "params": {"nprobe": 16}},
+        limit=limit,
+        filter=expr or "",
+        output_fields=output_fields or SEARCH_OUTPUT_FIELDS,
+    )
+    return res[0]
+
+
+def sparse_search(
+    sparse_vector: dict[int, float],
+    collection_name: str,
+    *,
+    expr: str | None = None,
+    limit: int = 5,
+    output_fields: list[str] | None = None,
+) -> list[dict]:
+    """仅用稀疏（词面）向量做单路检索（IP），供消融实验对比 sparse-only 基线的排序质量。
+
+    Args:
+        sparse_vector: 查询的稀疏向量（单条，{token_id: weight}）。
+        collection_name: 教材数据集合名。
+        expr: 标量过滤表达式，缺省不过滤。
+        limit: 返回的最大命中数。
+        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
+
+    Returns:
+        TOP 命中列表（``res[0]``），元素含 id/entity/distance。
+    """
+    if not sparse_vector:
+        raise ValueError("sparse_vector 不能为空")
+    client = milvus_client.get_client()
+    res = client.search(
+        collection_name=collection_name,
+        data=[sparse_vector],
+        anns_field=SPARSE_FIELD,
+        search_params={"metric_type": "IP"},
+        limit=limit,
+        filter=expr or "",
         output_fields=output_fields or SEARCH_OUTPUT_FIELDS,
     )
     return res[0]
@@ -296,8 +440,8 @@ def query_section_codes(
         [{id, text, chapter, section, block_type}, ...]，无则返回空列表。
     """
     client = milvus_client.get_client()
-    safe_chapter = chapter.replace('"', '\\"')
-    safe_section = section.replace('"', '\\"')
+    safe_chapter = escape_expr_value(chapter)
+    safe_section = escape_expr_value(section)
     expr = (
         'block_type == "code" and '
         f'chapter == "{safe_chapter}" and section == "{safe_section}"'

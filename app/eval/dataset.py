@@ -3,8 +3,8 @@
 评测集以 JSON 文件存放，顶层含 ``textbook`` 字段与 ``questions`` 列表。
 每个问题包含 question / category / gold_chunk_ids / answer_points / reference_answer。
 
-注意：gold_chunk_ids 直接写死入库时的完整主键（``textbook_name_batch_uuid8``），
-不做动态解析。若今后教材重新摄入导致 id 变化，需重新对齐 gold。
+注意：gold_chunk_ids 使用稳定的 chunk 主键（教材版本、章节/小节、块类型、索引和
+正文哈希组成），同一版本教材重新摄入后无需因为入库顺序变化而重新对齐。
 """
 
 from __future__ import annotations

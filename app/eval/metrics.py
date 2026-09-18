@@ -42,6 +42,14 @@ def mean_reciprocal_rank(gold: set[str], retrieved: list[str]) -> float:
     return 0.0
 
 
+def mean_reciprocal_rank_at_k(gold: set[str], retrieved: list[str], k: int) -> float:
+    """MRR@k：首个相关结果排名倒数的均值，仅统计前 k 位（超出 k 记 0）。"""
+    for rank, doc_id in enumerate(retrieved[:k], start=1):
+        if doc_id in gold:
+            return 1.0 / rank
+    return 0.0
+
+
 def ndcg_at_k(gold: set[str], retrieved: list[str], k: int) -> float:
     """NDCG@k：二值相关性的折扣累计增益。
 
@@ -80,6 +88,7 @@ def compute_metrics(gold: set[str], retrieved: list[str], ks: tuple[int, ...] = 
         out[f"recall@{k}"] = recall_at_k(gold, retrieved, k)
         out[f"hit@{k}"] = hit_at_k(gold, retrieved, k)
         out[f"ndcg@{k}"] = ndcg_at_k(gold, retrieved, k)
+        out[f"mrr@{k}"] = mean_reciprocal_rank_at_k(gold, retrieved, k)
     out["mrr"] = mean_reciprocal_rank(gold, retrieved)
     return out
 

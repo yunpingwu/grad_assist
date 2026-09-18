@@ -24,12 +24,14 @@ from app.config import mongo_config
 from app.core import (
     end_request,
     flush_metrics,
+    get_metrics,
     logger,
     mark_stage,
     start_request,
 )
 from app.study_agent.graph import build_graph
 from app.study_agent.state import StudyState
+from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
 
 router = APIRouter(tags=["study"])
@@ -46,9 +48,10 @@ study_graph = build_graph(checkpointer=checkpointer)
 
 @router.post(
     "/study/chat",
-    summary="统一助手对话（含写盘确认续跑）",
-    description="SSE 事件流：tool / thought / token / ask_confirm / done / error；多轮经 session_id 续接；"
-    "对停留在写盘确认的会话传 decision=approve|reject 统一放行/拒绝",
+    summary="统一助手对话（含写盘确认/澄清反问续跑）",
+    description="SSE 事件流：tool / thought / token / ask_confirm / ask_clarify / done / error；多轮经 session_id 续接；"
+    "对停留在写盘确认的会话传 decision=approve|reject 统一放行/拒绝；"
+    "对停留在澄清反问的会话传 clarify_answers 续跑",
 )
 async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> StreamingResponse:
     """统一对话入口：新问题直接跑；上轮停在写盘确认时按 decision 放行/拒绝后续跑同一线程。"""
@@ -62,19 +65,38 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
         "messages": [HumanMessage(content=req.query)],
     }
 
-    # 判断线程是否停在 HumanInTheLoop 写盘确认中断
+    # 判断线程是否停在中断（写盘确认 或 澄清反问）
     snapshot = await study_graph.aget_state(config)
     pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
         task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
     )
     agent_input: dict | Command = state
     if pending_interrupt:
+        # 取首个挂起中断的值（用其 type 区分写盘确认与澄清反问）
+        interrupt_value: dict | None = None
+        for task in getattr(snapshot, "tasks", ()):
+            for intr in getattr(task, "interrupts", ()):
+                value = getattr(intr, "value", None)
+                if isinstance(value, dict):
+                    interrupt_value = value
+                    break
+            if interrupt_value is not None:
+                break
         pending_count = max(len(getattr(snapshot, "tasks", ())), 1)  # 无快照时兜底 1
-        if req.decision in ("approve", "reject"):
+        if interrupt_value and interrupt_value.get("type") == "clarify":
+            if req.clarify_answers is not None:
+                # 用户回应上轮澄清反问：按问题逐一作答，续跑同一线程
+                agent_input = Command(resume={"answers": [a.model_dump() for a in req.clarify_answers]})
+            else:
+                # 停在澄清却发来新问题 → 自动取消本轮澄清（返回空答案解锁线程），再正常跑新问题
+                logger.info(f"session {session_id} 停在澄清反问但收到新问题，自动取消本轮澄清")
+                await study_graph.ainvoke(Command(resume={CANCEL_MARKER: True}), config)
+                agent_input = state
+        elif req.decision in ("approve", "reject"):
             # 用户回应上轮确认：对全部 pending 中断统一生效，续跑同一线程
             agent_input = Command(resume={"decisions": [{"type": req.decision}] * pending_count})
         else:
-            # 方案A：停在中断却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
+            # 方案A：停在写盘确认却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
             logger.info(f"session {session_id} 停在写盘确认但收到新问题，自动拒绝本次写盘")
             await study_graph.ainvoke(
                 Command(resume={"decisions": [{"type": "reject"}] * pending_count}), config
@@ -153,6 +175,9 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
                     # 首个回答正文 token 距开始执行的延迟（首 token 延迟）
                     mark_stage("llm_first_token_ms", (time.perf_counter() - t0) * 1000)
                     first_token = True
+                metrics = get_metrics()
+                if metrics is not None:
+                    metrics.answer_content += str(speech)
                 yield {"type": "token", "content": speech}
         elif node == "tools":
             # 工具结果：前端展示
@@ -163,25 +188,57 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
     # 回答生成结束（含工具调用与最终回答），记录生成阶段总耗时
     mark_stage("llm_total_ms", (time.perf_counter() - t0) * 1000)
 
-    # 检测是否停留在写盘确认中断（HumanInTheLoop 暂停后的线程 next 非空且 tasks 带 interrupts）
+    # 检测是否停留在中断（HumanInTheLoop 写盘确认 / 澄清反问），按类型分发事件
     snapshot = await study_graph.aget_state(config)
     # 调试：多轮交互消息的全量结构仅输出到控制台（不推送前端、不落盘）
     logger.info(
         f"消息结构(session {session_id}): "
         f"{json.dumps(_dump_messages((snapshot.values or {}).get('messages', [])), ensure_ascii=False)}"
     )
-    # 停在 HumanInTheLoop 写盘中断（next 非空且 tasks 带 interrupts）→ 等确认；否则正常收尾
+    # 停在中断（next 非空且 tasks 带 interrupts）→ 等确认/作答；否则正常收尾
     pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
         task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
     )
     if pending_interrupt:
-        yield {
-            "type": "ask_confirm",
-            "session_id": session_id,
-            "message": "助手准备写入文件以生成学习资料，是否允许？",
-        }
+        # 取首个挂起中断的值（用其 type 区分写盘确认与澄清反问）
+        interrupt_value: dict | None = None
+        for task in getattr(snapshot, "tasks", ()):
+            for intr in getattr(task, "interrupts", ()):
+                value = getattr(intr, "value", None)
+                if isinstance(value, dict):
+                    interrupt_value = value
+                    break
+            if interrupt_value is not None:
+                break
+        if interrupt_value and interrupt_value.get("type") == "clarify":
+            # 澄清反问：把问题（及校验失败提示）原样抛给前端
+            yield {
+                "type": "ask_clarify",
+                "session_id": session_id,
+                "questions": interrupt_value.get("questions") or [],
+                "max_questions": interrupt_value.get("max_questions", 3),
+                "error": interrupt_value.get("error") or "",
+            }
+        else:
+            yield {
+                "type": "ask_confirm",
+                "session_id": session_id,
+                "message": "助手准备写入文件以生成学习资料，是否允许？",
+            }
     else:
-        yield {"type": "done", "session_id": session_id}
+        metrics = get_metrics()
+        done_event = {"type": "done", "session_id": session_id}
+        if metrics is not None:
+            # 附带观测字段便于评测脚本与客户端直接关联回答和检索证据；
+            # 同一份数据随后仍会由 flush_metrics 写入 metrics.log。
+            done_event.update(
+                {
+                    "request_id": metrics.request_id,
+                    "retrieved_chunk_ids": list(metrics.retrieved_chunk_ids),
+                    "answer_content": metrics.answer_content,
+                }
+            )
+        yield done_event
 
 
 def _dump_messages(messages: list) -> list[dict]:

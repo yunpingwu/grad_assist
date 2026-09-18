@@ -8,8 +8,9 @@
 模型加载优先级: config.model_path (本地) → config.model_name (HuggingFace ID)
 """
 
+from __future__ import annotations
+
 import os
-import threading
 import time
 
 from FlagEmbedding import FlagReranker
@@ -18,9 +19,6 @@ from app.config import rerank_config
 from app.core import logger, mark_stage
 
 _reranker = None
-
-# 串行化交叉编码前向：同 embedding，多线程并发调用同一单例不安全
-_rerank_lock = threading.Lock()
 
 
 def _get_reranker() -> FlagReranker:
@@ -56,8 +54,20 @@ def _get_reranker() -> FlagReranker:
     return _reranker
 
 
+def _score_pairs(pairs: list[tuple[str, str]]) -> list[float]:
+    """批量交叉编码打分（纯同步前向，由 BatchReranker 串行调用）。"""
+    reranker = _get_reranker()
+    scores = reranker.compute_score(pairs)
+    if isinstance(scores, float):  # 单对输入时返回标量
+        scores = [scores]
+    return [float(s) for s in scores]
+
+
 def compute_rerank_scores(query: str, texts: list[str]) -> list[float]:
     """计算查询与每个候选片段的交叉编码分数（sigmoid 归一化，越大越相关）。
+
+    同步版：直接对 ``(query, text)`` 对列表做一次前向，供预热等单处调用；
+    多用户并发精排请走 ``arerank_scores``（动态攒批）。
 
     Args:
         query: 查询文本。
@@ -71,10 +81,7 @@ def compute_rerank_scores(query: str, texts: list[str]) -> list[float]:
     """
     if not texts:
         raise ValueError("texts 必须是非空列表")
+    return _score_pairs([(query, text) for text in texts])
 
-    with _rerank_lock:
-        reranker = _get_reranker()
-        scores = reranker.compute_score([(query, text) for text in texts])
-    if isinstance(scores, float):  # 单对输入时返回标量
-        scores = [scores]
-    return [float(s) for s in scores]
+
+# 动态攒批（BatchReranker / arerank_scores）已迁至 app.utils.batch_manager.reranker

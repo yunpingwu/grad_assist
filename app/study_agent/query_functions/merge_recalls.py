@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from app.core import logger
 
-# RRF 平滑常数 k（默认 60，越小排名权重越突出）
-RRF_K = 60
+# RRF 平滑常数 k
+RRF_K = 10
 
 
 async def rrf_merge(

@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import asyncio
-from functools import lru_cache
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
@@ -28,11 +27,12 @@ from langgraph.runtime import Runtime
 
 from app.clients.llm import get_llm_client
 from app.core import astage, get_metrics, load_prompt, logger
-from app.study_agent.query_functions.intent import detect_intent
+from app.study_agent.query_functions.intent_detection import detect_intent
 from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
 from app.study_agent.state import StudyState
 from app.study_agent.tools import (
     append_file,
+    ask_clarification,
     edit_file,
     list_chapters,
     list_files,
@@ -47,32 +47,23 @@ _INTENT_BLOCKS = frozenset({"explain", "generate", "quiz", "plan", "chat"})
 _DEFAULT_INTENT = "explain"
 
 
-@lru_cache(maxsize=1)
-def _study_chat_template() -> PromptTemplate:
-    """缓存 study_chat 骨架模板（模板不变，避免每次模型调用重复解析）。"""
-    return PromptTemplate.from_template(load_prompt("study_chat"))
-
-
-def _intent_block(intent: str) -> str:
-    """按意图加载对应行为块；未识别/越界回退默认「讲解」块。"""
-    name = intent if intent in _INTENT_BLOCKS else _DEFAULT_INTENT
-    return load_prompt(f"intent/{name}")
-
-
-def _render_system_prompt(state: StudyState) -> str:
-    """按 state 渲染 system prompt 正文（纯函数，零 IO）。"""
-    requirement = state.get("requirement") or "回答教材相关问题，或按需整理成学习资料。"
-    return _study_chat_template().format(
-        textbook_name=state.get("textbook_name", ""),
-        requirement=requirement,
-        intent_block=_intent_block(state.get("intent") or _DEFAULT_INTENT),
-    )
-
-
 @dynamic_prompt
 def study_system_prompt(request: ModelRequest) -> str:
-    """动态 system prompt：每次 model 调用前按当前 state（含意图）渲染。"""
-    return _render_system_prompt(request.state)
+    """按当前 state（含意图）渲染 system prompt 正文。
+
+    拼装逻辑内聚在本函数：意图未识别/越界回退默认「讲解」块；
+    提示词文件统一走 ``load_prompt``（自带 LRU 缓存读盘，避免重复 IO）；
+    骨架模板为小型静态文本，每次调用直接解析，开销可忽略（与 rewrite_query 的处理一致）。
+    """
+    state = request.state
+    requirement = state.get("requirement") or "回答教材相关问题，或按需整理成学习资料。"
+    intent = state.get("intent") or _DEFAULT_INTENT
+    intent_name = intent if intent in _INTENT_BLOCKS else _DEFAULT_INTENT
+    return PromptTemplate.from_template(load_prompt("study_chat")).format(
+        textbook_name=state.get("textbook_name", ""),
+        requirement=requirement,
+        intent_block=load_prompt(f"intent/{intent_name}"),
+    )
 
 
 @before_agent(state_schema=StudyState)
@@ -93,22 +84,34 @@ async def understand_query(state: StudyState, runtime: Runtime) -> dict:
     textbook_name = state.get("textbook_name") or ""
     history = format_questions(state.get("messages") or [])
 
-    async def _rewrite_with_metric() -> str:
-        async with astage("query_rewrite_ms"):
-            return await rewrite(requirement, textbook_name, history)
+    # 首轮通常没有指代或省略，原问题已经是独立检索问句；此时跳过一次重写 LLM。
+    # 只有存在历史用户问题时才做重写，解决“它/这个/上面提到的”等跨轮消歧。
+    # before_agent 可以直接按 state 动态选择路径；resume 续跑不会重复进入这里。
+    if history.strip():
+        async def _rewrite_with_metric() -> str:
+            async with astage("query_rewrite_ms"):
+                return await rewrite(requirement, textbook_name, history)
 
-    # 意图识别与问题重写相互独立，并行执行（embedding/LLM 资源不同）
-    intent_result, rewritten = await asyncio.gather(
-        detect_intent(requirement),
-        _rewrite_with_metric(),
-    )
+        # 多轮场景下，意图识别与问题重写相互独立，并行执行。
+        intent_result, rewritten = await asyncio.gather(
+            detect_intent(requirement),
+            _rewrite_with_metric(),
+        )
+        rewrite_mode = "llm"
+    else:
+        # 单轮清晰问题直接保留原文，避免一次无收益的重写调用。
+        intent_result = await detect_intent(requirement)
+        rewritten = requirement.strip()
+        rewrite_mode = "skipped_no_history"
     metrics = get_metrics()
     if metrics is not None:
         metrics.intent = intent_result.intent
         metrics.intent_source = intent_result.source
+        metrics.rewrite_mode = rewrite_mode
     logger.info(
         f"query 理解: intent={intent_result.intent}"
-        f"({intent_result.source}, {intent_result.confidence:.2f}) → rewrite={rewritten!r}"
+        f"({intent_result.source}, {intent_result.confidence:.2f}), "
+        f"rewrite_mode={rewrite_mode} → rewrite={rewritten!r}"
     )
     return {
         "intent": intent_result.intent,
@@ -128,6 +131,7 @@ def build_graph(checkpointer=None):
     return create_agent(
         model=get_llm_client(),
         tools=[search_textbook, list_chapters, search_web,
+               ask_clarification,
                write_file, append_file, read_file, edit_file, list_files],
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图 + 重写），每轮一次

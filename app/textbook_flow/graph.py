@@ -44,6 +44,16 @@ if __name__ == "__main__":
 
     state: TextBookState = {
         "textbook_exists": False,
+        # 此处图入口需要指定偏移量
+        "offsets": [
+            {"textbook_name": "C语言程序设计（第五版）_(谭浩强)_(z-library.sk,_1lib.sk,_z-lib.", "offset": 25},
+            {"textbook_name": "操作系统：精髓与设计原理_第8版_(斯托林斯)_(z-library.sk,_1lib.sk,_.", "offset": 21},
+            {"textbook_name": "数据库系统概论(第6版)_(王珊,杜小勇,陈红)_(z-library.sk,_1lib.sk,.", "offset": 27},
+            {"textbook_name": "数据结构 (陈越、何钦铭、徐镜春、魏宝刚、杨枨编) (z-library.sk, 1lib.sk, z-lib.sk)", "offset": 10},
+            {"textbook_name": "机器学习_Machine_Learning_(Chinese_Edition)_(Zhou_Zh.", "offset": 17},
+            {"textbook_name": "计算机组成原理_第6版_(白中英,_戴志涛)_(z-library.sk,_1lib.sk,_z.", "offset": 11},
+            {"textbook_name": "计算机网络（第8版）_(谢希仁)_(z-library.sk,_1lib.sk,_z-lib.s.", "offset": 12},
+        ],
     }
 
     graph = build_graph()

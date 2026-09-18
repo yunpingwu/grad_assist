@@ -66,17 +66,28 @@ _lcb._convert_dict_to_message = _convert_dict_with_reasoning
 
 
 @lru_cache(maxsize=128)
-def get_llm_client(model: str | None = None, *, max_retries: int = 2, timeout: int = 120) -> Any:
+def get_llm_client(
+    model: str | None = None,
+    *,
+    max_retries: int = 2,
+    timeout: int = 120,
+    enable_thinking: bool = True,
+) -> Any:
     """获取裸 Chat 模型（非 Agent）。
 
     Args:
         model: 模型名，缺省用 llm_config.model。
         max_retries: 网络错误 / 429 / 5xx 的自动重试次数。
         timeout: 单次请求超时秒数。
+        enable_thinking: 是否开启思考模式。百炼混合思考型模型（如 deepseek-v4-flash）
+            通过 extra_body={"enable_thinking": False} 关闭思考，减少时延与推理 token 消耗。
 
     Returns:
         配置好的 Chat 模型，支持 ``ainvoke`` / ``bind_tools``。
     """
+    kwargs: dict[str, Any] = {}
+    if not enable_thinking:
+        kwargs["extra_body"] = {"enable_thinking": False}
     return init_chat_model(
         model=model or llm_config.model,
         model_provider="openai",
@@ -85,6 +96,7 @@ def get_llm_client(model: str | None = None, *, max_retries: int = 2, timeout: i
         base_url=llm_config.base_url,
         max_retries=max_retries,
         timeout=timeout,
+        **kwargs,
     )
 
 

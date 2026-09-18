@@ -12,17 +12,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
 
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, Field
 
 from app.clients.llm import get_llm_client
 from app.core import load_prompt, logger
+from app.study_agent.entity.intent import IntentResult, _IntentDecision
 from app.utils import agenerate_embeddings
 
 # 意图枚举顺序（embedding 相似度结果按此下标对齐，保序）
 INTENT_ORDER = ("explain", "generate", "quiz", "plan", "chat")
+
+# 低置信度兜底：无法判定的意图（由消费端回退通用行为 + 引导澄清）
+UNCLEAR = "unclear"
+VALID_INTENTS = frozenset({*INTENT_ORDER, UNCLEAR})
 
 # 各意图的语义描述：embedding 路由把 query 与这些描述做相似度比对
 INTENT_DESCRIPTIONS: dict[str, str] = {
@@ -32,18 +36,6 @@ INTENT_DESCRIPTIONS: dict[str, str] = {
     "plan": "复习计划、学习计划、学习路径、如何安排学习、备考规划",
     "chat": "寒暄、问候、感谢、道别、日常闲聊、常识性短答",
 }
-
-# 低置信度兜底：无法判定的意图（由消费端回退通用行为 + 引导澄清）
-UNCLEAR = "unclear"
-VALID_INTENTS = frozenset({*INTENT_ORDER, UNCLEAR})
-
-# embedding 语义路由的相似度阈值（BGE-M3 稠密向量已 L2 归一化，点积即 cosine）。
-# 经验值，建议用真实 query 日志按 precision/recall 校准。
-_EMBED_HIGH = 0.5  # 达到即高置信直接定
-_EMBED_LOW = 0.3  # 低于即判「领域外/无法判」；介于两者之间交 LLM 兜底
-
-# 关键词快车道的置信度（规则命中视为高置信，留少量余量）
-_KEYWORD_CONF = 0.95
 
 # 关键词规则：只覆盖「行为类」强信号词（generate/quiz/plan）。
 # 刻意不做 explain/chat——寒暄词（如「谢谢」）常混在真实问题里易误判，
@@ -55,24 +47,37 @@ _KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-@dataclass(frozen=True)
-class IntentResult:
-    """意图识别结果。
+# embedding 语义路由的相似度阈值（BGE-M3 稠密向量已 L2 归一化，点积即 cosine）。
+# 经验值，建议用真实 query 日志按 precision/recall 校准。
+_EMBED_HIGH = 0.5  # 达到即高置信直接定
+_EMBED_LOW = 0.3  # 低于即判「领域外/无法判」；介于两者之间交 LLM 兜底
 
-    Attributes:
-        intent: 意图枚举值（explain/generate/quiz/plan/chat/unclear）。
-        confidence: 置信度 0~1。
-        source: 判定来源（keyword/embedding/llm/fallback），便于观测与回归。
+# 关键词快车道的置信度（规则命中视为高置信，留少量余量）
+_KEYWORD_CONF = 0.95
+
+# ── 意图描述向量的预计算缓存 ─────────────────────────────────
+# 5 条意图描述是常量，但每次语义路由都与 query 一起编码（6 条/次），造成 5/6
+# 的 embedding 计算浪费。这里把描述向量在进程内预计算一次（懒加载，仅首个请求
+# 触发一次 5 条编码），后续语义路由只编码 query 单条。描述文案或模型变更后随
+# 进程重启自动重建，无需磁盘持久化。
+_precomputed_desc_vectors: list[list[float]] | None = None
+_desc_vectors_lock = asyncio.Lock()
+
+
+async def _get_intent_desc_vectors() -> list[list[float]]:
+    """获取 5 个意图描述的稠密向量（与 INTENT_ORDER 对齐）。
+
+    进程内懒计算一次（lock 保证并发首个请求只触发一次编码），随后回填进程缓存。
     """
-
-    intent: str
-    confidence: float
-    source: str
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    """向量相似度：dense 已 L2 归一化，点积即余弦相似度。"""
-    return sum(x * y for x, y in zip(a, b, strict=True))
+    global _precomputed_desc_vectors
+    if _precomputed_desc_vectors is not None:
+        return _precomputed_desc_vectors
+    async with _desc_vectors_lock:
+        if _precomputed_desc_vectors is not None:
+            return _precomputed_desc_vectors
+        emb = await agenerate_embeddings(list(INTENT_DESCRIPTIONS[i] for i in INTENT_ORDER))
+        _precomputed_desc_vectors = emb["dense"]
+        return _precomputed_desc_vectors
 
 
 def _classify_by_keyword(text: str) -> IntentResult | None:
@@ -101,16 +106,20 @@ def _classify_by_keyword(text: str) -> IntentResult | None:
 async def _classify_by_embedding(text: str) -> IntentResult | None:
     """embedding 语义路由：query 与各意图描述向量比对（复用 BGE-M3）。
 
+    意图描述向量为常量，已在进程内预计算（见 _get_intent_desc_vectors），
+    每次只编码 query 单条文本，不再重复编码 5 条描述。
+
     Args:
         text: 用户 query 原文。
 
     Returns:
         高置信或「领域外」时返回结果；中等置信返回 None 交 LLM 兜底。
     """
-    descriptions = [INTENT_DESCRIPTIONS[i] for i in INTENT_ORDER]
-    emb = await agenerate_embeddings([text, *descriptions])
+    desc_vectors = await _get_intent_desc_vectors()
+    emb = await agenerate_embeddings([text])
     query_vec = emb["dense"][0]
-    sims = [_cosine(query_vec, emb["dense"][1 + i]) for i in range(len(INTENT_ORDER))]
+    # dense 已 L2 归一化，点积即余弦相似度（内联，免去独立辅助函数）
+    sims = [sum(x * y for x, y in zip(query_vec, v, strict=True)) for v in desc_vectors]
     best_idx = max(range(len(sims)), key=sims.__getitem__)
     best_sim = float(sims[best_idx])
 
@@ -119,13 +128,6 @@ async def _classify_by_embedding(text: str) -> IntentResult | None:
     if best_sim < _EMBED_LOW:
         return IntentResult(UNCLEAR, best_sim, "embedding")  # 与所有意图都低相似
     return None  # 中等置信，交 LLM 兜底
-
-
-class _IntentDecision(BaseModel):
-    """LLM 结构化输出的意图判定。"""
-
-    intent: str = Field(description="意图枚举值")
-    confidence: float = Field(ge=0.0, le=1.0, description="置信度 0~1")
 
 
 async def _classify_by_llm(text: str) -> IntentResult:
@@ -179,9 +181,10 @@ if __name__ == "__main__":
     import asyncio
 
     async def _fake_embeddings(texts: list[str]) -> dict:
-        # query=[1.0]、其余描述=[0.4] → 每个 cosine=0.4，落在中等区间（交 LLM 兜底）
-        n = len(texts)
-        return {"dense": [[1.0] if i == 0 else [0.4] for i in range(n)], "sparse": [{0: 1.0} for _ in range(n)]}
+        # 意图描述预计算是 5 条的多文本批次、分类只编码 query 单条：query=[1.0,0.0]
+        # 与描述=[0.4,0.0] 的余弦=0.4，落在中等置信区间 → 交 LLM 兜底，验证三档编排
+        vec = [1.0, 0.0] if len(texts) == 1 else [0.4, 0.0]
+        return {"dense": [list(vec) for _ in texts], "sparse": [{0: 1.0} for _ in texts]}
 
     async def _fake_llm(text: str) -> IntentResult:
         return IntentResult("generate", 0.8, "llm")

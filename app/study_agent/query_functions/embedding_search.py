@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 from app.core import logger, stage
-from app.utils.embedding_util import agenerate_embeddings
-from app.utils.milvus_util import get_collection_by_name, hybrid_search
+from app.utils.batch_manager.embedder import agenerate_embeddings
+from app.utils.milvus_util import escape_expr_value, get_collection_by_name, hybrid_search
 
 
 async def search_by_vectors(
@@ -17,6 +17,7 @@ async def search_by_vectors(
     dense_vec: list[float],
     sparse_vec: dict[int, float],
     chapter: str | None = None,
+    limit: int = 5,
 ) -> list[dict]:
     """用预生成的 dense/sparse 向量在教材集合执行混合检索（可选章节过滤）。
 
@@ -28,6 +29,8 @@ async def search_by_vectors(
         dense_vec: 查询稠密向量（单条）。
         sparse_vec: 查询稀疏向量（单条）。
         chapter: 限定章节名（可选，转义后作为 Milvus 过滤表达式），缺省全书检索。
+        limit: 融合后返回的最大命中数，缺省 5（生产快速路径）；深度路径评测
+            扩候选池时传更大值。
 
     Returns:
         检索到的 TOP 文本片段列表。
@@ -35,25 +38,31 @@ async def search_by_vectors(
     collection_name = get_collection_by_name(textbook_name)
     if not collection_name:
         raise ValueError(f"教材未登记: {textbook_name}")
-    # 章节过滤表达式：转义双引号，防止破坏 filter 语法（与注册表查询同一策略）
+    # 章节过滤表达式：转义反斜杠/双引号，防止破坏 filter 语法（与注册表查询同一策略）
     chapter_expr = None
     if chapter:
-        safe_chapter = chapter.replace('"', '\\"')
+        safe_chapter = escape_expr_value(chapter)
         chapter_expr = f'chapter == "{safe_chapter}"'
     with stage("milvus_search_ms"):
-        return hybrid_search(dense_vec, sparse_vec, collection_name, expr=chapter_expr)
+        return hybrid_search(dense_vec, sparse_vec, collection_name, expr=chapter_expr, limit=limit)
 
 
-async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
+async def rewrite_query_search(
+    textbook_name: str,
+    rewrite_query: str,
+    chapter: str | None = None,
+    limit: int = 5,
+) -> list[dict]:
     """根据重写后的问题进行向量混合搜索（可选按章节过滤）。
 
     Args:
         textbook_name: 教材名。
         rewrite_query: 重写后的问题。
-        chapter: 限定章节名（可选，转义后作为 Milvus 过滤表达式），缺省全书检索。
+        chapter: 限定章节名（可选），缺省全书检索。
+        limit: 融合后返回的最大命中数，缺省 5。
 
     Returns:
-        检索到的 TOP5 文本片段。
+        检索到的 TOP 文本片段。
     """
     if not rewrite_query:
         raise ValueError("问题重写为空")
@@ -65,6 +74,7 @@ async def rewrite_query_search(textbook_name: str, rewrite_query: str, chapter: 
         query_embedding.get("dense")[0],
         query_embedding.get("sparse")[0],
         chapter,
+        limit,
     )
 
 

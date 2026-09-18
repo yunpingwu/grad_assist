@@ -1,7 +1,6 @@
 import asyncio
 import json
 import re
-import uuid
 from pathlib import Path
 
 from langgraph.types import StreamWriter
@@ -10,8 +9,9 @@ from app.clients import milvus_client
 from app.core import log_node, logger
 from app.textbook_flow.state import TextBookState
 from app.utils import (
+    agenerate_embeddings,
+    build_chunk_id,
     deterministic_collection_name,
-    generate_embeddings,
     get_collection_by_name,
     register_textbook,
     upload_and_map,
@@ -364,15 +364,23 @@ async def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
         batch_entries = entries[batch_start : batch_start + _EMBED_BATCH_SIZE]
         texts = [e["text"] for e in batch_entries]
 
-        # BGE-M3 编码是 CPU 密集，放线程池避免阻塞事件循环
-        emb = await asyncio.to_thread(generate_embeddings, texts)
+        # BGE-M3 编码走动态攒批器（内部 to_thread 前向），避免阻塞事件循环
+        emb = await agenerate_embeddings(texts)
         dense_vecs = emb["dense"]
         sparse_vecs = emb["sparse"]
 
         # 组装插入行
         rows: list[dict] = []
         for i, entry in enumerate(batch_entries):
-            chunk_id = f"{textbook_name}_{batch_start + i}_{uuid.uuid4().hex[:8]}"
+            chunk_id = build_chunk_id(
+                textbook_name=textbook_name,
+                textbook_version="v1",
+                chapter=entry["chapter"],
+                section=entry["section"],
+                block_type=entry["block_type"],
+                chunk_index=entry["chunk_index"],
+                text=entry["text"],
+            )
             rows.append(
                 {
                     "id": chunk_id,

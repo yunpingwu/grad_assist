@@ -6,18 +6,22 @@
 模块：
 - dataset:     评测集加载（黄金 chunk id 与答案要点）
 - metrics:     Recall@k / Hit@k / MRR / NDCG@k 纯函数与聚合
-- retrieval:   复用生产检索函数，逐级打点与计时（C3 混合 / C4 融合 / C5 精排）
-- run_ablation:消融入口，跑 C3→C5 并输出指标表
+- retrieval:   复用生产检索函数，逐级打点与计时（hybrid 混合 / rrf_hyde 融合 / rerank 精排）
+- run_ablation:消融入口，跑各配置并输出指标表
 """
 
 from app.eval.dataset import load_dataset
 from app.eval.metrics import aggregate_metrics, compute_metrics
-from app.eval.retrieval import run_deep, run_fast
+from app.eval.retrieval import run_deep, run_dense, run_fast, run_hyde_rrf, run_hybrid, run_sparse
 
 __all__ = [
     "load_dataset",
     "compute_metrics",
     "aggregate_metrics",
     "run_fast",
+    "run_hyde_rrf",
     "run_deep",
+    "run_dense",
+    "run_sparse",
+    "run_hybrid",
 ]

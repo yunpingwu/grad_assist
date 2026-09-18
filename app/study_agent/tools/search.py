@@ -3,7 +3,8 @@
 将 query_functions 的核心能力折叠进单一检索工具，最终回答统一由 agent 模型生成，本工具只返回检索片段：
 - 始终先做问题重写（利用对话历史消歧），提升召回针对性；
 - ``deep=False`` 快速路径：混合召回（稠密+稀疏）后直接返回 TOP-K，适合反复取素材；
-- ``deep=True`` 深度路径：再叠加 HyDE 假设文档召回 → RRF 融合 → 交叉编码精排，适合严谨作答。
+- ``deep=True`` 深度路径：再叠加 HyDE 假设文档召回 → RRF 融合 → 交叉编码精排
+  （精排分数与 RRF 分数加权融合，只微调排序而非覆盖，适合严谨作答）。
 """
 
 from __future__ import annotations
@@ -17,11 +18,11 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import astage, get_metrics, logger
-from app.utils import agenerate_embeddings, get_collection_by_name, query_section_codes
 from app.study_agent.query_functions.embedding_search import rewrite_query_search, search_by_vectors
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
-from app.study_agent.query_functions.rerank import arerank_chunks
+from app.study_agent.query_functions.rerank import arerank_chunks_weighted
+from app.utils import agenerate_embeddings, get_collection_by_name, query_section_codes
 
 # 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
 _FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
@@ -124,9 +125,24 @@ def _format_hits(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _record_retrieved_chunk_ids(chunks: list[dict]) -> None:
+    """把本次检索最终返回的 chunk ID 按顺序写入请求级指标。"""
+    metrics = get_metrics()
+    if metrics is None:
+        return
+    for hit in chunks:
+        entity = hit.get("entity") or hit
+        chunk_id = hit.get("id") or entity.get("id")
+        if chunk_id is None:
+            continue
+        chunk_id = str(chunk_id)
+        if chunk_id not in metrics.retrieved_chunk_ids:
+            metrics.retrieved_chunk_ids.append(chunk_id)
+
+
 # 召回后二次补拉代码块的上限（控制检索延迟与 prompt 体积）
 _MAX_PULL_SECTIONS = 3        # 最多补拉前几个正文命中节
-_MAX_CODES_PER_SECTION = 20   # 每节最多补拉的代码块条数
+_MAX_CODES_PER_SECTION = 5   # 每节最多补拉的代码块条数
 _MAX_CODE_CHARS = 2000        # 单个代码块超长时截断
 
 
@@ -253,16 +269,18 @@ async def search_textbook(
                 metrics.recall_count = len(chunks)
             hits = chunks[:rerank_config.top_k]
         else:
-            # 深度路径：两路召回（混合 + HyDE）→ RRF 融合 → 精排 TOP-K
+            # 深度路径：两路召回（混合 + HyDE，各扩候选池）→ RRF 融合 → 精排 TOP-K
             async with astage("hyde_ms"):
                 hyde_doc = await hyde_doc_generate(rewritten)
             # 一次批量：query 与 hyde_doc 的向量合并计算，省一次模型前向（embedding_ms 只累加一次）
             embeddings = await agenerate_embeddings([rewritten, hyde_doc + rewritten])
             embedding_chunks = await search_by_vectors(
-                textbook_name, embeddings["dense"][0], embeddings["sparse"][0], chapter
+                textbook_name, embeddings["dense"][0], embeddings["sparse"][0], chapter,
+                limit=rerank_config.candidate_pool,
             )
             hyde_chunks = await search_by_vectors(
-                textbook_name, embeddings["dense"][1], embeddings["sparse"][1]
+                textbook_name, embeddings["dense"][1], embeddings["sparse"][1],
+                limit=rerank_config.candidate_pool,
             )
             merged = await rrf_merge(embedding_chunks, hyde_chunks)
             merged_hits = [entry["hit"] for entry in merged]
@@ -270,7 +288,10 @@ async def search_textbook(
                 metrics.recall_count = len(merged_hits)
             try:
                 async with astage("rerank_ms"):
-                    hits = await arerank_chunks(rewritten, merged_hits, min(rerank_config.top_k, len(merged_hits)))
+                    # 交叉编码打分后与 RRF 分数加权融合（精排微调而非覆盖），只对返回结果截断
+                    hits = await arerank_chunks_weighted(
+                        rewritten, merged, rerank_config.top_k, rerank_config.fusion_alpha
+                    )
             except Exception as exc:  # 精排降级：回退 RRF 融合结果，不阻断
                 logger.warning(f"deep 检索精排失败，回退 RRF：{exc}")
                 hits = merged_hits[:rerank_config.top_k]
@@ -289,6 +310,7 @@ async def search_textbook(
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
     # 正文命中后按节补拉代码块（粗粒度协同召回），使自然语言问代码能取回代码原文
     hits = _enrich_hits_with_section_codes(textbook_name, hits)
+    _record_retrieved_chunk_ids(hits)
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
     return _format_hits(hits)
 
@@ -334,9 +356,10 @@ if __name__ == "__main__":
     async def _fake_rrf(embedding_chunks: list[dict], hyde_chunks: list[dict], k: int = 60) -> list[dict]:
         return [{"rrf_score": 1.0, "hit": embedding_chunks[0]}, {"rrf_score": 0.8, "hit": hyde_chunks[0]}]
 
-    async def _fake_arerank(query: str, chunks: list[dict], top_k: int) -> list[dict]:
-        item = dict(chunks[0])
+    async def _fake_arerank(query: str, merged: list[dict], top_k: int, alpha: float) -> list[dict]:
+        item = dict(merged[0]["hit"])
         item["rerank_score"] = 0.99
+        item["fusion_score"] = 0.99
         return [item]
 
     def _fake_enrich(textbook_name: str, hits: list[dict]) -> list[dict]:
@@ -348,7 +371,7 @@ if __name__ == "__main__":
     agenerate_embeddings = _fake_generate_embeddings
     search_by_vectors = _fake_search_by_vectors
     rrf_merge = _fake_rrf
-    arerank_chunks = _fake_arerank
+    arerank_chunks_weighted = _fake_arerank
     _enrich_hits_with_section_codes = _fake_enrich
 
     async def _run() -> None:

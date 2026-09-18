@@ -123,6 +123,11 @@ class RerankSettings(BaseSettings):
     model_name: str = Field(default="BAAI/bge-reranker-large", validation_alias="RERANKER_MODEL")
     device: str = Field(default="cpu", validation_alias="RERANKER_DEVICE")
     top_k: int = Field(default=5, validation_alias="RERANKER_TOP_K")
+    # 深度路径每路召回的候选条数（RRF 融合前），给融合/精排更大候选空间
+    candidate_pool: int = Field(default=20, validation_alias="RERANKER_CANDIDATE_POOL")
+    # 加权融合中精排分的权重：final = alpha*rerank + (1-alpha)*minmax(rrf)
+    # alpha=1 等价纯精排；alpha=0 等价 RRF 融合序（不实际调用精排）
+    fusion_alpha: float = Field(default=0.6, validation_alias="RERANKER_FUSION_ALPHA")
 
 
 class Settings(BaseModel):
