@@ -303,21 +303,4 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
     return state
 
 
-# 单元测试
-if __name__ == "__main__":
-    import asyncio
-    from pathlib import Path
-
-    def writer(chunk):
-        print("event:", chunk)
-
-    textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
-    extract_dirs = textbook_path / "mineru_toc"
-
-    state: TextBookState = {
-        "textbook_exists": False,
-        "textbook_path": str(textbook_path),
-        "extracted_contents_dirs": [str(extract_dirs)],
-    }
-
-    asyncio.run(split(state, writer=writer))
+# 集成测试已迁移至 tests/textbook_flow/nodes/test_split.py

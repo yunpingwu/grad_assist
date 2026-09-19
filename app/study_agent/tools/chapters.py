@@ -35,27 +35,3 @@ async def list_chapters(
         lines.append(f"- {chapter}" + (f"（{'、'.join(sections)}）" if sections else ""))
     logger.info(f"list_chapters: 共 {len(chapters)} 章")
     return "\n".join(lines)
-
-
-# 冒烟测试：桩掉 Milvus 聚合，验证格式化
-if __name__ == "__main__":
-    import asyncio
-
-    def _fake_list(textbook_name: str) -> list[dict]:
-        assert textbook_name == "C语言程序设计", textbook_name
-        return [
-            {"chapter": "第1章 绪论", "sections": ["1.1 概述"]},
-            {"chapter": "第2章 数据类型", "sections": []},
-        ]
-
-    # 覆盖模块级绑定，只验证输出格式
-    _list_chapters = _fake_list
-
-    async def _run() -> None:
-        out = await list_chapters.coroutine(textbook_name="C语言程序设计")
-        assert "- 第1章 绪论（1.1 概述）" in out, out
-        assert "- 第2章 数据类型" in out, out
-        print(out)
-        print("list_chapters 测试通过")
-
-    asyncio.run(_run())

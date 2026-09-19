@@ -63,7 +63,7 @@ def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
     # offset 供硬切分支把图片精确归属到图标记实际所在的子块。
     mark_matches = list(re.finditer(r"【图: .*?】", clean_text))
     if len(mark_matches) == len(images):
-        for img, m in zip(images, mark_matches):
+        for img, m in zip(images, mark_matches, strict=True):
             img["offset"] = m.start()
 
     return clean_text, images, codes
@@ -457,23 +457,4 @@ async def split_text_and_store(state: TextBookState, *, writer: StreamWriter) ->
     return state
 
 
-# ==================== 单元测试 ====================
-if __name__ == "__main__":
-    import asyncio
-
-    def writer(chunk):
-        print("event:", chunk)
-
-    textbook_path = Path("D:/Projects/grad_assist/textbooks/pdf")
-    split_dirs = list((textbook_path / "mineru_split").iterdir())
-
-    # 仅测试 C 语言教材
-    chapter_dir = textbook_path / "mineru_split" / "C语言程序设计（第五版）_(谭浩强)_(z-library.sk,_1lib.sk,_z-lib.sk)"
-
-    state: TextBookState = {
-        "textbook_exists": False,
-        "textbook_path": str(textbook_path),
-        "extracted_dirs": [str(d) for d in chapter_dir.iterdir() if d.is_dir()],
-    }
-
-    asyncio.run(split_text_and_store(state, writer=writer))
+# ==================== 集成测试已迁移至 tests/textbook_flow/nodes/test_split_text_and_store.py ====================

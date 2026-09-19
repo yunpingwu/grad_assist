@@ -93,7 +93,7 @@ async def mineru_upload_and_poll(
             urls = result["data"]["file_urls"]
 
             # ========== Step 2: 上传文件到预签名URL ==========
-            for i, (file_path, upload_url) in enumerate(zip(remaining, urls, strict=True)):
+            for _i, (file_path, upload_url) in enumerate(zip(remaining, urls, strict=True)):
                 with open(file_path, "rb") as f:
                     put_resp = await client.put(upload_url, content=f.read())
                 if put_resp.status_code != 200:
@@ -268,12 +268,4 @@ async def split_contents(state: TextBookState, *, writer: StreamWriter) -> dict:
     return state
 
 
-# 单元测试
-if __name__ == "__main__":
-    import asyncio
-
-    def writer(chunk):
-        print("event:", chunk)
-
-    state: TextBookState = {"textbook_exists": False}
-    asyncio.run(split_contents(state, writer=writer))
+# 集成测试已迁移至 tests/textbook_flow/nodes/test_split_contents.py

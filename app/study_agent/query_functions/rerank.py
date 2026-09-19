@@ -172,27 +172,3 @@ async def arerank_chunks_weighted(
         f"rerank {min(rerank_scores):.3f}~{max(rerank_scores):.3f}"
     )
     return _fuse_and_truncate(hits, rerank_scores, rrf_scores, top_k, alpha)
-
-
-# 单元测试：用桩分数替换公共打分 API，避免单测加载真实模型
-if __name__ == "__main__":
-    def _fake_scores(query: str, texts: list[str]) -> list[float]:
-        return [0.9, 0.1, 0.8]
-
-    compute_rerank_scores = _fake_scores  # 覆盖模块级导入的绑定，只验证内联精排逻辑
-
-    def _hit(doc_id: str, text: str) -> dict:
-        return {"id": doc_id, "distance": 0.5, "entity": {"text": text}}
-
-    chunks = [
-        _hit("doc_a", "指针是C语言中用于存储变量地址的变量。"),
-        _hit("doc_b", "数组是一组相同类型元素的集合。"),
-        _hit("doc_c", "通过指针可以直接访问内存地址。"),
-    ]
-    # 模拟交叉编码打分：与"指针"相关的 doc_a/doc_c 应排到前面
-    ranked = rerank_chunks("什么是指针？", chunks, top_k=2)
-    assert len(ranked) == 2, f"应截取 TOP2，实际 {len(ranked)}"
-    assert [h["id"] for h in ranked] == ["doc_a", "doc_c"], f"排序不正确: {ranked}"
-    assert ranked[0]["rerank_score"] == 0.9, "rerank_score 未正确挂载"
-    print(f"精排顺序: {[h['id'] for h in ranked]}")
-    print("rerank 测试通过")

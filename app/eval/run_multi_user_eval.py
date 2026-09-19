@@ -1,16 +1,23 @@
 """多用户并发、多轮会话评测。
 
-默认发现 ``data/eval/*/qa_set.json`` 下的 6 个评测集，共 300 题。
-每本教材拆成多个虚拟用户；同一用户的题目串行发送并复用 session_id，
-不同用户之间并发执行，用来观察会话隔离、长上下文和服务并发稳定性。
+支持两种数据集形态：
+
+1. 扁平题集（默认 ``data/eval/*/qa_set.json``）：每本教材拆成多个虚拟用户，
+   同一用户的题目串行发送并复用随机生成的 session_id。
+2. 对话集（含 ``conversations`` 键的 qa_set.json，如
+   ``data/eval_multi_turn/qa_set.json``）：直接使用数据集中的 user_id、
+   session_key 与逐轮 turn_role/anaphora，session_id 固定为
+   ``session-{user_id}-{session_key}``，用于指代消歧与会话隔离评测。
 
 示例::
 
-    python -m app.eval.run_multi_user_eval \
+    # 扁平题集
+    python -m app.eval.run_multi_user_eval \\
         --users-per-book 5 --turns-per-user 10 --concurrency 10
 
-注意：现有题目大多是独立问题，因此本脚本主要测试并发和会话复用。
-若要专门测试“它/这个/上面内容”等指代消歧，应另建带 follow-up 的对话集。
+    # 多轮对话集（200 轮 / 50 会话 / 25 虚拟用户）
+    python -m app.eval.run_multi_user_eval \\
+        --dataset-root data/eval_multi_turn --concurrency 10
 """
 
 from __future__ import annotations
@@ -64,10 +71,46 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _discover_datasets(root: Path) -> list[Path]:
-    paths = sorted(root.glob("*/qa_set.json"))
+    paths = sorted({root / "qa_set.json", *root.glob("*/qa_set.json")})
+    paths = [p for p in paths if p.is_file()]
     if not paths:
         raise FileNotFoundError(f"未找到评测集: {root / '*/qa_set.json'}")
     return paths
+
+
+def _sessions_from_conversations(
+    path: Path,
+    raw: dict[str, Any],
+    limit_per_book: int,
+) -> list[dict[str, Any]]:
+    """对话集：一个 (user_id, session_key) 即一个会话，session_id 稳定可复现。"""
+    sessions: list[dict[str, Any]] = []
+    remaining: dict[Any, float] = {}
+    for conv in raw["conversations"]:
+        book_key = conv.get("book_key")
+        left = remaining.get(book_key, limit_per_book or math.inf)
+        if left <= 0:
+            continue
+        turns = list(conv["turns"])
+        if len(turns) > left:
+            turns = turns[: int(left)]
+        remaining[book_key] = left - len(turns)
+        if not turns:
+            continue
+        user_id = conv["user_id"]
+        session_key = conv["session_key"]
+        book = raw.get("books", {}).get(conv.get("book_key"), {})
+        sessions.append(
+            {
+                "user_id": user_id,
+                "session_id": f"session-{user_id}-{session_key}",
+                "textbook": book.get("textbook", raw.get("textbook", "")),
+                "dataset": str(path),
+                "topic": conv.get("topic", ""),
+                "questions": turns,
+            }
+        )
+    return sessions
 
 
 def _build_user_sessions(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -75,6 +118,11 @@ def _build_user_sessions(args: argparse.Namespace) -> list[dict[str, Any]]:
     rng = random.Random(args.seed)
     sessions: list[dict[str, Any]] = []
     for book_index, path in enumerate(_discover_datasets(args.dataset_root), start=1):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict) and "conversations" in raw:
+            sessions.extend(_sessions_from_conversations(path, raw, args.limit_per_book))
+            continue
+
         data = load_dataset(path)
         questions = list(data["questions"])
         if args.limit_per_book:
@@ -118,6 +166,8 @@ async def _request_turn(
         "turn_index": turn_index,
         "query_id": question.get("id", ""),
         "question": question.get("question", ""),
+        "turn_role": question.get("turn_role"),
+        "anaphora": question.get("anaphora"),
         "gold_chunk_ids": list(dict.fromkeys(question.get("gold_chunk_ids", []))),
         "status": "error",
         "answer_content": "",
@@ -203,6 +253,28 @@ async def _run_session(
     return rows
 
 
+def _role_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """按轮次角色分组统计成功率与检索指标（开场/独立轮 vs 指代追问轮）。"""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("turn_role") is None:
+            continue
+        key = "followup" if row["turn_role"] == "followup" else "opening"
+        groups.setdefault(key, []).append(row)
+    summary: dict[str, Any] = {}
+    for key, group in groups.items():
+        done = [row for row in group if row["status"] == "done"]
+        summary[key] = {
+            "turns": len(group),
+            "succeeded": len(done),
+            "success_rate": round(len(done) / len(group), 4),
+            "retrieval": aggregate_metrics(
+                [{"query_id": row["query_id"], **row["retrieval_metrics"]} for row in done]
+            ),
+        }
+    return summary
+
+
 async def _run(args: argparse.Namespace) -> dict[str, Any]:
     sessions = _build_user_sessions(args)
     timeout = httpx.Timeout(args.timeout, connect=min(args.timeout, 30.0))
@@ -219,29 +291,34 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
         if row["status"] == "done"
     ]
     status = Counter(row["status"] for row in rows)
-    by_user: dict[str, dict[str, Any]] = {}
-    for session in sessions:
-        user_rows = [row for row in rows if row["user_id"] == session["user_id"]]
-        by_user[session["user_id"]] = {
+    by_session: dict[str, dict[str, Any]] = {}
+    for session, group in zip(sessions, session_rows):
+        entry = {
+            "user_id": session["user_id"],
             "session_id": session["session_id"],
             "textbook": session["textbook"],
-            "turns": len(user_rows),
-            "succeeded": sum(row["status"] == "done" for row in user_rows),
-            "avg_latency_ms": round(sum(row["latency_ms"] for row in user_rows) / len(user_rows), 2),
+            "turns": len(group),
+            "succeeded": sum(row["status"] == "done" for row in group),
+            "avg_latency_ms": round(sum(row["latency_ms"] for row in group) / len(group), 2),
         }
+        if session.get("topic"):
+            entry["topic"] = session["topic"]
+        by_session[session["session_id"]] = entry
     return {
         "endpoint": args.url,
         "dataset_root": str(args.dataset_root),
         "seed": args.seed,
         "shuffle": args.shuffle,
-        "users": len(sessions),
+        "users": len({session["user_id"] for session in sessions}),
+        "sessions": len(sessions),
         "turns": len(rows),
         "concurrency": args.concurrency,
         "status_counts": dict(status),
         "succeeded": status.get("done", 0),
-        "sessions": by_user,
+        "session_results": by_session,
         "per_turn": rows,
         "retrieval_summary": aggregate_metrics(metric_rows),
+        "by_turn_role": _role_summary(rows),
     }
 
 
@@ -253,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(
         f"完成: {payload['succeeded']}/{payload['turns']} 轮，"
-        f"{payload['users']} 个用户会话，结果已写入 {output}"
+        f"{payload['users']} 个用户 / {payload['sessions']} 个会话，结果已写入 {output}"
     )
     print(json.dumps(payload["status_counts"], ensure_ascii=False))
     return 0 if payload["succeeded"] == payload["turns"] else 1

@@ -37,6 +37,11 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+# 默认排除集成测试（依赖真实 MinerU/Milvus/MinIO/LLM 凭据），手动时用 pytest -m integration
+addopts = ["-m", "not integration"]
+markers = [
+    "integration: 依赖真实外部环境（MinerU API / Milvus / MinIO / LLM 凭据）的端到端测试，默认不运行",
+]
 
 [tool.ruff]
 line-length = 150

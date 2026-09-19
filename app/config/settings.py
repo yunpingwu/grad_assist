@@ -152,17 +152,3 @@ class Settings(BaseModel):
     mongo: MongoSettings = Field(default_factory=MongoSettings)
     web_search: WebSearchSettings = Field(default_factory=WebSearchSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
-
-
-# 单元测试
-if __name__ == "__main__":
-    s = Settings()
-    # 只打印非敏感字段，敏感信息（api_key / token / secret_key）不输出
-    print("model:", s.llm.model)
-    print("visual_model:", s.llm.visual_model or "(未配置)")
-    print("milvus.uri:", s.milvus.uri)
-    print("minio.endpoint:", s.minio.endpoint, "secure:", s.minio.secure)
-    print("embedding.dim:", s.embedding.dim, "device:", s.embedding.device)
-    print("mongo.db:", s.mongo.db)
-    print("web_search.search_count:", s.web_search.search_count)
-    print("device:", s.rerank.device, "top_k:", s.rerank.top_k)

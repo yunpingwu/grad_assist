@@ -78,13 +78,4 @@ async def rewrite_query_search(
     )
 
 
-# 冒烟测试：仅验证空查询守卫（真实检索依赖 Milvus + embedding 模型，由 search_textbook 集成验证）
-if __name__ == "__main__":
-    import asyncio
-
-    try:
-        asyncio.run(rewrite_query_search("C语言程序设计", ""))
-        raise AssertionError("空查询应当抛出 ValueError")
-    except ValueError as exc:
-        assert "问题重写为空" in str(exc)
-        print("rewrite_query_search 空查询守卫通过")
+# 冒烟测试已迁移至 tests/study_agent/query_functions/test_embedding_search.py

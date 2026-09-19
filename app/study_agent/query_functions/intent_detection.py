@@ -176,40 +176,4 @@ async def detect_intent(text: str) -> IntentResult:
         return IntentResult("explain", 0.0, "fallback")
 
 
-# 冒烟测试：桩掉 embedding 与 LLM，只验证三档编排与关键词层
-if __name__ == "__main__":
-    import asyncio
-
-    async def _fake_embeddings(texts: list[str]) -> dict:
-        # 意图描述预计算是 5 条的多文本批次、分类只编码 query 单条：query=[1.0,0.0]
-        # 与描述=[0.4,0.0] 的余弦=0.4，落在中等置信区间 → 交 LLM 兜底，验证三档编排
-        vec = [1.0, 0.0] if len(texts) == 1 else [0.4, 0.0]
-        return {"dense": [list(vec) for _ in texts], "sparse": [{0: 1.0} for _ in texts]}
-
-    async def _fake_llm(text: str) -> IntentResult:
-        return IntentResult("generate", 0.8, "llm")
-
-    # 覆盖模块级绑定（与 search.py 冒烟测试同一模式），只验证编排
-    agenerate_embeddings = _fake_embeddings
-    _classify_by_llm = _fake_llm
-
-    async def _run() -> None:
-        # 关键词唯一命中 → 直接定 quiz
-        r1 = _classify_by_keyword("帮我出几道选择题")
-        assert r1 is not None and r1.intent == "quiz" and r1.source == "keyword", r1
-
-        # 关键词多意图并列（生成 + 练习题）→ 歧义，交下一档
-        r2 = _classify_by_keyword("帮我生成第三章的练习题")
-        assert r2 is None, r2
-
-        # 空输入 → fallback unclear
-        r3 = await detect_intent("")
-        assert r3.intent == "unclear" and r3.source == "fallback", r3
-
-        # 关键词未命中 → embedding 中等置信 → 交 LLM 兜底
-        r4 = await detect_intent("随便讲讲这本书")
-        assert r4.intent == "generate" and r4.source == "llm", r4
-
-        print("intent 三档漏斗冒烟测试通过")
-
-    asyncio.run(_run())
+# 冒烟测试已迁移至 tests/study_agent/query_functions/test_intent_detection.py

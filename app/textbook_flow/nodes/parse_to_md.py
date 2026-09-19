@@ -110,20 +110,4 @@ async def parse_to_md(state: TextBookState, *, writer: StreamWriter) -> dict:
     return state
 
 
-# 单元测试
-if __name__ == "__main__":
-    import asyncio
-
-    def writer(chunk):
-        print("event:", chunk)
-
-    textbook_path = Path("D:/PycharmProjects/grad_assist/textbooks/pdf")
-    sub_pdf_dirs = list((textbook_path / "pdf_split").iterdir())
-
-    state: TextBookState = {
-        "textbook_exists": False,
-        "textbook_path": str(textbook_path),
-        "sub_pdf_paths": [str(d) for d in sub_pdf_dirs if d.is_dir()],
-    }
-
-    asyncio.run(parse_to_md(state, writer=writer))
+# 集成测试已迁移至 tests/textbook_flow/nodes/test_parse_to_md.py

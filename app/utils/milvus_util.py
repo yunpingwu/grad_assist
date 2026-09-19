@@ -17,15 +17,37 @@ from pymilvus import (
     FieldSchema,
     WeightedRanker,
 )
+from pymilvus.exceptions import (
+    ConnectError,
+    ConnectionConfigException,
+    ConnectionNotExistException,
+    MilvusException,
+    MilvusUnavailableException,
+)
 from pymilvus.milvus_client.index import IndexParams
 
 from app.clients import milvus_client
 from app.core import logger
+from app.core.decorators import retry
 
 # collection 名前缀
 COLLECTION_PREFIX = "tb"
 # 教材注册表集合名（全校教材共享一张表）
 REGISTRY_COLLECTION = "textbook_registry"
+
+# 视为「瞬时故障」可重试的 Milvus 异常：连接类 + 服务端不可用。
+# 业务错误（集合不存在 / 参数错误等）不在其中，直接抛出不浪费重试。
+RETRYABLE_MILVUS_EXCEPTIONS = (
+    MilvusException,
+    MilvusUnavailableException,
+    ConnectError,
+    ConnectionConfigException,
+    ConnectionNotExistException,
+)
+
+
+# 检索重试配置：attempts=3、退避 0.4→0.8→1.6s，覆盖网络抖动与 Milvus 瞬时不可用
+RETRY_SEARCH = dict(attempts=3, base_delay=0.4, max_delay=3.0, exceptions=RETRYABLE_MILVUS_EXCEPTIONS)
 
 
 # ── 进程级缓存（教材域）──────────────────────────────────────
@@ -303,6 +325,7 @@ def create_hybrid_search_requests(
     ]
 
 
+@retry(**RETRY_SEARCH, name="milvus_hybrid_search")
 def hybrid_search(
     dense_vector: list[float],
     sparse_vector: dict[int, float],
@@ -352,6 +375,7 @@ def hybrid_search(
     return res[0]
 
 
+@retry(**RETRY_SEARCH, name="milvus_dense_search")
 def dense_search(
     dense_vector: list[float],
     collection_name: str,
@@ -387,6 +411,7 @@ def dense_search(
     return res[0]
 
 
+@retry(**RETRY_SEARCH, name="milvus_sparse_search")
 def sparse_search(
     sparse_vector: dict[int, float],
     collection_name: str,

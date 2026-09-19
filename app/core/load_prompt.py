@@ -33,19 +33,3 @@ def load_prompt(name: str, prompts_dir: Path | None = None) -> str:
     if not path.exists():
         raise FileNotFoundError(f"提示词文件不存在: {path}")
     return path.read_text(encoding="utf-8").strip()
-
-
-# 单元测试
-if __name__ == "__main__":
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-        (tmp_dir / "test.prompt").write_text("测试提示词", encoding="utf-8")
-        assert load_prompt("test", prompts_dir=tmp_dir) == "测试提示词"
-        try:
-            load_prompt("missing", prompts_dir=tmp_dir)
-            raise AssertionError("应当抛出 FileNotFoundError")
-        except FileNotFoundError:
-            pass
-    print("load_prompt 测试通过")

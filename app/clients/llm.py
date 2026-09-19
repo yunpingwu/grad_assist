@@ -100,13 +100,4 @@ def get_llm_client(
     )
 
 
-# 单元测试
-if __name__ == "__main__":
-    import asyncio
-
-    async def main() -> None:
-        llm = get_llm_client()
-        resp = await llm.ainvoke("你好，你是谁?")
-        print(resp.content)
-
-    asyncio.run(main())
+# 集成测试已迁移至 tests/clients/test_llm.py

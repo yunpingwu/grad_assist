@@ -29,7 +29,7 @@ async def hyde_doc_generate(rewritten_query: str) -> str:
         raise ValueError("问题重写为空")
     template = load_prompt("hyde_doc_generate")
     prompt = ChatPromptTemplate.from_template(template)
-    llm = get_llm_client(enable_thinking=False)
+    llm = get_llm_client(max_retries=3, enable_thinking=False)
     chain = prompt | llm | StrOutputParser()
     output = await chain.ainvoke(
         {
@@ -74,21 +74,4 @@ async def hyde_doc_search(
     )
 
 
-# 冒烟测试：仅验证空输入守卫（真实验证依赖 LLM/Milvus，由 search_textbook 集成覆盖）
-if __name__ == "__main__":
-    import asyncio
-
-    async def _run() -> None:
-        for fn, args in [
-            (hyde_doc_generate, ("",)),
-            (hyde_doc_search, ("", "问题", "教材")),
-            (hyde_doc_search, ("文档", "", "教材")),
-        ]:
-            try:
-                await fn(*args)
-                raise AssertionError("空输入应当抛出 ValueError")
-            except ValueError as exc:
-                assert "为空" in str(exc)
-        print("hyde 空输入守卫通过")
-
-    asyncio.run(_run())
+# 冒烟测试已迁移至 tests/study_agent/query_functions/test_hyde_embedding_search.py

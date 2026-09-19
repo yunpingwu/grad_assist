@@ -10,11 +10,11 @@ import json
 
 import httpx2
 from langchain_core.tools import tool
-from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from app.config import llm_config, web_search_config
 from app.core import logger
+from mcp import ClientSession
 
 
 async def _search_web(query: str, count: int | None = None) -> list[dict]:
@@ -78,24 +78,3 @@ async def search_web(query: str) -> str:
 
     logger.info(f"search_web({query!r}) → {len(results)} 条")
     return "\n\n".join(lines)
-
-
-# 冒烟测试：桩掉 MCP 联网
-if __name__ == "__main__":
-    import asyncio
-
-    async def _fake_search(query: str, count: int | None = None) -> list[dict]:
-        return [
-            {"title": "示例", "url": "https://example.com", "content": f"关于 {query} 的内容"},
-        ]
-
-    _search_web = _fake_search
-
-    async def _run() -> None:
-        out = await search_web.ainvoke({"query": "二叉树遍历"})
-        assert "示例" in out, out
-        assert "https://example.com" in out, out
-        print(out)
-        print("search_web 测试通过")
-
-    asyncio.run(_run())

@@ -57,23 +57,4 @@ async def rewrite(original_query: str, textbook_name: str = "", questions_histor
     return output.strip()
 
 
-# 冒烟测试：桩掉 LLM 重写，验证历史拼装与重写输出
-if __name__ == "__main__":
-    import asyncio
-
-    from langchain_core.messages import AIMessage, HumanMessage
-
-    async def _fake_rewrite(original_query: str, textbook_name: str, questions_history: str) -> str:
-        assert "什么是指针?" in questions_history, f"多轮历史未拼进重写输入: {questions_history!r}"
-        return f"{original_query}（针对教材 {textbook_name} 重写）"
-
-    rewrite = _fake_rewrite  # 覆盖真实 LLM 调用
-
-    async def _run() -> None:
-        history = [HumanMessage(content="什么是指针?"), AIMessage(content="指针是一种…")]
-        rewritten = await rewrite("如何使用它?", "C语言程序设计", format_questions(history))
-        assert rewritten and "如何使用它?" in rewritten, rewritten
-        print(f"重写问题: {rewritten}")
-        print("rewrite_query 测试通过")
-
-    asyncio.run(_run())
+# 冒烟测试已迁移至 tests/study_agent/query_functions/test_rewrite_query.py

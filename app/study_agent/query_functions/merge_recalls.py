@@ -45,30 +45,3 @@ async def rrf_merge(
     )
     logger.info(f"RRF 融合完成：普通 {len(embedding_chunks)} 条 + HyDE {len(hyde_chunks)} 条 → {len(merged)} 条")
     return merged
-
-
-# 冒烟测试：rrf_merge 为纯函数，构造两路召回即可确定性验证
-if __name__ == "__main__":
-    import asyncio
-
-    def _hit(doc_id: str, distance: float, text: str) -> dict:
-        return {"id": doc_id, "distance": distance, "entity": {"text": text}}
-
-    embedding = [
-        _hit("doc_a", 0.8, "普通召回A"),
-        _hit("doc_b", 0.7, "普通召回B"),
-        _hit("doc_c", 0.6, "普通召回C"),
-    ]
-    hyde = [
-        _hit("doc_b", 0.75, "HyDE召回B"),  # 与普通召回重复 → 分数叠加
-        _hit("doc_d", 0.5, "HyDE召回D"),
-    ]
-
-    merged = asyncio.run(rrf_merge(embedding, hyde))
-    assert len(merged) == 4, f"两路共 5 条召回、doc_b 重复，去重应为 4 条，实际 {len(merged)}"
-    ids = [e["hit"]["id"] for e in merged]
-    assert ids[0] == "doc_b", "doc_b 被两路召回，RRF 分数叠加应排第一"
-    assert set(ids) == {"doc_a", "doc_b", "doc_c", "doc_d"}, f"id 集不正确: {ids}"
-    assert merged[0]["hit"]["distance"] == 0.7, "应保留原 hit 的 distance（供精排使用）"
-    print(f"融合顺序: {ids}")
-    print("rrf_merge 测试通过")

@@ -94,10 +94,3 @@ def upload_and_map(
 
     logger.info(f"[{textbook_name}/{chapter}] 图片上传完成: {len(mapping)}/{len(rel_paths)}")
     return mapping
-
-
-# 单元测试
-if __name__ == "__main__":
-    key = build_object_key("C语言程序设计", "第1章", "1.jpg")
-    print(key)
-    print(build_object_url(key))

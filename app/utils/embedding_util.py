@@ -15,6 +15,7 @@ from FlagEmbedding import BGEM3FlagModel
 
 from app.config import embedding_config
 from app.core import logger, mark_stage
+from app.core.decorators import retry
 
 _model = None
 
@@ -42,8 +43,12 @@ def _get_model():
     return _model
 
 
+@retry(attempts=3, base_delay=0.3, max_delay=2.0, name="embedding_generate")
 def generate_embeddings(texts: list[str]) -> dict:
     """为文本列表生成 dense + sparse 向量，返回 Milvus 可直接入库的格式。
+
+    对 BGE-M3 前向做 3 次重试（指数退避 0.3→0.6→1.2s），覆盖 GPU
+    偶发前向失败 / 显存瞬时不足等瞬时故障；参数错误（空列表）不重试。
 
     返回:
         {
