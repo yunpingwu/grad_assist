@@ -43,11 +43,15 @@ textbooks/
 # 复习资料生成产物
 study/
 
+# 个人简历（不随代码仓库分发）
+resume/
+
 # RAG评估结果数据
 /data
 
-# Docker 配置
-docker/
+# Docker 本地数据卷与口令（compose 本体入库）
+docker/*-data/
+docker/.env
 
 # LLM脚本
 /scripts

@@ -1,0 +1,125 @@
+networks:
+  app-net:
+    driver: bridge
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: milvus-etcd
+    restart: always
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    ports:
+      - "2379:2379"
+    networks:
+      - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio-server
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 384M
+
+  milvus:
+    image: milvusdb/milvus:v2.4.10
+    container_name: milvus-standalone
+    restart: always
+    command: ["milvus", "run", "standalone"]
+    environment:
+      - MEMORY_LIMIT=1536M
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+      - MINIO_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./milvus-data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+    networks:
+      - app-net
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1536M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 8s
+      retries: 40
+      start_period: 60s
+
+  attu:
+    image: zilliz/attu:v2.4.8
+    container_name: milvus-attu
+    restart: always
+    environment:
+      - MILVUS_URL=milvus:19530
+    ports:
+      - "8000:3000"
+    networks:
+      - app-net
+    depends_on:
+      milvus:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb-db
+    restart: always
+    command: mongod --wiredTigerCacheSizeGB 0.5
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-mongoadmin}
+    volumes:
+      - ./mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
