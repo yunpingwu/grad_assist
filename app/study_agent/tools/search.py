@@ -22,7 +22,12 @@ from app.study_agent.query_functions.embedding_search import rewrite_query_searc
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
-from app.utils import agenerate_embeddings, get_collection_by_name, query_section_codes
+from app.utils import (
+    agenerate_embeddings,
+    get_collection_by_name,
+    query_chunks_by_ids,
+    query_section_codes,
+)
 
 # 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
 _FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
@@ -93,25 +98,27 @@ def _format_hits(chunks: list[dict]) -> str:
     """
     parts: list[str] = []
     section_to_part: dict[tuple[str, str], int] = {}
-    code_entities: list[dict] = []
+    code_entities: list[tuple[str, dict]] = []
 
     for hit in chunks:
         entity = hit.get("entity") or hit
+        chunk_id = str(hit.get("id") or entity.get("id") or "")
         # 代码块独立成段：先收集，待正文渲染完成后按其小节位置拼回
         if entity.get("block_type") == "code":
-            code_entities.append(entity)
+            code_entities.append((chunk_id, entity))
             continue
         chapter = entity.get("chapter") or ""
         section = entity.get("section") or ""
         location = " > ".join(x for x in (chapter, section) if x)
+        head = f"片段{len(parts) + 1}｜{chunk_id}｜" if chunk_id else f"片段{len(parts) + 1}｜"
         text = _render_text_entity(entity, _collect_hit_images(hit))
-        parts.append(f"[片段{len(parts) + 1}｜{location or '未标注位置'}] {text}")
+        parts.append(f"[{head}{location or '未标注位置'}] {text}")
         # 记录该小节首个正文片段的索引，供后续代码块拼回定位
         key = (chapter, section)
         if key not in section_to_part:
             section_to_part[key] = len(parts) - 1
 
-    for entity in code_entities:
+    for cid, entity in code_entities:
         chapter = entity.get("chapter") or ""
         section = entity.get("section") or ""
         code_text = (entity.get("text") or "").strip()
@@ -120,7 +127,8 @@ def _format_hits(chunks: list[dict]) -> str:
             parts[section_to_part[key]] += "\n\n" + code_text
         else:
             location = " > ".join(x for x in (chapter, section) if x)
-            parts.append(f"[代码｜{location or '未标注位置'}] {code_text}")
+            head = f"代码｜{cid}｜" if cid else "代码｜"
+            parts.append(f"[{head}{location or '未标注位置'}] {code_text}")
 
     return "\n\n".join(parts)
 
@@ -316,3 +324,47 @@ async def search_textbook(
 
 
 # 冒烟测试已迁移至 tests/study_agent/tools/test_search.py
+
+
+# 单次要回取的片段上限（防一次拉回过多原文重新撑大上下文）
+_MAX_REFETCH_IDS = 8
+
+
+@tool
+async def read_chunk(
+    ids: list[str],
+    textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
+) -> str:
+    """按 chunk ID 重取教材片段原文：历史轮检索结果只保留存根（含 id 与摘录），
+
+    当需要上一轮某片段的完整原文（如用户要求展开、核对细节）时，
+    从存根中挑选 id 传入本工具精确取回，不要凭存根摘录臆造原文。
+
+    Args:
+        ids: 要重取的 chunk ID 列表（来自历史存根，一次最多 8 个）。
+
+    Returns:
+        编号的片段原文（格式与 search_textbook 相同），失败时返回友好提示。
+    """
+    if not ids:
+        return "（没有提供要重取的片段 id，请从历史存根中选 id 传入）"
+    if len(ids) > _MAX_REFETCH_IDS:
+        return f"（一次最多重取 {_MAX_REFETCH_IDS} 个片段，请挑选后分批调用）"
+    textbook_name = textbook_name or ""
+    try:
+        collection_name = get_collection_by_name(textbook_name)
+    except Exception as exc:
+        return f"（定位教材集合失败：{exc}）"
+    if not collection_name:
+        return f"（未找到教材《{textbook_name}》的登记信息，无法重取片段）"
+    try:
+        rows = query_chunks_by_ids(collection_name, ids)
+    except Exception as exc:
+        logger.warning(f"read_chunk({ids}) 失败: {exc}")
+        return f"（重取片段失败：{exc}）"
+    if not rows:
+        return "（这些 id 在教材中不存在，请核对存根中的 id）"
+    # 保持与 search_textbook 相同的请求级指标记录，便于评测追溯
+    hits = [{"id": str(row.get("id")), "entity": row} for row in rows]
+    _record_retrieved_chunk_ids(hits)
+    return _format_hits(hits)

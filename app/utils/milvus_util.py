@@ -477,3 +477,23 @@ def query_section_codes(
         output_fields=["id", "text", "chapter", "section", "block_type"],
         limit=limit,
     )
+
+
+def query_chunks_by_ids(collection_name: str, chunk_ids: list[str]) -> list[dict]:
+    """按 chunk ID 精确取回记录原文，供跨轮存根化后按需重取。
+
+    Args:
+        collection_name: 教材数据集合名。
+        chunk_ids: 待取回的 chunk ID 列表（调用方保证非空且数量有限）。
+
+    Returns:
+        [{id, text, chapter, section, block_type, metadata_json}, ...]，
+        顺序不保证与入参一致，不存在的 id 静默缺失。
+    """
+    client = milvus_client.get_client()
+    id_list = ", ".join(f'"{escape_expr_value(str(cid))}"' for cid in chunk_ids)
+    return client.query(
+        collection_name,
+        filter=f"id in [{id_list}]",
+        output_fields=["id", "text", "chapter", "section", "block_type", "metadata_json"],
+    )

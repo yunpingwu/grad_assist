@@ -132,7 +132,7 @@ async def _classify_by_embedding(text: str) -> IntentResult | None:
 
 async def _classify_by_llm(text: str) -> IntentResult:
     """LLM 结构化分类兜底（对 embedding 中等置信的查询做最终判定）。"""
-    llm = get_llm_client().with_structured_output(_IntentDecision)
+    llm = get_llm_client(enable_thinking=False).with_structured_output(_IntentDecision)
     prompt = PromptTemplate.from_template(load_prompt("intent_classify"))
     decision = await llm.ainvoke(prompt.format(query=text))
     # 白名单校验：模型可能输出枚举外的值，收敛到 unclear（防注入/越界）

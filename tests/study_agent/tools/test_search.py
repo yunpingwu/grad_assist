@@ -29,10 +29,10 @@ def test_search_textbook_fast_path(monkeypatch) -> None:
     fast = asyncio.run(search.search_textbook.coroutine(
         textbook_name="C语言程序设计", rewritten_query="指针有什么用途?"
     ))
-    assert "[片段1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
+    assert "[片段1｜c1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
     assert "【图: 指针示意图】(https://x/y.png)" in fast, "url 未回绑到正文图标记"
     assert "int main()" in fast, "代码块未拼回所属小节正文"
-    assert "[代码｜第4章 > 4.1]" in fast and "print(1)" in fast, "无对应正文的代码块未独立展示"
+    assert "[代码｜c4_code｜第4章 > 4.1]" in fast and "print(1)" in fast, "无对应正文的代码块未独立展示"
     assert "配图:" not in fast and "【图片候选】" not in fast, "不应再有独立图片行"
 
 
@@ -84,3 +84,40 @@ async def _fake_arerank(query: str, merged: list[dict], top_k: int, alpha: float
     item["rerank_score"] = 0.99
     item["fusion_score"] = 0.99
     return [item]
+
+
+_ROWS = [
+    {"id": "c1", "text": "指针是C语言的核心概念。", "chapter": "第3章", "section": "3.1", "block_type": "text", "metadata_json": ""},
+    {"id": "c2", "text": "数组是相同类型元素的集合。", "chapter": "第3章", "section": "3.2", "block_type": "text", "metadata_json": ""},
+]
+
+
+def test_read_chunk_formats_rows(monkeypatch) -> None:
+    """按 id 重取：定位集合 → 查询 → 复用片段格式渲染（带 id 头）。"""
+    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: "tb_fake")
+    captured = {}
+
+    def _fake_query(collection_name: str, chunk_ids: list[str]) -> list[dict]:
+        captured["args"] = (collection_name, chunk_ids)
+        return _ROWS
+
+    monkeypatch.setattr(search, "query_chunks_by_ids", _fake_query)
+    out = asyncio.run(search.read_chunk.coroutine(ids=["c1", "c2"], textbook_name="C语言程序设计"))
+    assert captured["args"] == ("tb_fake", ["c1", "c2"])
+    assert "[片段1｜c1｜第3章 > 3.1] 指针是C语言的核心概念。" in out
+    assert "[片段2｜c2｜第3章 > 3.2]" in out
+
+
+def test_read_chunk_empty_and_over_limit(monkeypatch) -> None:
+    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: "tb_fake")
+    monkeypatch.setattr(search, "query_chunks_by_ids", lambda _c, ids: _ROWS[:1])
+    assert "没有" in asyncio.run(search.read_chunk.coroutine(ids=[], textbook_name="C语言程序设计"))
+    many = [f"x{i}" for i in range(20)]
+    out = asyncio.run(search.read_chunk.coroutine(ids=many, textbook_name="C语言程序设计"))
+    assert "最多" in out  # 超限直接拒绝并提示上限
+
+
+def test_read_chunk_missing_collection(monkeypatch) -> None:
+    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: None)
+    out = asyncio.run(search.read_chunk.coroutine(ids=["c1"], textbook_name="不存在教材"))
+    assert "教材" in out and "[片段" not in out

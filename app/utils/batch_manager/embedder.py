@@ -60,7 +60,7 @@ class BatchEmbedder:
                 # 带超时的阻塞抓取：真正「等满 max_wait」凑批，错峰几毫秒的请求也能并入
                 try:
                     t, f = await asyncio.wait_for(self._queue.get(), timeout=remaining)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
                 items.append((t, f))
                 flat.extend(t)

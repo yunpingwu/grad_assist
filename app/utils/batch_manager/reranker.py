@@ -57,14 +57,14 @@ class BatchReranker:
                 # 带超时的阻塞抓取：等满 max_wait 凑批，错峰请求也能并入
                 try:
                     q, ts, f = await asyncio.wait_for(self._queue.get(), timeout=remaining)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
                 items.append((q, ts, f))
                 flat_pairs.extend((q, t) for t in ts)
 
             scores = await asyncio.to_thread(_score_pairs, flat_pairs)  # 一次前向
             off = 0
-            for q, ts, f in items:                       # 按各请求候选数拆分回填
+            for _q, ts, f in items:                      # 按各请求候选数拆分回填
                 n = len(ts)
                 f.set_result(scores[off : off + n])
                 off += n

@@ -27,6 +27,7 @@ from langgraph.runtime import Runtime
 
 from app.clients.llm import get_llm_client
 from app.core import astage, get_metrics, load_prompt, logger
+from app.study_agent.query_functions.context_stub import stub_old_search_results
 from app.study_agent.query_functions.intent_detection import detect_intent
 from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
 from app.study_agent.state import StudyState
@@ -36,6 +37,7 @@ from app.study_agent.tools import (
     edit_file,
     list_chapters,
     list_files,
+    read_chunk,
     read_file,
     search_textbook,
     search_web,
@@ -130,11 +132,12 @@ def build_graph(checkpointer=None):
     """
     return create_agent(
         model=get_llm_client(),
-        tools=[search_textbook, list_chapters, search_web,
+        tools=[search_textbook, read_chunk, list_chapters, search_web,
                ask_clarification,
                write_file, append_file, read_file, edit_file, list_files],
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图 + 重写），每轮一次
+            stub_old_search_results,  # wrap_model_call：历史轮检索结果存根化（只改请求视图，不动 state）
             study_system_prompt,  # dynamic_prompt：按意图动态渲染 system prompt
             ModelCallLimitMiddleware(run_limit=20),  # 护栏1：步数上限（到顶 end 收尾）
             SummarizationMiddleware(

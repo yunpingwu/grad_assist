@@ -9,12 +9,13 @@ from app.study_agent.tools.files import (
     read_file,
     write_file,
 )
-from app.study_agent.tools.search import search_textbook
+from app.study_agent.tools.search import read_chunk, search_textbook
 from app.study_agent.tools.web import search_web
 
 # 绑定给 create_agent 的完整工具列表（检索类 + 文件类 + 澄清类）
 AGENT_TOOLS = [
     search_textbook,
+    read_chunk,
     list_chapters,
     search_web,
     ask_clarification,
@@ -28,6 +29,7 @@ AGENT_TOOLS = [
 __all__ = [
     "AGENT_TOOLS",
     "search_textbook",
+    "read_chunk",
     "list_chapters",
     "search_web",
     "ask_clarification",
