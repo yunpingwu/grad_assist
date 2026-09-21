@@ -12,7 +12,7 @@
 
 from app.eval.dataset import load_dataset
 from app.eval.metrics import aggregate_metrics, compute_metrics
-from app.eval.retrieval import run_deep, run_dense, run_fast, run_hyde_rrf, run_hybrid, run_sparse
+from app.eval.retrieval import run_deep, run_dense, run_fast, run_hybrid, run_hyde_rrf, run_sparse
 
 __all__ = [
     "load_dataset",

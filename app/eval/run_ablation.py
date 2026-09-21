@@ -36,7 +36,7 @@ from pathlib import Path
 from app.core import logger
 from app.eval.dataset import gold_chunk_ids, load_dataset
 from app.eval.metrics import compute_metrics
-from app.eval.retrieval import run_deep, run_dense, run_hyde_rrf, run_hybrid, run_sparse
+from app.eval.retrieval import run_deep, run_dense, run_hybrid, run_hyde_rrf, run_sparse
 from app.utils.batch_manager.embedder import agenerate_embeddings
 from app.utils.reranker_util import compute_rerank_scores
 

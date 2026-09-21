@@ -157,8 +157,18 @@ async def _request_turn(
     question: dict[str, Any],
     turn_index: int,
 ) -> dict[str, Any]:
-    """发送一轮 SSE 请求；同一 session 的调用由上层串行调度。"""
-    started = time.perf_counter()
+    """发送一轮 SSE 请求；同一 session 的调用由上层串行调度。
+
+    计时口径（三件事分开测，别把排队当成 Agent 慢）：
+    - ``queue_ms``：进入本函数到首次抢到并发槽位的等待，只记第一次排队；
+    - ``service_ms``：请求真正发出到 SSE 收尾的耗时，即 Agent 端到端服务时间
+      （重试的退避与二次排队落在这一段，不再回摊到 ``queue_ms``）；
+    - ``first_token_ms``：请求发出到收到第一个 ``token`` 事件（用户可见正文）的等待；
+    - ``latency_ms``：``queue_ms + service_ms`` 的总时长，仅作向后兼容保留。
+    """
+    t_enter = time.perf_counter()
+    t_send: float | None = None
+    t_first_token: float | None = None
     result: dict[str, Any] = {
         "user_id": session["user_id"],
         "session_id": session["session_id"],
@@ -186,6 +196,8 @@ async def _request_turn(
         for attempt in range(args.request_retries + 1):
             try:
                 async with semaphore:
+                    if t_send is None:
+                        t_send = time.perf_counter()
                     async with client.stream(
                         "POST",
                         args.url,
@@ -206,6 +218,8 @@ async def _request_turn(
                             event = json.loads(raw)
                             event_type = event.get("type", "unknown")
                             if event_type == "token":
+                                if t_first_token is None:
+                                    t_first_token = time.perf_counter()
                                 result["answer_content"] += str(event.get("content", ""))
                             elif event_type == "tool":
                                 name = event.get("name")
@@ -232,11 +246,53 @@ async def _request_turn(
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
 
-    result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+    t_end = time.perf_counter()
+    t_send = t_send if t_send is not None else t_end
+    result["queue_ms"] = round((t_send - t_enter) * 1000, 2)
+    result["service_ms"] = round((t_end - t_send) * 1000, 2)
+    result["first_token_ms"] = (
+        round((t_first_token - t_send) * 1000, 2) if t_first_token is not None else None
+    )
+    result["latency_ms"] = round((t_end - t_enter) * 1000, 2)
     result["retrieval_metrics"] = compute_metrics(set(result["gold_chunk_ids"]), result["retrieved_chunk_ids"])
     if not result["request_ids"]:
         result.pop("request_ids")
     return result
+
+
+def _percentile(values: list[float], ratio: float) -> float:
+    """最近秩法分位数（p50 → 升序第 ``int(0.5*(n-1))`` 个），与人工复盘口径一致。"""
+    ordered = sorted(values)
+    return ordered[int(ratio * (len(ordered) - 1))]
+
+
+def _latency_stats(values: list[float]) -> dict[str, float]:
+    """一组耗时的 p50 / p90 / max / 均值；空集合返回零值便于报告横向比较。"""
+    if not values:
+        return {"turns": 0, "p50": 0.0, "p90": 0.0, "max": 0.0, "mean": 0.0}
+    return {
+        "turns": len(values),
+        "p50": round(_percentile(values, 0.5), 2),
+        "p90": round(_percentile(values, 0.9), 2),
+        "max": round(max(values), 2),
+        "mean": round(sum(values) / len(values), 2),
+    }
+
+
+def _latency_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """分列汇总服务耗时、排队等待与首 token 延迟。
+
+    ``service_ms`` 才是 Agent 单轮真实耗时；``queue_ms`` 反映 ``--concurrency``
+    下的排队程度，两者相加等于向后兼容保留的 ``latency_ms``。
+    """
+    return {
+        "turns": len(rows),
+        "service_ms": _latency_stats([float(row["service_ms"]) for row in rows]),
+        "queue_ms": _latency_stats([float(row["queue_ms"]) for row in rows]),
+        "first_token_ms": _latency_stats(
+            [float(row["first_token_ms"]) for row in rows if row.get("first_token_ms") is not None]
+        ),
+    }
 
 
 async def _run_session(
@@ -276,6 +332,7 @@ def _role_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 async def _run(args: argparse.Namespace) -> dict[str, Any]:
+    t_wall_start = time.perf_counter()
     sessions = _build_user_sessions(args)
     timeout = httpx.Timeout(args.timeout, connect=min(args.timeout, 30.0))
     semaphore = asyncio.Semaphore(args.concurrency)
@@ -292,13 +349,15 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
     ]
     status = Counter(row["status"] for row in rows)
     by_session: dict[str, dict[str, Any]] = {}
-    for session, group in zip(sessions, session_rows):
+    for session, group in zip(sessions, session_rows, strict=True):
         entry = {
             "user_id": session["user_id"],
             "session_id": session["session_id"],
             "textbook": session["textbook"],
             "turns": len(group),
             "succeeded": sum(row["status"] == "done" for row in group),
+            "avg_service_ms": round(sum(row["service_ms"] for row in group) / len(group), 2),
+            "avg_queue_ms": round(sum(row["queue_ms"] for row in group) / len(group), 2),
             "avg_latency_ms": round(sum(row["latency_ms"] for row in group) / len(group), 2),
         }
         if session.get("topic"):
@@ -313,12 +372,14 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
         "sessions": len(sessions),
         "turns": len(rows),
         "concurrency": args.concurrency,
+        "wall_ms": round((time.perf_counter() - t_wall_start) * 1000, 2),
         "status_counts": dict(status),
         "succeeded": status.get("done", 0),
         "session_results": by_session,
         "per_turn": rows,
         "retrieval_summary": aggregate_metrics(metric_rows),
         "by_turn_role": _role_summary(rows),
+        "latency_summary": _latency_summary(rows),
     }
 
 
@@ -328,9 +389,18 @@ def main(argv: list[str] | None = None) -> int:
     output = args.output or args.dataset_root / "multi_user_agent_results.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    latency = payload["latency_summary"]
     print(
         f"完成: {payload['succeeded']}/{payload['turns']} 轮，"
-        f"{payload['users']} 个用户 / {payload['sessions']} 个会话，结果已写入 {output}"
+        f"{payload['users']} 个用户 / {payload['sessions']} 个会话，"
+        f"墙钟 {payload['wall_ms'] / 1000 / 60:.1f} 分钟，结果已写入 {output}"
+    )
+    print(
+        f"单轮服务耗时 p50 {latency['service_ms']['p50'] / 1000:.1f}s / "
+        f"p90 {latency['service_ms']['p90'] / 1000:.1f}s / "
+        f"max {latency['service_ms']['max'] / 1000:.1f}s；"
+        f"首 token p50 {latency['first_token_ms']['p50'] / 1000:.1f}s；"
+        f"排队 p50 {latency['queue_ms']['p50'] / 1000:.1f}s（并发 {payload['concurrency']}）"
     )
     print(json.dumps(payload["status_counts"], ensure_ascii=False))
     return 0 if payload["succeeded"] == payload["turns"] else 1
