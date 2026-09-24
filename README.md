@@ -27,7 +27,7 @@ flowchart LR
   end
 
   subgraph agent [问答 Agent study_agent]
-    Q[用户消息 SSE] --> Pre[前置理解<br/>意图识别 ∥ 问题改写]
+    Q[用户消息 SSE] --> Pre[前置理解<br/>意图三档漏斗，兜底层读历史]
     Pre --> Prompt[按意图动态加载 Prompt]
     Prompt --> React[ReAct 循环<br/>检索/读写/澄清工具编排]
     React --> R[FastAPI SSE 流式输出]
@@ -38,13 +38,14 @@ flowchart LR
 
 ### 检索链路（快慢双路径）
 
+- **检索问句**：由模型在 ReAct 循环里结合对话历史自行组织成自包含问句（检索侧无状态，不读历史），不做前置改写，省一次 LLM 往返；
 - **快路径**：BGE-M3 dense + sparse 混合召回（WeightedRanker 0.8/0.2），Milvus 单请求完成；
 - **深度路径**：在原查询之外并行生成 HyDE 假设文档向量做第二路召回，RRF（k=60）融合两路结果，再过 BGE-Reranker-large 精排；
 - **上下文控制**：wrap_model_call middleware 将历史轮检索原文替换为含 chunk id 的短存根，模型可按 id 调 `read_chunk` 重取原文，state 与审计链路不受影响。
 
 ### Agent 能力
 
-- 意图三级漏斗路由（关键词 → embedding 相似度 → LLM 结构化输出兜底），按意图动态装配 system prompt 与工具集；
+- 意图三级漏斗路由（关键词 → embedding 相似度 → LLM 结构化输出兜底），按意图动态装配 system prompt 行为块（工具集固定）；对话历史只喂给兜底层，用于消解「那再来十道」这类省略句；兜底层单独收紧超时且不重试，判不准即回退「讲解」块，不阻塞主链路；
 - 工具：`search_textbook`（限定教材检索）、`read_chunk`（按 id 重取片段）、`list_chapters`、`write_file`/`edit_file`/`append_file`（资料生成，Human-in-the-loop 写盘确认）、`clarify`（澄清反问）、联网搜索（MCP）；
 - 会话状态经 MongoDB checkpointer 持久化，`thread_id = user_id:session_id`，支持断流续跑与写盘确认 resume。
 
@@ -84,7 +85,8 @@ python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
 # 检索离线消融：300 题（6 本教材 × 50），各配置 Recall/Hit/NDCG/MRR 对比 + 显著性检验
 python -m app.eval.run_ablation
 
-# 问题重写消融：原问句 vs 改写问句单路替换 + 双路 RRF 融合
+# 问题重写消融（历史链路复现）：原问句 vs 当年重写问句单路替换 + 双路 RRF 融合
+# 前置重写已下线，此脚本只读旧 metrics.log 复现结论，新日志样本数为 0
 python -m app.eval.run_rewrite_ablation
 
 # 多用户多轮会话评测：50 会话 × 200 轮，含延迟/token/检索触发率统计

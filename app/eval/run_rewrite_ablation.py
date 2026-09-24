@@ -1,4 +1,8 @@
-"""问题重写消融：同一轮分别用「原问句」和「线上重写问句」各走一遍生产检索，比 hit@5。
+"""问题重写消融（历史链路复现）：同一轮分别用「原问句」和「当年线上重写问句」各走一遍生产检索，比 hit@5。
+
+线上已摘除前置问题重写——检索问句改由模型在 ReAct 循环里自己组织，历史改喂给意图识别
+的 LLM 兜底层。本脚本只读 ``logs/metrics.log`` 的历史打点复现当时的结论（单路替换为负收益、
+双路 RRF 融合最优），不依赖任何在线重写代码；新日志若无重写生效轮，样本数会是 0。
 
 用法（在项目根目录，需要 service 打点日志与一次多轮评测结果）::
 
@@ -7,6 +11,9 @@
 数据源为只读输入，不改动任何线上代码：
 - ``logs/metrics.log``：每轮的 ``rewrite_mode`` / ``rewrite_query``（按 request_id 关联）；
 - 评测结果 JSON：每轮的原问题、turn_role、gold_chunk_ids 与线上实际召回。
+
+只纳入带 ``rewrite_mode == "llm"`` 的旧链路轮次：新链路打点的 ``search_query`` 是模型自组的
+检索问句、同样常与原问句不同，混进「重写问句」一列会污染上面的结论，故一律不取。
 
 输出三列对照：单用原问句检索、单用重写问句检索、两者 RRF(k=60) 融合，
 外加「重写掉出 top5 / 救回 top5」的翻转明细。
@@ -83,6 +90,7 @@ async def _run(args: argparse.Namespace) -> None:
     samples = []
     for turn in turns:
         record = metrics_by_request.get(turn.get("request_id"))
+        # 只认旧链路的重写打点：摘除重写后新日志无 rewrite_mode，样本数为 0（不污染对照）
         if not record or record.get("rewrite_mode") != "llm":
             continue
         rewritten = (record.get("rewrite_query") or "").strip()

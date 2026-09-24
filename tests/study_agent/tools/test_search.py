@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 from app.study_agent.tools import search
 
@@ -23,11 +24,11 @@ _HYBRID_HITS = [
 
 
 def test_search_textbook_fast_path(monkeypatch) -> None:
-    """快速路径：重写问句直接混合召回，验证图片回绑与代码块拼回。"""
-    monkeypatch.setattr(search, "rewrite_query_search", _fake_hybrid)
+    """快速路径：缺省用本轮原问题做混合召回，验证图片回绑与代码块拼回。"""
+    monkeypatch.setattr(search, "search_by_query", _fake_hybrid)
 
     fast = asyncio.run(search.search_textbook.coroutine(
-        textbook_name="C语言程序设计", rewritten_query="指针有什么用途?"
+        textbook_name="C语言程序设计", requirement="指针有什么用途?"
     ))
     assert "[片段1｜c1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
     assert "【图: 指针示意图】(https://x/y.png)" in fast, "url 未回绑到正文图标记"
@@ -38,7 +39,7 @@ def test_search_textbook_fast_path(monkeypatch) -> None:
 
 def test_search_textbook_deep_path(monkeypatch) -> None:
     """深度路径：HyDE + 融合 + 精排，取精排后片段。"""
-    monkeypatch.setattr(search, "rewrite_query_search", _fake_hybrid)
+    monkeypatch.setattr(search, "search_by_query", _fake_hybrid)
     monkeypatch.setattr(search, "hyde_doc_generate", _fake_hyde_generate)
     monkeypatch.setattr(search, "agenerate_embeddings", _fake_generate_embeddings)
     monkeypatch.setattr(search, "search_by_vectors", _fake_search_by_vectors)
@@ -47,17 +48,59 @@ def test_search_textbook_deep_path(monkeypatch) -> None:
     monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
 
     deep = asyncio.run(search.search_textbook.coroutine(
-        deep=True, textbook_name="C语言程序设计", rewritten_query="指针有什么用途?"
+        deep=True, textbook_name="C语言程序设计", requirement="指针有什么用途?"
     ))
     assert "指针是C语言的核心概念" in deep, deep
 
 
-async def _fake_hybrid(textbook_name: str, rewrite_query: str, chapter: str | None = None) -> list[dict]:
+def test_search_textbook_prefers_agent_query(monkeypatch) -> None:
+    """多轮指代由模型自组自包含问句：显式 query 优先于本轮原问题，并写进检索打点。"""
+    used: list[str] = []
+
+    async def _capture(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
+        used.append(search_query)
+        return _HYBRID_HITS
+
+    record = SimpleNamespace(
+        search_query="", deep=False, recall_count=0, rerank_count=0, retrieved_chunk_ids=[]
+    )
+    monkeypatch.setattr(search, "search_by_query", _capture)
+    monkeypatch.setattr(search, "get_metrics", lambda: record)
+    monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
+
+    asyncio.run(search.search_textbook.coroutine(
+        query="C 语言指针常量的用途", textbook_name="C语言程序设计", requirement="那它呢?"
+    ))
+    assert used == ["C 语言指针常量的用途"], f"未优先采用模型自组的检索问句: {used}"
+    assert record.search_query == "C 语言指针常量的用途"
+
+
+def test_search_textbook_falls_back_to_requirement(monkeypatch) -> None:
+    """模型没传 query 时回退本轮原问题，不再依赖前置重写产物。"""
+    used: list[str] = []
+
+    async def _capture(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
+        used.append(search_query)
+        return _HYBRID_HITS
+
+    monkeypatch.setattr(search, "search_by_query", _capture)
+    monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
+
+    asyncio.run(search.search_textbook.coroutine(textbook_name="C语言程序设计", requirement="什么是数组?"))
+    assert used == ["什么是数组?"]
+
+
+def test_search_textbook_hides_injected_state_args() -> None:
+    """注入给工具的 state 字段（教材名、检索问句回退值）不得出现在模型可见的调用 schema 里。"""
+    assert set(search.search_textbook.tool_call_schema.model_fields) == {"query", "deep", "chapter"}
+
+
+async def _fake_hybrid(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
     return _HYBRID_HITS
 
 
-async def _fake_hyde_generate(rewritten_query: str) -> str:
-    return f"假设性文档: {rewritten_query}"
+async def _fake_hyde_generate(search_query: str) -> str:
+    return f"假设性文档: {search_query}"
 
 
 async def _fake_generate_embeddings(texts: list[str]) -> dict:

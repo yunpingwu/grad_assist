@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from app.study_agent.query_functions.embedding_search import rewrite_query_search
+from app.study_agent.query_functions.embedding_search import search_by_query
 
 
-def test_rewrite_query_search_rejects_empty_query() -> None:
-    with pytest.raises(ValueError, match="问题重写为空"):
-        asyncio.run(rewrite_query_search("C语言程序设计", ""))
+def test_search_by_query_rejects_empty_query() -> None:
+    with pytest.raises(ValueError, match="检索问句为空"):
+        asyncio.run(search_by_query("C语言程序设计", ""))

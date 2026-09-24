@@ -1,30 +1,42 @@
 """意图识别：三档漏斗（关键词 → embedding 语义路由 → LLM 兜底），query 理解前置步骤。
 
-与问题重写同属「query 理解」：在 agent 工具循环之前（pre_model_hook）每个 query 只
-执行一次，产出带置信度的意图（IntentResult），供 system prompt 动态选择行为/输出块。
+在 agent 工具循环之前（before_agent 入口节点）每个 query 只执行一次，产出带置信度的
+意图（IntentResult），供 system prompt 动态选择行为/输出块。
 
 三档设计（按延迟/成本递增，命中即停）：
 1. 关键词快车道：只对「行为类」强信号词做保守判定，歧义/未命中不硬判；
 2. embedding 语义路由：query 与各意图描述向量比对（复用 BGE-M3），高相似直接定、
-   低相似判「领域外」，中等置信交下一档；
-3. LLM 结构化兜底：最终判定，白名单校验防越界；失败则回退安全默认「讲解」。
+   低相似判「领域外」（多轮时例外，见下），中等置信交下一档；
+3. LLM 结构化兜底：最终判定，白名单校验防越界；单独收紧超时（拿不到就回退安全默认「讲解」，
+   绝不为一个只影响行为块选择的判定等满客户端默认 120s 重试）。
+
+对话历史只在第 3 档进入输入：前两档是「当前问句 vs 意图描述」的比对，混入历史只会
+稀释语义；而多轮的「那再来十道」「这个怎么证」必须靠历史才能判准，故兜底层按
+【历史问题】+【最新问题】两段喂给 LLM。低相似且存在历史时不在第 2 档判死，下沉到
+第 3 档消歧（无历史的低相似仍是「领域外」，不为闲聊多花一次 LLM 调用）。
 """
 
 from __future__ import annotations
 
 import asyncio
 
+from langchain_core.messages import AnyMessage
 from langchain_core.prompts import PromptTemplate
 
 from app.clients.llm import get_llm_client
-from app.core import load_prompt, logger
+from app.core import astage, load_prompt, logger
 from app.study_agent.entity.intent import IntentResult, _IntentDecision
 from app.utils import agenerate_embeddings
+
+# 兜底层历史段的空值占位：显式标注首轮，避免模型把空白当成「问题被截断」
+_NO_HISTORY = "（无历史问题，本次为首次提问）"
 
 # 意图枚举顺序（embedding 相似度结果按此下标对齐，保序）
 INTENT_ORDER = ("explain", "generate", "quiz", "plan", "chat")
 
-# 低置信度兜底：无法判定的意图（由消费端回退通用行为 + 引导澄清）
+# 低置信度兜底：无法判定的意图。消费端只把它当作「保守回退通用行为块」（见 graph 的
+# _INTENT_BLOCKS 白名单），是否向用户反问由模型在 ReAct 循环里自行决定（ask_clarification）——
+# 路由层的「判不准」不等于用户需要被澄清，两者刻意不打通。
 UNCLEAR = "unclear"
 VALID_INTENTS = frozenset({*INTENT_ORDER, UNCLEAR})
 
@@ -50,10 +62,16 @@ _KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # embedding 语义路由的相似度阈值（BGE-M3 稠密向量已 L2 归一化，点积即 cosine）。
 # 经验值，建议用真实 query 日志按 precision/recall 校准。
 _EMBED_HIGH = 0.5  # 达到即高置信直接定
-_EMBED_LOW = 0.3  # 低于即判「领域外/无法判」；介于两者之间交 LLM 兜底
+_EMBED_LOW = 0.3  # 单轮低于即判「领域外」；多轮短句易落在此处，下沉 LLM 层用历史消歧
 
 # 关键词快车道的置信度（规则命中视为高置信，留少量余量）
 _KEYWORD_CONF = 0.95
+
+# 兜底 LLM 的时延收口：意图判错只影响行为块选择（explain 是安全默认），不值得让整轮
+# 对话等满客户端默认的 120s×(1+retries)。分类输出仅两个字段，正常几百毫秒即回，
+# 故收紧超时并关闭自动重试——超时即按异常处理，回退 explain 继续跑。
+_LLM_TIMEOUT_S = 8
+_LLM_MAX_RETRIES = 0
 
 # ── 意图描述向量的预计算缓存 ─────────────────────────────────
 # 5 条意图描述是常量，但每次语义路由都与 query 一起编码（6 条/次），造成 5/6
@@ -80,6 +98,19 @@ async def _get_intent_desc_vectors() -> list[list[float]]:
         return _precomputed_desc_vectors
 
 
+def format_history(messages: list[AnyMessage]) -> str:
+    """将 LangChain 消息列表转为历史用户问题纯文本（供兜底层消歧）。
+
+    Args:
+        messages: 对话消息列表（取除最新一条外的历史用户问题）。
+
+    Returns:
+        纯文本的历史用户问题，每行「用户: …」；无历史返回空字符串。
+    """
+    questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human"]
+    return "\n".join(questions)
+
+
 def _classify_by_keyword(text: str) -> IntentResult | None:
     """关键词快车道：仅当命中集中在单一意图时直接定，否则返回 None 交下一档。
 
@@ -103,17 +134,19 @@ def _classify_by_keyword(text: str) -> IntentResult | None:
     return IntentResult(intent=best_intent, confidence=_KEYWORD_CONF, source="keyword")
 
 
-async def _classify_by_embedding(text: str) -> IntentResult | None:
+async def _classify_by_embedding(text: str, multi_turn: bool = False) -> IntentResult | None:
     """embedding 语义路由：query 与各意图描述向量比对（复用 BGE-M3）。
 
     意图描述向量为常量，已在进程内预计算（见 _get_intent_desc_vectors），
-    每次只编码 query 单条文本，不再重复编码 5 条描述。
+    每次只编码 query 单条。多轮场景（multi_turn=True）下低相似不判死：
+    「那再来十道」这类省略句本就难与意图描述对齐，交 LLM 层用历史消歧。
 
     Args:
-        text: 用户 query 原文。
+        text: 当前用户 query 原文（不含历史，历史会稀释语义比对）。
+        multi_turn: 是否存在对话历史，决定低相似时判「领域外」还是下沉 LLM。
 
     Returns:
-        高置信或「领域外」时返回结果；中等置信返回 None 交 LLM 兜底。
+        高置信或「领域外」时返回结果；中等置信或多轮低相似返回 None 交 LLM 兜底。
     """
     desc_vectors = await _get_intent_desc_vectors()
     emb = await agenerate_embeddings([text])
@@ -125,16 +158,25 @@ async def _classify_by_embedding(text: str) -> IntentResult | None:
 
     if best_sim >= _EMBED_HIGH:
         return IntentResult(INTENT_ORDER[best_idx], best_sim, "embedding")
-    if best_sim < _EMBED_LOW:
+    if best_sim < _EMBED_LOW and not multi_turn:
         return IntentResult(UNCLEAR, best_sim, "embedding")  # 与所有意图都低相似
-    return None  # 中等置信，交 LLM 兜底
+    return None  # 中等置信（或多轮低相似），交 LLM 兜底
 
 
-async def _classify_by_llm(text: str) -> IntentResult:
-    """LLM 结构化分类兜底（对 embedding 中等置信的查询做最终判定）。"""
-    llm = get_llm_client(enable_thinking=False).with_structured_output(_IntentDecision)
+async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
+    """LLM 结构化分类兜底：唯一能看到对话历史的一档，按「历史 + 最新问题」判定。
+
+    Args:
+        text: 当前用户 query 原文。
+        history: 历史用户问题纯文本（``format_history`` 产物），首轮为空。
+    """
+    llm = get_llm_client(
+        enable_thinking=False, timeout=_LLM_TIMEOUT_S, max_retries=_LLM_MAX_RETRIES
+    ).with_structured_output(_IntentDecision)
     prompt = PromptTemplate.from_template(load_prompt("intent_classify"))
-    decision = await llm.ainvoke(prompt.format(query=text))
+    decision = await llm.ainvoke(
+        prompt.format(questions_history=(history or "").strip() or _NO_HISTORY, query=text)
+    )
     # 白名单校验：模型可能输出枚举外的值，收敛到 unclear（防注入/越界）
     intent = decision.intent if decision.intent in VALID_INTENTS else UNCLEAR
     return IntentResult(
@@ -144,36 +186,42 @@ async def _classify_by_llm(text: str) -> IntentResult:
     )
 
 
-async def detect_intent(text: str) -> IntentResult:
+async def detect_intent(text: str, history: str = "") -> IntentResult:
     """三档漏斗识别用户意图（query 理解前置步骤，每个 query 只调一次）。
 
+    整段漏斗计入 ``intent_ms``：兜底层是实测主路径（多数 query 落在中等相似度区间），
+    它在 agent 首次模型调用之前串行执行，时延直接算进首轮响应。
+
     Args:
-        text: 用户原始 query（原文，非重写后——意图要看真实诉求，重写版会丢失意图信息）。
+        text: 当前用户 query 原文；意图要看真实诉求，不传入检索问句。
+        history: 历史用户问题纯文本（仅第 3 档 LLM 兜底使用），首轮传空。
 
     Returns:
         带置信度与来源的意图结果；source=fallback 表示降级，intent 为安全兜底。
     """
-    query = (text or "").strip()
-    if not query:
-        return IntentResult(UNCLEAR, 0.0, "fallback")
+    async with astage("intent_ms"):
+        query = (text or "").strip()
+        if not query:
+            return IntentResult(UNCLEAR, 0.0, "fallback")
+        multi_turn = bool((history or "").strip())
 
-    # 1) 关键词快车道
-    if (result := _classify_by_keyword(query)) is not None:
-        return result
-
-    # 2) embedding 语义路由（失败不阻断，降级 LLM）
-    try:
-        if (result := await _classify_by_embedding(query)) is not None:
+        # 1) 关键词快车道
+        if (result := _classify_by_keyword(query)) is not None:
             return result
-    except Exception as exc:
-        logger.warning(f"意图识别 embedding 路由失败，降级 LLM: {exc}")
 
-    # 3) LLM 兜底（再失败则回退安全默认「讲解」，不阻断主流程）
-    try:
-        return await _classify_by_llm(query)
-    except Exception as exc:
-        logger.warning(f"意图识别 LLM 兜底失败，回退 explain: {exc}")
-        return IntentResult("explain", 0.0, "fallback")
+        # 2) embedding 语义路由（失败不阻断，降级 LLM）
+        try:
+            if (result := await _classify_by_embedding(query, multi_turn)) is not None:
+                return result
+        except Exception as exc:
+            logger.warning(f"意图识别 embedding 路由失败，降级 LLM: {exc}")
+
+        # 3) LLM 兜底（带上历史消歧；再失败则回退安全默认「讲解」，不阻断主流程）
+        try:
+            return await _classify_by_llm(query, history)
+        except Exception as exc:
+            logger.warning(f"意图识别 LLM 兜底失败，回退 explain: {exc}")
+            return IntentResult("explain", 0.0, "fallback")
 
 
 # 冒烟测试已迁移至 tests/study_agent/query_functions/test_intent_detection.py

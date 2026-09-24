@@ -19,7 +19,7 @@ def load_prompt(name: str, prompts_dir: Path | None = None) -> str:
     提示词文件只在开发期变动，缓存后高频节点无需重复读磁盘。
 
     Args:
-        name: 提示词名称，不带后缀，如 ``"rewrite_query"``。
+        name: 提示词名称，不带后缀，如 ``"intent_classify"``。
         prompts_dir: 提示词根目录，缺省用 ``app/prompts/``（便于测试注入）。
 
     Returns:

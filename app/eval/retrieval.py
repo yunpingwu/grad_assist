@@ -1,7 +1,7 @@
 """检索打点：复用检索函数，逐级采集各配置的排序结果与耗时。
 
-评测直接以自包含问句作为检索输入（跳过 search_textbook 里的问题重写步骤），
-以隔离“查询重写”这一变量，聚焦检索组件本身的消融：
+评测直接以自包含问句作为检索输入（线上检索侧同样不做问句改写），
+聚焦检索组件本身的消融：
 
 - dense          ：单路稠密检索（基线，验证 dense 单独排序质量）
 - sparse         ：单路稀疏/词面检索（基线，验证 sparse 单独排序质量）
@@ -17,7 +17,7 @@ import time
 
 from app.config import rerank_config
 from app.core import logger
-from app.study_agent.query_functions.embedding_search import rewrite_query_search
+from app.study_agent.query_functions.embedding_search import search_by_query
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
@@ -130,7 +130,7 @@ async def run_hyde_rrf(
 
     # 第一路：混合召回（候选池扩容，供融合/精排）
     start = time.perf_counter()
-    embedding_chunks = await rewrite_query_search(textbook, query, limit=candidate_pool)
+    embedding_chunks = await search_by_query(textbook, query, limit=candidate_pool)
     timing["embed"] = time.perf_counter() - start
 
     # 第二路：HyDE 假设文档召回

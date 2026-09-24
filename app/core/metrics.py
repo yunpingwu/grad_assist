@@ -6,7 +6,7 @@
   同一个实例，跨任务可累加——这是 OpenTelemetry 同类方案的标准做法。
 - LLM 调用次数与 token 用量由 ``LLMMetricsCallbackHandler`` 统一统计，经
   ``register_configure_hook(inheritable=True)`` 全局注入（每次 LLM 调用时自动挂上该 handler），
-  因此能同时覆盖 create_agent 内部调用与检索工具内部的 rewrite/hyde 调用，无需改 ``llm.py``。
+  因此能同时覆盖 create_agent 内部调用与检索工具内部的 hyde 调用，无需改 ``llm.py``。
 - 落库为 ``logs/metrics.log`` 的格式化 JSON 记录，包含检索 chunk ID 与最终回答内容；失败仅告警不阻断主链路。
 """
 
@@ -41,8 +41,8 @@ class RequestMetrics:
     request_id: str
     session_id: str = ""
     query: str = ""
-    rewrite_query: str = ""
-    rewrite_mode: str = ""
+    # 实际送进检索的问句（模型自组或回退用户原问题）
+    search_query: str = ""
     intent: str = ""
     intent_source: str = ""
     deep: bool = False
@@ -139,7 +139,7 @@ def mark_stage(name: str, cost_ms: float) -> None:
     """累加某阶段耗时到当前请求指标（无上下文时静默跳过）。
 
     Args:
-        name: 阶段名，如 ``query_rewrite_ms`` / ``embedding_ms``。
+        name: 阶段名，如 ``hyde_ms`` / ``embedding_ms``。
         cost_ms: 本次耗时（毫秒）。
     """
     metrics = get_metrics()
@@ -159,7 +159,7 @@ def stage(name: str) -> Iterator[None]:
 
 @asynccontextmanager
 async def astage(name: str) -> AsyncIterator[None]:
-    """异步阶段计时上下文管理器：``async with astage("query_rewrite_ms"):``。"""
+    """异步阶段计时上下文管理器：``async with astage("hyde_ms"):``。"""
     t0 = time.perf_counter()
     try:
         yield
@@ -203,8 +203,7 @@ def _write_metrics_line(metrics: RequestMetrics) -> None:
             "query": raw["query"],
             "answer_content": raw["answer_content"],
             "retrieved_chunk_ids": raw["retrieved_chunk_ids"],
-            "rewrite_query": raw["rewrite_query"],
-            "rewrite_mode": raw["rewrite_mode"],
+            "search_query": raw["search_query"],
             "intent": raw["intent"],
             "intent_source": raw["intent_source"],
             "deep": raw["deep"],

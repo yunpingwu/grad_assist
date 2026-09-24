@@ -1,7 +1,8 @@
-"""search_textbook 工具：叠加强化检索（重写消歧 + 多路召回 + 精排），供 agent 自主调用。
+"""search_textbook 工具：叠加强化检索（多路召回 + 精排），供 agent 自主调用。
 
 将 query_functions 的核心能力折叠进单一检索工具，最终回答统一由 agent 模型生成，本工具只返回检索片段：
-- 始终先做问题重写（利用对话历史消歧），提升召回针对性；
+- 检索问句取模型显式传入的 ``query``，缺省回退本轮用户原问题（``requirement``）；
+  跨轮指代由模型自己结合对话历史补全为自包含问句（检索侧无状态，不读历史）；
 - ``deep=False`` 快速路径：混合召回（稠密+稀疏）后直接返回 TOP-K，适合反复取素材；
 - ``deep=True`` 深度路径：再叠加 HyDE 假设文档召回 → RRF 融合 → 交叉编码精排
   （精排分数与 RRF 分数加权融合，只微调排序而非覆盖，适合严谨作答）。
@@ -18,7 +19,7 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import astage, get_metrics, logger
-from app.study_agent.query_functions.embedding_search import rewrite_query_search, search_by_vectors
+from app.study_agent.query_functions.embedding_search import search_by_query, search_by_vectors
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
@@ -241,17 +242,18 @@ async def search_textbook(
     deep: bool = False,
     chapter: str | None = None,
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
-    rewritten_query: Annotated[str, InjectedState("rewritten_query")] = None,
+    requirement: Annotated[str, InjectedState("requirement")] = None,
 ) -> str:
     """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段（可选深度召回精排）。
 
-    检索问句已由系统前置消歧（rewritten_query，基于对话历史重写）；本工具默认直接用该问句，
-    也可用 query 显式覆盖检索词。默认快速混合召回（稠密+稀疏），如需更高质量（如严谨作答、
+    检索侧是无状态的，不读对话历史，只按传入问句匹配教材原文——因此 query 必须自包含：
+    把「它」「这一章」「再来十道」这类指代结合上文补全为具体对象（如「C 语言指针常量的用途」）。
+    不传 query 时回退用户本轮的原问题。默认快速混合召回（稠密+稀疏），如需更高质量（如严谨作答、
     快速检索无果时扩大召回）请设 deep=True：多做一次 HyDE 假设文档召回，再经 RRF
     融合与交叉编码精排——结果更准但更慢。
 
     Args:
-        query: 检索查询（可选），显式指定想检索的内容时传；缺省用系统消歧后的问句。
+        query: 自包含的检索问句（多轮追问时务必把指代补全），缺省用用户本轮原问题。
         deep: 是否启用深度召回（HyDE + 精排），默认 False；对答案质量要求高或快检索无果时设为 True。
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
@@ -261,27 +263,27 @@ async def search_textbook(
     textbook_name = textbook_name or ""
     metrics = get_metrics()
     try:
-        # 检索问句：优先用 LLM 显式传入的 query，缺省用前置 query 理解消歧好的 rewritten_query
-        rewritten = query or rewritten_query or ""
-        if not rewritten:
+        # 检索问句：优先用 LLM 显式传入的自包含 query，缺省回退本轮用户原问题
+        search_query = (query or requirement or "").strip()
+        if not search_query:
             return "（未提供检索问句，请重试）"
         if metrics is not None:
-            metrics.rewrite_query = rewritten
+            metrics.search_query = search_query
             metrics.deep = bool(deep)
-        logger.info(f"search_textbook 检索问句: {rewritten!r}")
+        logger.info(f"search_textbook 检索问句: {search_query!r}")
 
         if not deep:
             # 快速路径：单路混合召回（稠密 + 稀疏）后截取 TOP-K
-            chunks = await rewrite_query_search(textbook_name, rewritten, chapter)
+            chunks = await search_by_query(textbook_name, search_query, chapter)
             if metrics is not None:
                 metrics.recall_count = len(chunks)
             hits = chunks[:rerank_config.top_k]
         else:
             # 深度路径：两路召回（混合 + HyDE，各扩候选池）→ RRF 融合 → 精排 TOP-K
             async with astage("hyde_ms"):
-                hyde_doc = await hyde_doc_generate(rewritten)
+                hyde_doc = await hyde_doc_generate(search_query)
             # 一次批量：query 与 hyde_doc 的向量合并计算，省一次模型前向（embedding_ms 只累加一次）
-            embeddings = await agenerate_embeddings([rewritten, hyde_doc + rewritten])
+            embeddings = await agenerate_embeddings([search_query, hyde_doc + search_query])
             embedding_chunks = await search_by_vectors(
                 textbook_name, embeddings["dense"][0], embeddings["sparse"][0], chapter,
                 limit=rerank_config.candidate_pool,
@@ -298,7 +300,7 @@ async def search_textbook(
                 async with astage("rerank_ms"):
                     # 交叉编码打分后与 RRF 分数加权融合（精排微调而非覆盖），只对返回结果截断
                     hits = await arerank_chunks_weighted(
-                        rewritten, merged, rerank_config.top_k, rerank_config.fusion_alpha
+                        search_query, merged, rerank_config.top_k, rerank_config.fusion_alpha
                     )
             except Exception as exc:  # 精排降级：回退 RRF 融合结果，不阻断
                 logger.warning(f"deep 检索精排失败，回退 RRF：{exc}")
@@ -313,7 +315,7 @@ async def search_textbook(
         metrics.rerank_count = len(hits) if deep else 0
 
     if not hits:
-        return "（未检索到相关片段，请换个问法或去掉章节限定）"
+        return "（未检索到相关片段，请把 query 补全为自包含问句或去掉章节限定）"
 
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
     # 正文命中后按节补拉代码块（粗粒度协同召回），使自然语言问代码能取回代码原文

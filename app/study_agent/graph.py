@@ -5,13 +5,15 @@
 收尾（扫描落盘、登记清单）为图外的业务函数，见 service/API 层。
 
 动态提示词与前置 query 理解通过 langchain.agents 的 middleware 机制接入：
-- ``@before_agent``：作为入口节点，每轮对话只执行一次，做意图识别 + 问题重写；
+- ``@before_agent``：作为入口节点，每轮对话只执行一次，做意图识别（失败回退默认行为块，不阻断本轮）；
 - ``@dynamic_prompt``：每次 model 调用前按 state（含意图）动态渲染 system prompt。
+
+检索问句不再前置重写：模型在 ReAct 循环里看得见完整对话（历史用户问题 + 回答），
+由它自己组织自包含的 ``search_textbook(query=...)``；缺省回退本轮原问题（requirement）。
+跨轮消歧所需的历史改喂给意图识别的 LLM 兜底层（那里才是真的缺上下文判不准的地方）。
 """
 
 from __future__ import annotations
-
-import asyncio
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
@@ -26,10 +28,9 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from app.clients.llm import get_llm_client
-from app.core import astage, get_metrics, load_prompt, logger
+from app.core import get_metrics, load_prompt, logger
 from app.study_agent.query_functions.context_stub import stub_old_search_results
-from app.study_agent.query_functions.intent_detection import detect_intent
-from app.study_agent.query_functions.rewrite_query import format_questions, rewrite
+from app.study_agent.query_functions.intent_detection import detect_intent, format_history
 from app.study_agent.state import StudyState
 from app.study_agent.tools import (
     append_file,
@@ -55,7 +56,7 @@ def study_system_prompt(request: ModelRequest) -> str:
 
     拼装逻辑内聚在本函数：意图未识别/越界回退默认「讲解」块；
     提示词文件统一走 ``load_prompt``（自带 LRU 缓存读盘，避免重复 IO）；
-    骨架模板为小型静态文本，每次调用直接解析，开销可忽略（与 rewrite_query 的处理一致）。
+    骨架模板为小型静态文本，每次调用直接解析，开销可忽略。
     """
     state = request.state
     requirement = state.get("requirement") or "回答教材相关问题，或按需整理成学习资料。"
@@ -70,55 +71,40 @@ def study_system_prompt(request: ModelRequest) -> str:
 
 @before_agent(state_schema=StudyState)
 async def understand_query(state: StudyState, runtime: Runtime) -> dict:
-    """前置「query 理解」（before_agent 入口节点）：意图识别 + 问题重写合流。
+    """前置「query 理解」（before_agent 入口节点）：三档漏斗意图识别。
 
-    每轮对话只执行一次（resume 不重跑），产物写入 state.intent / state.rewritten_query，
-    供 dynamic_prompt（选行为块）与 search_textbook（取检索问句）消费。
+    每轮对话只执行一次（resume 不重跑），产物写入 state.intent，供 dynamic_prompt
+    选行为块。对话历史一并交给它——兜底层靠历史消解跨轮指代与省略。
+
+    整节点包在 try 里：这一步只是「选哪个行为块」的增强，判不出还有 explain 兜着，
+    不值得为它让本轮对话直接失败，故异常一律告警后回退默认块（``logger.warning`` 保证
+    线上可见，不做静默吞掉）。``except Exception`` 不拦 BaseException，
+    取消信号（asyncio.CancelledError）照常向上传播。
 
     Args:
         state: 当前图状态（含 messages 完整历史与新 query）。
         runtime: 运行时上下文。
 
     Returns:
-        state 更新字典（intent / rewritten_query）。
+        state 更新字典（intent）；识别链路异常时为默认意图。
     """
-    requirement = state.get("requirement") or ""
-    textbook_name = state.get("textbook_name") or ""
-    history = format_questions(state.get("messages") or [])
-
-    # 首轮通常没有指代或省略，原问题已经是独立检索问句；此时跳过一次重写 LLM。
-    # 只有存在历史用户问题时才做重写，解决“它/这个/上面提到的”等跨轮消歧。
-    # before_agent 可以直接按 state 动态选择路径；resume 续跑不会重复进入这里。
-    if history.strip():
-        async def _rewrite_with_metric() -> str:
-            async with astage("query_rewrite_ms"):
-                return await rewrite(requirement, textbook_name, history)
-
-        # 多轮场景下，意图识别与问题重写相互独立，并行执行。
-        intent_result, rewritten = await asyncio.gather(
-            detect_intent(requirement),
-            _rewrite_with_metric(),
+    try:
+        requirement = state.get("requirement") or ""
+        history = format_history(state.get("messages") or [])
+        intent_result = await detect_intent(requirement, history)
+        metrics = get_metrics()
+        if metrics is not None:
+            metrics.intent = intent_result.intent
+            metrics.intent_source = intent_result.source
+        logger.info(
+            f"query 理解: intent={intent_result.intent}"
+            f"({intent_result.source}, {intent_result.confidence:.2f}), "
+            f"多轮={bool(history.strip())}"
         )
-        rewrite_mode = "llm"
-    else:
-        # 单轮清晰问题直接保留原文，避免一次无收益的重写调用。
-        intent_result = await detect_intent(requirement)
-        rewritten = requirement.strip()
-        rewrite_mode = "skipped_no_history"
-    metrics = get_metrics()
-    if metrics is not None:
-        metrics.intent = intent_result.intent
-        metrics.intent_source = intent_result.source
-        metrics.rewrite_mode = rewrite_mode
-    logger.info(
-        f"query 理解: intent={intent_result.intent}"
-        f"({intent_result.source}, {intent_result.confidence:.2f}), "
-        f"rewrite_mode={rewrite_mode} → rewrite={rewritten!r}"
-    )
-    return {
-        "intent": intent_result.intent,
-        "rewritten_query": rewritten,
-    }
+        return {"intent": intent_result.intent}
+    except Exception as exc:
+        logger.warning(f"前置 query 理解失败，回退默认行为块 {_DEFAULT_INTENT}: {exc!r}")
+        return {"intent": _DEFAULT_INTENT}
 
 
 def build_graph(checkpointer=None):
@@ -136,7 +122,7 @@ def build_graph(checkpointer=None):
                ask_clarification,
                write_file, append_file, read_file, edit_file, list_files],
         middleware=[
-            understand_query,  # before_agent：前置 query 理解（意图 + 重写），每轮一次
+            understand_query,  # before_agent：前置 query 理解（意图识别），每轮一次
             stub_old_search_results,  # wrap_model_call：历史轮检索结果存根化（只改请求视图，不动 state）
             study_system_prompt,  # dynamic_prompt：按意图动态渲染 system prompt
             ModelCallLimitMiddleware(run_limit=20),  # 护栏1：步数上限（到顶 end 收尾）

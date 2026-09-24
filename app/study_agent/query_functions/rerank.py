@@ -69,7 +69,7 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
     """用交叉编码模型对候选片段精排。
 
     Args:
-        query: 重写后的查询（与召回的语义对齐）。
+        query: 检索问句（与召回的语义对齐）。
         chunks: RRF 融合后的候选 hit 列表。
         top_k: 精排后保留的 TOP-K 片段数。
 
@@ -97,7 +97,7 @@ async def arerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dic
     再由 drainer 按各请求候选数拆回分数。耗时埋点由调用方在协程层用 ``astage`` 记录。
 
     Args:
-        query: 重写后的查询。
+        query: 检索问句。
         chunks: RRF 融合后的候选 hit 列表。
         top_k: 精排后保留的 TOP-K 片段数。
 
@@ -127,7 +127,7 @@ def rerank_chunks_weighted(
     解决"精排把多路共识的正确 chunk 挤掉"的问题：只做排序微调而非覆盖。
 
     Args:
-        query: 重写后的查询。
+        query: 检索问句。
         merged: RRF 融合结果列表（项含 rrf_score / hit）。
         top_k: 融合后保留的 TOP-K 片段数。
         alpha: 精排分权重（0~1），越大越信精排，越小越信 RRF。

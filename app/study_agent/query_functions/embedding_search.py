@@ -1,7 +1,7 @@
 """向量混合检索工具函数：供 search_textbook 做稠密+稀疏混合召回。
 
 从 query_functions 收编而来：``search_by_vectors`` 为「向量 → 检索」纯函数，
-``rewrite_query_search`` 在其之上补 embedding 生成，供快速路径使用；深度路径
+``search_by_query`` 在其之上补 embedding 生成，供快速路径使用；深度路径
 直接用 ``search_by_vectors`` 复用一次批量 embedding 的产物。
 """
 
@@ -47,27 +47,27 @@ async def search_by_vectors(
         return hybrid_search(dense_vec, sparse_vec, collection_name, expr=chapter_expr, limit=limit)
 
 
-async def rewrite_query_search(
+async def search_by_query(
     textbook_name: str,
-    rewrite_query: str,
+    search_query: str,
     chapter: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
-    """根据重写后的问题进行向量混合搜索（可选按章节过滤）。
+    """根据检索问句进行向量混合搜索（可选按章节过滤）。
 
     Args:
         textbook_name: 教材名。
-        rewrite_query: 重写后的问题。
+        search_query: 检索问句（由 agent 结合对话历史组织的自包含问句）。
         chapter: 限定章节名（可选），缺省全书检索。
         limit: 融合后返回的最大命中数，缺省 5。
 
     Returns:
         检索到的 TOP 文本片段。
     """
-    if not rewrite_query:
-        raise ValueError("问题重写为空")
+    if not search_query:
+        raise ValueError("检索问句为空")
     # 生成问题向量（异步派发到线程池，避免阻塞事件循环）
-    query_embedding = await agenerate_embeddings([rewrite_query])
+    query_embedding = await agenerate_embeddings([search_query])
     logger.info(f"提问向量生成结果: {query_embedding}")
     return await search_by_vectors(
         textbook_name,
