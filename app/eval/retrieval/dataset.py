@@ -12,8 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-# 项目根目录：app/eval/dataset.py 向上两级即仓库根
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# 项目根目录：app/eval/retrieval/dataset.py 向上两级即仓库根
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DATASET_PATH = _PROJECT_ROOT / "data" / "eval" / "qa_set.json"
 
 

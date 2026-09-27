@@ -83,17 +83,17 @@ python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
 
 ```bash
 # 检索离线消融：300 题（6 本教材 × 50），各配置 Recall/Hit/NDCG/MRR 对比 + 显著性检验
-python -m app.eval.run_ablation
+python -m app.eval.retrieval.run_ablation
 
 # 问题重写消融（历史链路复现）：原问句 vs 当年重写问句单路替换 + 双路 RRF 融合
 # 前置重写已下线，此脚本只读旧 metrics.log 复现结论，新日志样本数为 0
-python -m app.eval.run_rewrite_ablation
+python -m app.eval.retrieval.run_rewrite_ablation
 
 # 多用户多轮会话评测：50 会话 × 200 轮，含延迟/token/检索触发率统计
-python -m app.eval.run_multi_user_eval
+python -m app.eval.retrieval.run_multi_user_eval
 ```
 
-> 评测依赖 `data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [app/eval/dataset.py](app/eval/dataset.py) 的格式构造题目。
+> 评测依赖 `data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [app/eval/retrieval/dataset.py](app/eval/retrieval/dataset.py) 的格式构造题目。
 
 ## 目录结构
 

@@ -2,8 +2,8 @@
 
 用法（项目根目录）：
 
-    .venv\\Scripts\\python.exe -m app.eval.run_agent_eval
-    .venv\\Scripts\\python.exe -m app.eval.run_agent_eval \
+    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_agent_eval
+    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_agent_eval \
         "data/eval/C语言程序设计（第五版）_(谭浩强)/qa_set.json" \
         --url http://127.0.0.1:8000/study/chat --concurrency 4
 
@@ -23,13 +23,13 @@ from typing import Any
 
 import httpx
 
-from app.eval.dataset import DEFAULT_DATASET_PATH, load_dataset
-from app.eval.metrics import aggregate_metrics, compute_metrics
+from app.eval.retrieval.dataset import DEFAULT_DATASET_PATH, load_dataset
+from app.eval.retrieval.metrics import aggregate_metrics, compute_metrics
 
 _CONSOLE_LOCK: asyncio.Lock | None = None
 
 _DEFAULT_C_DATASET = (
-    Path(__file__).resolve().parents[2]
+    Path(__file__).resolve().parents[3]
     / "data"
     / "eval"
     / "C语言程序设计（第五版）_(谭浩强)"

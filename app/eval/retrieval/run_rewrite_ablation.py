@@ -6,7 +6,7 @@
 
 用法（在项目根目录，需要 service 打点日志与一次多轮评测结果）::
 
-    .venv\\Scripts\\python.exe -m app.eval.run_rewrite_ablation
+    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_rewrite_ablation
 
 数据源为只读输入，不改动任何线上代码：
 - ``logs/metrics.log``：每轮的 ``rewrite_mode`` / ``rewrite_query``（按 request_id 关联）；
@@ -28,16 +28,16 @@ import statistics as st
 from collections import defaultdict
 from pathlib import Path
 
-from app.eval.dataset import gold_chunk_ids
-from app.eval.metrics import compute_metrics
-from app.eval.retrieval import run_fast
+from app.eval.retrieval.channels import run_fast
+from app.eval.retrieval.dataset import gold_chunk_ids
+from app.eval.retrieval.metrics import compute_metrics
 from app.utils.batch_manager.embedder import agenerate_embeddings
 
 _DECODER = json.JSONDecoder()
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     parser = argparse.ArgumentParser(description="问题重写离线检索消融")
     parser.add_argument("--metrics", type=Path, default=root / "logs" / "metrics.log")
     parser.add_argument(

@@ -5,7 +5,7 @@
 
 用法（在项目根目录）::
 
-    .venv\\Scripts\\python.exe -m app.eval.dump_chunks "C语言程序设计"
+    .venv\\Scripts\\python.exe -m app.eval.retrieval.dump_chunks "C语言程序设计"
 
 - ``pattern`` 为教材名子串（大小写不敏感），命中注册表中的一本教材；
 - 输出 ``data/eval/chunks/{collection_name}.json``：
@@ -22,7 +22,7 @@ from pathlib import Path
 from app.clients import milvus_client
 from app.utils.milvus_util import list_textbooks
 
-_OUT_DIR = Path(__file__).resolve().parents[2] / "data" / "eval" / "chunks"
+_OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "eval" / "chunks"
 
 
 def _find_textbook(pattern: str) -> str | None:
@@ -99,7 +99,7 @@ def dump(textbook: str) -> dict:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        print("用法: python -m app.eval.dump_chunks <教材名子串>")
+        print("用法: python -m app.eval.retrieval.dump_chunks <教材名子串>")
         raise SystemExit(1)
     textbook = _find_textbook(sys.argv[1])
     if not textbook:

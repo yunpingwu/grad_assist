@@ -1,27 +1,34 @@
-"""离线评测（RAG Offline Evaluation）子包。
+"""离线评测（RAG Offline Evaluation）子包：按评测对象分两条互不依赖的线。
 
-评估教材问答系统的检索链路质量，通过消融实验量化 HyDE、RRF、Rerank
-等组件对召回/排序指标的贡献。当前为检索侧评测骨架（生成侧 judge 后续补充）。
+子包：
+- retrieval: 检索效果线——评测集加载（dataset）、召回指标（metrics）、生产检索通道
+  复用（channels）、方法/重写消融与各端到端评测入口；
+- intent:    意图识别线——三档漏斗的标注集评测（run_eval）与例句池判据消融
+  （run_threshold_ablation），指标为纯函数（metrics）。
 
-模块：
-- dataset:     评测集加载（黄金 chunk id 与答案要点）
-- metrics:     Recall@k / Hit@k / MRR / NDCG@k 纯函数与聚合
-- retrieval:   复用生产检索函数，逐级打点与计时（hybrid 混合 / rrf_hyde 融合 / rerank 精排）
-- run_ablation:消融入口，跑各配置并输出指标表
+运行入口按模块定位，例如 ``python -m app.eval.intent.run_eval``、
+``python -m app.eval.retrieval.run_ablation``。
 """
 
-from app.eval.dataset import load_dataset
-from app.eval.metrics import aggregate_metrics, compute_metrics
-from app.eval.retrieval import run_deep, run_dense, run_fast, run_hybrid, run_hyde_rrf, run_sparse
+from app.eval.retrieval.channels import (
+    run_deep,
+    run_dense,
+    run_fast,
+    run_hybrid,
+    run_hyde_rrf,
+    run_sparse,
+)
+from app.eval.retrieval.dataset import load_dataset
+from app.eval.retrieval.metrics import aggregate_metrics, compute_metrics
 
 __all__ = [
     "load_dataset",
     "compute_metrics",
     "aggregate_metrics",
     "run_fast",
-    "run_hyde_rrf",
-    "run_deep",
     "run_dense",
     "run_sparse",
     "run_hybrid",
+    "run_hyde_rrf",
+    "run_deep",
 ]

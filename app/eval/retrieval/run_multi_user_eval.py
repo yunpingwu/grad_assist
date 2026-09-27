@@ -12,11 +12,11 @@
 示例::
 
     # 扁平题集
-    python -m app.eval.run_multi_user_eval \\
+    python -m app.eval.retrieval.run_multi_user_eval \\
         --users-per-book 5 --turns-per-user 10 --concurrency 10
 
     # 多轮对话集（200 轮 / 50 会话 / 25 虚拟用户）
-    python -m app.eval.run_multi_user_eval \\
+    python -m app.eval.retrieval.run_multi_user_eval \\
         --dataset-root data/eval_multi_turn --concurrency 10
 """
 
@@ -35,12 +35,12 @@ from typing import Any
 
 import httpx
 
-from app.eval.dataset import load_dataset
-from app.eval.metrics import aggregate_metrics, compute_metrics
+from app.eval.retrieval.dataset import load_dataset
+from app.eval.retrieval.metrics import aggregate_metrics, compute_metrics
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    root = Path(__file__).resolve().parents[2] / "data" / "eval"
+    root = Path(__file__).resolve().parents[3] / "data" / "eval"
     parser = argparse.ArgumentParser(description="多用户并发、多轮复用 session_id 的 Agent 评测")
     parser.add_argument("--dataset-root", type=Path, default=root, help="包含多个教材 qa_set.json 的目录")
     parser.add_argument("--url", default="http://127.0.0.1:8000/study/chat", help="studyservice chat SSE 地址")

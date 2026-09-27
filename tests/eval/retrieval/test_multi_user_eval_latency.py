@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from app.eval import run_multi_user_eval as runner
+from app.eval.retrieval import run_multi_user_eval as runner
 
 
 def _sse(event: dict[str, Any]) -> bytes:
