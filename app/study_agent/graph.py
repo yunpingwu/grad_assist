@@ -62,10 +62,18 @@ def study_system_prompt(request: ModelRequest) -> str:
     requirement = state.get("requirement") or "回答教材相关问题，或按需整理成学习资料。"
     intent = state.get("intent") or _DEFAULT_INTENT
     intent_name = intent if intent in _INTENT_BLOCKS else _DEFAULT_INTENT
+    conf, src = state.get("intent_confidence"), state.get("intent_source") or "?"
+    if isinstance(conf, (int, float)):
+        intent_note = f"前置识别判定本轮意图为「{intent_name}」（置信度 {conf:.2f}，来源 {src}）。"
+        if conf < 0.6:
+            intent_note += "该判定置信度偏低：与用户原话对不上时以原话为准；产出方向确实不明，可先用 ask_clarification 反问一次。"
+    else:
+        intent_note = f"前置识别未产出置信度（降级路径），按「{intent_name}」块行事；拿不准用户要什么时可先用 ask_clarification 反问一次。"
     return PromptTemplate.from_template(load_prompt("study_chat")).format(
         textbook_name=state.get("textbook_name", ""),
         requirement=requirement,
         intent_block=load_prompt(f"intent/{intent_name}"),
+        intent_note=intent_note,
     )
 
 
@@ -101,7 +109,13 @@ async def understand_query(state: StudyState, runtime: Runtime) -> dict:
             f"({intent_result.source}, {intent_result.confidence:.2f}), "
             f"多轮={bool(history.strip())}"
         )
-        return {"intent": intent_result.intent}
+        # 置信度与来源一并入 state：system prompt 的「意图预判」段据此提示模型
+        # 低置信时自行斟酌 ask_clarification（路由判不准 ≠ 必反问，最终裁量在模型）
+        return {
+            "intent": intent_result.intent,
+            "intent_confidence": intent_result.confidence,
+            "intent_source": intent_result.source,
+        }
     except Exception as exc:
         logger.warning(f"前置 query 理解失败，回退默认行为块 {_DEFAULT_INTENT}: {exc!r}")
         return {"intent": _DEFAULT_INTENT}
@@ -130,6 +144,7 @@ def build_graph(checkpointer=None):
                 model=get_llm_client(),
                 trigger=("tokens", 32000),  # 护栏2：单次上下文超 3.2w token 才触发摘要（控成本+延迟，非防爆，窗口 1M）
                 keep=("messages", 5),        # 触发后保留最近 5 条消息不摘要
+                trim_tokens_to_summarize=None,  # 摘要输入不裁剪
             ),
             HumanInTheLoopMiddleware(
                 interrupt_on={"write_file": True, "edit_file": True, "append_file": True}

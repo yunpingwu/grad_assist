@@ -40,6 +40,10 @@ class StudyState(TypedDict):
     requirement: str
     # 意图分类（前置 query 理解识别；explain/generate/quiz/plan/chat/unclear），system prompt 据此选块
     intent: NotRequired[str]
+    # 意图判定置信度与来源档（keyword/embedding/llm/fallback），随意图一并透传给 system prompt
+    # 的「意图预判」段——低置信提示模型自行斟酌 ask_clarification（降级路径可缺省）
+    intent_confidence: NotRequired[float]
+    intent_source: NotRequired[str]
     # 多轮对话（create_agent 依赖；add_messages 每轮追加而非覆盖）
     messages: Annotated[list[AnyMessage], add_messages]
     # 落盘清单（收尾后写回）

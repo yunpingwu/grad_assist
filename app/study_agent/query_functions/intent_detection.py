@@ -4,13 +4,15 @@
 意图（IntentResult），供 system prompt 动态选择行为/输出块。
 
 三档设计（按延迟/成本递增，命中即停）：
-1. 关键词快车道：只对「行为类」强信号词做保守判定，歧义/未命中不硬判；
-2. embedding 语义路由：query 与各意图描述向量比对（复用 BGE-M3），高相似直接定、
-   低相似判「领域外」（多轮时例外，见下），中等置信交下一档；
+1. 关键词快车道：只对「行为类」强信号词做保守判定，歧义/未命中不硬判；命中后还须经
+   例句池 top1 核验（池冠意图与关键词意图一致才放行）——「生成树」「CRC多项式测试」这类
+   词面巧合黑名单写不完，核验不过即视同未命中续走漏斗，宁可多沉一档也不带着疑点直返；
+2. embedding 语义路由：query 与各意图例句池比对取 top-3 均值（复用 BGE-M3），高相似直接
+   定、低相似判「领域外」（多轮时例外，见下），中等置信交下一档；
 3. LLM 结构化兜底：最终判定，白名单校验防越界；单独收紧超时（拿不到就回退安全默认「讲解」，
    绝不为一个只影响行为块选择的判定等满客户端默认 120s 重试）。
 
-对话历史只在第 3 档进入输入：前两档是「当前问句 vs 意图描述」的比对，混入历史只会
+对话历史只在第 3 档进入输入：前两档是「当前问句 vs 意图例句」的比对，混入历史只会
 稀释语义；而多轮的「那再来十道」「这个怎么证」必须靠历史才能判准，故兜底层按
 【历史问题】+【最新问题】两段喂给 LLM。低相似且存在历史时不在第 2 档判死，下沉到
 第 3 档消歧（无历史的低相似仍是「领域外」，不为闲聊多花一次 LLM 调用）。
@@ -40,13 +42,48 @@ INTENT_ORDER = ("explain", "generate", "quiz", "plan", "chat")
 UNCLEAR = "unclear"
 VALID_INTENTS = frozenset({*INTENT_ORDER, UNCLEAR})
 
-# 各意图的语义描述：embedding 路由把 query 与这些描述做相似度比对
-INTENT_DESCRIPTIONS: dict[str, str] = {
-    "explain": "讲解概念、答疑、解释原理、归纳对比、总结知识点",
-    "generate": "生成学习资料、整理成文档、考点总结、复习笔记、大纲、存成文件",
-    "quiz": "出题、自测题、练习题、习题集、测试卷、选择题、简答题",
-    "plan": "复习计划、学习计划、学习路径、如何安排学习、备考规划",
-    "chat": "寒暄、问候、感谢、道别、日常闲聊、常识性短答",
+# 各意图的例句池：embedding 路由把 query 与池内例句算 cosine、取 top-3 均值作为该意图
+# 得分（业内 semantic-router 的动态评分模式）。相比单条长描述：①短句问法不再被百字定义
+# 的相似度基线压分；②top-3 均值天然抗个别离群例句。起草约束：不放 unclear（拒识区靠
+# _EMBED_LOW 兜底）、避开关键词快车道已拦截的措辞、不与评测集 query 重复（泄漏检查见
+# app/eval/intent/run_threshold_ablation.py 的 --leak-check）。
+INTENT_EXAMPLES: dict[str, tuple[str, ...]] = {
+    "explain": (
+        "指针到底是什么，它到底有什么用",
+        "为什么浮点数判断相等不能用等号",
+        "规范和范式这两个词我总搞混",
+        "这段代码为什么会报段错误",
+        "快排的划分思想给我捋一捋",
+        "没看懂，能不能说人话版",
+    ),
+    "generate": (
+        "把这章的重点公式收拢到一个文件里",
+        "最近作业里的差错在哪，汇总一下给我",
+        "这一讲的重点给我弄成一页纸",
+        "把刚才讲的东西存成md发我",
+        "帮我把各章难点汇总成对照表",
+    ),
+    "quiz": (
+        "看看我是真懂了还是假懂了",
+        "给我来几道填空",
+        "下午就考试了先来两道手感一下",
+        "面我几个链表的问题",
+        "让我自己动手敲几道",
+    ),
+    "plan": (
+        "接下来二十天的复习帮我拉开",
+        "数学和408并行来得及吗",
+        "给我整个每周学习周表",
+        "零基础先啃哪本",
+        "每天通勤路上该看点什么",
+    ),
+    "chat": (
+        "嘿，在忙吗",
+        "烦死了不想学了",
+        "你是真人还是机器人",
+        "撤了，明天再聊",
+        "中午吃啥好",
+    ),
 }
 
 # 关键词规则：只覆盖「行为类」强信号词（generate/quiz/plan）。
@@ -59,9 +96,10 @@ _KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-# embedding 语义路由的相似度阈值（BGE-M3 稠密向量已 L2 归一化，点积即 cosine）。
-# 经验值，建议用真实 query 日志按 precision/recall 校准。
-_EMBED_HIGH = 0.5  # 达到即高置信直接定
+# embedding 语义路由的直判判据（例句池 top-3 均值分布；BGE-M3 稠密向量已 L2 归一化，
+# 点积即 cosine）。2026-09-26 例句池消融定标（app/eval/intent/run_threshold_ablation.py。
+_EMBED_HIGH = 0.55  # top1 达到且与次冠池差 ≥ _EMBED_MARGIN 才高置信直判
+_EMBED_MARGIN = 0.05  # top1 与 top2 的最小领先量，防两池并列时的强行定夺
 _EMBED_LOW = 0.3  # 单轮低于即判「领域外」；多轮短句易落在此处，下沉 LLM 层用历史消歧
 
 # 关键词快车道的置信度（规则命中视为高置信，留少量余量）
@@ -73,29 +111,53 @@ _KEYWORD_CONF = 0.95
 _LLM_TIMEOUT_S = 8
 _LLM_MAX_RETRIES = 0
 
-# ── 意图描述向量的预计算缓存 ─────────────────────────────────
-# 5 条意图描述是常量，但每次语义路由都与 query 一起编码（6 条/次），造成 5/6
-# 的 embedding 计算浪费。这里把描述向量在进程内预计算一次（懒加载，仅首个请求
-# 触发一次 5 条编码），后续语义路由只编码 query 单条。描述文案或模型变更后随
-# 进程重启自动重建，无需磁盘持久化。
-_precomputed_desc_vectors: list[list[float]] | None = None
-_desc_vectors_lock = asyncio.Lock()
+# ── 意图例句向量的预计算缓存 ─────────────────────────────────
+# 例句池是常量（约 26 条），但每次语义路由若连 query 一起编码，绝大多数算力花在
+# 重复的例句上。这里在进程内预计算一次（懒加载，仅首个请求触发一批编码），后续
+# 路由只编码 query 单条。例句文案或模型变更后随进程重启自动重建，无需磁盘持久化。
+_precomputed_example_vectors: list[list[list[float]]] | None = None
+_example_vectors_lock = asyncio.Lock()
 
 
-async def _get_intent_desc_vectors() -> list[list[float]]:
-    """获取 5 个意图描述的稠密向量（与 INTENT_ORDER 对齐）。
+async def _get_intent_example_vectors() -> list[list[list[float]]]:
+    """获取各意图例句池的稠密向量（外层与 INTENT_ORDER 对齐，内层与池内例句对齐）。
 
     进程内懒计算一次（lock 保证并发首个请求只触发一次编码），随后回填进程缓存。
     """
-    global _precomputed_desc_vectors
-    if _precomputed_desc_vectors is not None:
-        return _precomputed_desc_vectors
-    async with _desc_vectors_lock:
-        if _precomputed_desc_vectors is not None:
-            return _precomputed_desc_vectors
-        emb = await agenerate_embeddings(list(INTENT_DESCRIPTIONS[i] for i in INTENT_ORDER))
-        _precomputed_desc_vectors = emb["dense"]
-        return _precomputed_desc_vectors
+    global _precomputed_example_vectors
+    if _precomputed_example_vectors is not None:
+        return _precomputed_example_vectors
+    async with _example_vectors_lock:
+        if _precomputed_example_vectors is not None:
+            return _precomputed_example_vectors
+        texts = [q for intent in INTENT_ORDER for q in INTENT_EXAMPLES[intent]]
+        dense = (await agenerate_embeddings(texts))["dense"]
+        sizes = [len(INTENT_EXAMPLES[i]) for i in INTENT_ORDER]
+        pools, cursor = [], 0
+        for size in sizes:
+            pools.append(dense[cursor : cursor + size])
+            cursor += size
+        _precomputed_example_vectors = pools
+        return _precomputed_example_vectors
+
+
+# 意图得分取池内相似度前几名做均值：3 能覆盖住「多句式池」的主流问法，
+# 又不至于把池中弱相关例句也平均进来
+_POOL_TOP_K = 3
+
+
+def _pool_scores(query_vec: list[float], pools: list[list[list[float]]]) -> list[float]:
+    """逐意图算 query 与例句池相似度的 top-K 均值（与 pools/INTENT_ORDER 对齐）。
+
+    dense 已 L2 归一化，点积即余弦相似度（内联，免去独立辅助函数）。池内例句不足
+    K 条时按实际条数取均值。
+    """
+    scores = []
+    for pool in pools:
+        sims = sorted((sum(x * y for x, y in zip(query_vec, v, strict=True)) for v in pool), reverse=True)
+        top = sims[:_POOL_TOP_K]
+        scores.append(sum(top) / len(top))
+    return scores
 
 
 def format_history(messages: list[AnyMessage]) -> str:
@@ -134,33 +196,34 @@ def _classify_by_keyword(text: str) -> IntentResult | None:
     return IntentResult(intent=best_intent, confidence=_KEYWORD_CONF, source="keyword")
 
 
-async def _classify_by_embedding(text: str, multi_turn: bool = False) -> IntentResult | None:
-    """embedding 语义路由：query 与各意图描述向量比对（复用 BGE-M3）。
+async def _classify_by_embedding(text: str, multi_turn: bool = False, scores: list[float] | None = None) -> IntentResult | None:
+    """embedding 语义路由：query 与各意图例句池比对，得分取池内 top-3 相似度均值。
 
-    意图描述向量为常量，已在进程内预计算（见 _get_intent_desc_vectors），
+    例句向量为常量，已在进程内预计算（见 _get_intent_example_vectors），
     每次只编码 query 单条。多轮场景（multi_turn=True）下低相似不判死：
-    「那再来十道」这类省略句本就难与意图描述对齐，交 LLM 层用历史消歧。
+    「那再来十道」这类省略句本就难与例句对齐，交 LLM 层用历史消歧。
 
     Args:
         text: 当前用户 query 原文（不含历史，历史会稀释语义比对）。
         multi_turn: 是否存在对话历史，决定低相似时判「领域外」还是下沉 LLM。
+        scores: 已算好的各意图池得分（关键词档池核验时编过一次码，透传下来避免重复编码）。
 
     Returns:
         高置信或「领域外」时返回结果；中等置信或多轮低相似返回 None 交 LLM 兜底。
     """
-    desc_vectors = await _get_intent_desc_vectors()
-    emb = await agenerate_embeddings([text])
-    query_vec = emb["dense"][0]
-    # dense 已 L2 归一化，点积即余弦相似度（内联，免去独立辅助函数）
-    sims = [sum(x * y for x, y in zip(query_vec, v, strict=True)) for v in desc_vectors]
-    best_idx = max(range(len(sims)), key=sims.__getitem__)
-    best_sim = float(sims[best_idx])
+    if scores is None:
+        pools = await _get_intent_example_vectors()
+        emb = await agenerate_embeddings([text])
+        scores = _pool_scores(emb["dense"][0], pools)
+    ranked = sorted(scores, reverse=True)
+    best_idx = max(range(len(scores)), key=scores.__getitem__)
+    top1, top2 = ranked[0], ranked[1]
 
-    if best_sim >= _EMBED_HIGH:
-        return IntentResult(INTENT_ORDER[best_idx], best_sim, "embedding")
-    if best_sim < _EMBED_LOW and not multi_turn:
-        return IntentResult(UNCLEAR, best_sim, "embedding")  # 与所有意图都低相似
-    return None  # 中等置信（或多轮低相似），交 LLM 兜底
+    if top1 >= _EMBED_HIGH and top1 - top2 >= _EMBED_MARGIN:
+        return IntentResult(INTENT_ORDER[best_idx], float(top1), "embedding")
+    if top1 < _EMBED_LOW and not multi_turn:
+        return IntentResult(UNCLEAR, float(top1), "embedding")  # 与所有例句池都低相似
+    return None  # 中等置信 / 过线但没拉开 / 多轮低相似，交 LLM 兜底
 
 
 async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
@@ -205,13 +268,27 @@ async def detect_intent(text: str, history: str = "") -> IntentResult:
             return IntentResult(UNCLEAR, 0.0, "fallback")
         multi_turn = bool((history or "").strip())
 
-        # 1) 关键词快车道
-        if (result := _classify_by_keyword(query)) is not None:
-            return result
+        # 1) 关键词快车道 + 例句池 top1 核验：命中不直返，先看池冠是否同意。
+        #    强信号字词面巧合（「生成树」含「生成」）黑名单写不完，语义核验兜住；
+        #    核验要编码（GPU 单条几十毫秒），对多数本就下沉的 query 是零边际成本。
+        kw = _classify_by_keyword(query)
+        pool_scores: list[float] | None = None
+        if kw is not None:
+            try:
+                emb_pools = await _get_intent_example_vectors()
+                emb = await agenerate_embeddings([query])
+                pool_scores = _pool_scores(emb["dense"][0], emb_pools)
+            except Exception as exc:
+                logger.warning(f"关键词池核验失败，信任关键词档: {exc}")
+                return kw
+            pool_top1 = INTENT_ORDER[max(range(len(pool_scores)), key=pool_scores.__getitem__)]
+            if pool_top1 == kw.intent:
+                return kw
+            logger.info(f"关键词命中被池核验降级: 「{query[:30]}」 {kw.intent}≠池冠 {pool_top1}，视同未命中续走漏斗")
 
-        # 2) embedding 语义路由（失败不阻断，降级 LLM）
+        # 2) embedding 语义路由（失败不阻断，降级 LLM；核验编过码则直接复用分数）
         try:
-            if (result := await _classify_by_embedding(query, multi_turn)) is not None:
+            if (result := await _classify_by_embedding(query, multi_turn, scores=pool_scores)) is not None:
                 return result
         except Exception as exc:
             logger.warning(f"意图识别 embedding 路由失败，降级 LLM: {exc}")
