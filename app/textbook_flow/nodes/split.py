@@ -9,6 +9,7 @@ from langgraph.types import StreamWriter, interrupt
 from pypdf import PdfReader, PdfWriter
 
 from app.core import log_node, logger
+from app.textbook_flow.nodes.toc_tree import toc_trees
 from app.textbook_flow.state import TextBookState
 
 
@@ -69,76 +70,12 @@ def get_pre_offset(extract_dirs: Path) -> list[dict]:
     return all_match
 
 
-def _extract_chapters_from_toc(toc_text: str) -> list[dict]:
-    """从目录文本解析章节（编号 / 标题 / 印刷页码）。
-
-    兼容三种目录格式：
-    1. 单行点线引导：``第1章 绪论 …… 3``
-    2. 单行无点线（空格直连页码）：``第13章 半监督学习 293``
-    3. 标题跨行（页码落在下一行）：``第16章 分布式处理、客户-服务器`` + 下一行 ``和集群……426``
-
-    解析完成后按印刷页码升序排序，消除 MinerU 双栏混排导致的目录原始顺序错乱。
-    """
-    start_re = re.compile(r"^\s*(第?\s*\d+\s*章)\s+(.*)$")
-    page_re = re.compile(r"([…….]{2,}\s*|\s+)(\d+)\s*$")
-    section_re = re.compile(r"^\s*\d+\.\d+")  # 小节行，跨行合并标题时遇到即停
-
-    chapters: list[dict] = []
-    lines = toc_text.splitlines()
-    i = 0
-    while i < len(lines):
-        m = start_re.match(lines[i])
-        if not m:
-            i += 1
-            continue
-
-        num = re.sub(r"\s+", "", m.group(1))
-        if not num.startswith("第"):
-            num = "第" + num
-
-        title_text = m.group(2).strip()
-        pm = page_re.search(title_text)
-        page = None
-
-        if pm:
-            # 首行已含页码：剥离点线/空格及其后的页码
-            title = title_text[: pm.start()].strip()
-            page = int(pm.group(2))
-        else:
-            # 标题可能跨行：向后合并延续行直到取到页码（最多 3 行）
-            parts = [title_text]
-            found = False
-            j = i + 1
-            while j < len(lines) and j <= i + 3:
-                line = lines[j].strip()
-                if not line or start_re.match(line) or section_re.match(line):
-                    break
-                pm2 = page_re.search(line)
-                if pm2:
-                    parts.append(line[: pm2.start()].strip())
-                    page = int(pm2.group(2))
-                    found = True
-                    break
-                parts.append(line)
-                j += 1
-            title = "".join(parts).strip()
-            if not found:
-                # 无页码（如在线章节/附录），参与不到正文切割，跳过
-                i += 1
-                continue
-
-        chapters.append({"num": num, "title": title, "printed_page": page})
-        i += 1
-
-    chapters.sort(key=lambda c: c["printed_page"])
-    return chapters
-
-
-def split_chapter(textbook_path: str, all_match: list[dict]):
+def split_chapter(
+    textbook_path: str, all_match: list[dict], toc_trees: list[list[dict] | None]
+) -> list[str] | None:
     """将教材按章节切割，保存到 textbooks/pdf/pdf_split/{教材名}/ 下
 
-    从 full.md 提取章节页码（效率高于 content_list.json）：
-    - full.md: 每行一个章节，正则直读，1 步到位
+    章节页码由调用方预先解析（toc_trees）并传入，本函数只做切割。
     """
     textbook_path = Path(textbook_path)
 
@@ -147,10 +84,6 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
     if not pdfs:
         logger.warning(f"未找到 PDF 文件: {textbook_path}")
         return
-
-    # mineru_toc 目录已按教材名重命名，与 PDF 名一致，排序后一一对应
-    mineru_toc = textbook_path / "mineru_toc"
-    mineru_dirs = sorted(d for d in mineru_toc.iterdir() if d.is_dir() and (d / "full.md").exists())
 
     output_root = textbook_path / "pdf_split"
 
@@ -169,22 +102,10 @@ def split_chapter(textbook_path: str, all_match: list[dict]):
             continue
 
         logger.info(f"处理教材 [{i + 1}/{len(pdfs)}]: {textbook_name}")
-        # 按名称匹配 mineru_toc 目录（排序后索引对应）
-        if i >= len(mineru_dirs):
-            logger.warning(f"缺少 MinerU 解析结果: {pdf_path.name}")
+        chapters = toc_trees[i] if i < len(toc_trees) else None
+        if not chapters:
+            logger.warning(f"缺少目录解析结果: {pdf_path.name}")
             continue
-
-        full_md = mineru_dirs[i] / "full.md"
-
-        # 读取「## 目录」之后的部分（兼容「## 目 录」带空格）；找不到则回退为全文
-        text = full_md.read_text(encoding="utf-8")
-        toc_match = re.search(r"##\s*目\s*录", text)
-        if not toc_match:
-            logger.warning(f"未找到 '## 目录': {full_md}")
-        toc_text = text[toc_match.start() :] if toc_match else text
-
-        # 解析章节列表（兼容点线 / 无点线 / 跨行标题；解析后按页码升序排序）
-        chapters = _extract_chapters_from_toc(toc_text)
 
         offset = all_match[i]["page_idx"] if i < len(all_match) else "N/A"
         logger.info(f"[{textbook_name}] 正则匹配到 {len(chapters)} 章，offset={offset}")
@@ -269,6 +190,9 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
     for match in all_match:
         logger.info(f"[{match['text'][:20]}] {match['page_idx']}")
 
+    # 章节页码表：切割的数据源（展示用的 toc 事件由 split_contents 单点推送，此处不再 emit）
+    trees = await asyncio.to_thread(toc_trees, textbook_path, pdfs)
+
     # 组装候选 offset（教材名 + 自动 page_idx），供人工校准
     candidates = [
         {"textbook_name": pdf.stem, "offset": all_match[i]["page_idx"] if i < len(all_match) else 0}
@@ -296,7 +220,7 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
 
     state["offsets"] = confirmed
     # 按章节切割教材（pypdf 属 CPU/IO 密集，放线程池避免阻塞事件循环）
-    sub_pdf_paths = await asyncio.to_thread(split_chapter, textbook_path, all_match)
+    sub_pdf_paths = await asyncio.to_thread(split_chapter, textbook_path, all_match, trees)
     state["sub_pdf_paths"] = sub_pdf_paths
     writer({"type": "message", "status": "running", "message": f"章节切割完成，共 {len(sub_pdf_paths)} 本教材", "progress": 0.55})
 

@@ -11,6 +11,7 @@ from pypdf import PdfReader, PdfWriter
 
 from app.config import mineru_config
 from app.core import log_node, logger
+from app.textbook_flow.nodes.toc_tree import build_toc_payload
 from app.textbook_flow.state import TextBookState
 
 
@@ -240,6 +241,8 @@ async def split_contents(state: TextBookState, *, writer: StreamWriter) -> dict:
         state["extracted_contents_dirs"] = extracted_dirs
         logger.info(f"mineru_toc 已存在，跳过解析，共 {len(extracted_dirs)} 个目录")
         writer({"type": "message", "status": "running", "message": "目录解析结果已存在，直接复用", "progress": 0.4})
+        # 全流水线唯一的目录树实时推送点：full.md 就绪即逐本推 toc 事件（首条流中途可见）
+        await _emit_toc_events(textbook_path, writer)
         return state
 
     toc_dir = textbook_path / "pdf_toc"
@@ -265,7 +268,16 @@ async def split_contents(state: TextBookState, *, writer: StreamWriter) -> dict:
 
     state["extracted_contents_dirs"] = extracted_dirs
     writer({"type": "message","status": "running","message": f"目录解析完成，共 {len(extracted_dirs)} 本教材","progress": 0.4,})
+    # 解析完成后立即逐本推送目录树（实时展示的唯一推送点；重进恢复走 info 帧快照）
+    await _emit_toc_events(textbook_path, writer)
     return state
+
+
+async def _emit_toc_events(textbook_path: Path, writer: StreamWriter) -> None:
+    """解析全部教材目录树并逐本推 SSE toc 事件（full.md 读取属 IO 密集放线程池）。"""
+    payload = await asyncio.to_thread(build_toc_payload, textbook_path)
+    for toc in payload:
+        writer({"type": "toc", **toc})
 
 
 # 集成测试已迁移至 tests/textbook_flow/nodes/test_split_contents.py

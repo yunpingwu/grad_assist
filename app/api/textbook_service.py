@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from datetime import datetime
@@ -12,6 +13,7 @@ from app.api.deps import get_user_id
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
+from app.textbook_flow.cache import toc_cache
 from app.textbook_flow.graph import build_graph
 from app.textbook_flow.state import TextBookState
 from app.utils import list_textbooks
@@ -92,6 +94,7 @@ async def resolve_textbooks(
 
     断点续跑：传入已存在的 task_id（断线重连时复用），后台利用 checkpoint 内置能力
     （aget_state 判定中断、astream(None, ...) 从上次完成节点续跑），无需自建任务表。
+    停在偏移确认时不带 offsets 的重连视为「重看」：重放并重新发出 ask_offset，供前端再次弹出确认面板。
     """
     # 任务标识：缺省则新建；传入则复用（用于断线重连/续跑）
     task_id = task_id or str(uuid.uuid4())
@@ -112,9 +115,11 @@ async def resolve_textbooks(
     resumable = bool(prev and not prev.get("ingestion_done") and getattr(snapshot, "next", None))
 
     if pending_offset:
-        if not offsets:
-            raise HTTPException(status_code=400, detail="缺少 offsets：请先确认章节页码偏移后再续跑")
-        run_input = Command(resume={"offsets": offsets})
+        if offsets:
+            run_input: Command | None | TextBookState = Command(resume={"offsets": offsets})
+        else:
+            # 前端凭 task_id 重连找回中断任务：不带 offsets 视为「重看」，重发 ask_offset 供再次确认
+            run_input = None
         resolved_path = prev.get("textbook_path") if prev else None
     elif resumable:
         # 断点续跑：输入传 None，从上次完成节点继续，不做重头解析
@@ -135,16 +140,22 @@ async def resolve_textbooks(
     async def event_gen():
         try:
             if pending_offset or resumable:
-                payload = json.dumps(
-                    {"type": "info", "task_id": task_id, "resumed": True, "message": "检测到中断，正在续跑…"},
-                    ensure_ascii=False,
-                )
+                info = {"type": "info", "task_id": task_id, "resumed": True, "message": "检测到中断，正在续跑…"}
             else:
-                payload = json.dumps(
-                    {"type": "info", "task_id": task_id, "resumed": False, "message": "开始解析", "progress": 0.0},
-                    ensure_ascii=False,
-                )
-            yield f"data: {payload}\n\n"
+                info = {
+                    "type": "info",
+                    "task_id": task_id,
+                    "resumed": False,
+                    "message": "开始解析",
+                    "progress": 0.0,
+                }
+            # 目录树快照：缓存命中直接返回，miss 时从 mineru_toc/full.md 懒重建；
+            # 断线重进凭 info 帧即可恢复常驻树，不依赖流水线节点重放（尚未解析出树时不带该字段）
+            if resolved_path:
+                tocs = await asyncio.to_thread(toc_cache.get_tocs, task_id, resolved_path)
+                if tocs:
+                    info["tocs"] = tocs
+            yield f"data: {json.dumps(info, ensure_ascii=False)}\n\n"
             async for event in textbook_graph.astream(
                 run_input, config=config, stream_mode="custom", durability="sync"
             ):
@@ -157,13 +168,16 @@ async def resolve_textbooks(
                 for i in (getattr(task, "interrupts", None) or ())
             )
             if not awaiting_offset:
+                toc_cache.pop_tocs(task_id)  # 完成即删：树已随流送达，无需再留快照
                 yield f"data: {json.dumps({"type": "done", "task_id": task_id}, ensure_ascii=False)}\n\n"
         except ValueError as exc:
             # 教材未找到等业务错误
+            toc_cache.pop_tocs(task_id)
             payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
             yield f"data: {payload}"
         except Exception as exc:
             logger.exception(f"解析任务 {task_id} 执行异常: {exc}")
+            toc_cache.pop_tocs(task_id)
             payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
             yield f"data: {payload}"
     return StreamingResponse(
@@ -176,7 +190,7 @@ async def resolve_textbooks(
 @router.get("/list", summary="获取所有教材", description="获取所有教材（教材库全局共享，不按用户隔离），支持分页")
 async def get_all_textbooks(
     page: int = Query(1, ge=1, description="页码，从 1 开始"),
-    page_size: int = Query(20, ge=1, le=100, description="每页条数"),
+    page_size: int = Query(8, ge=1, le=100, description="每页条数"),
 ):
     """分页获取教材"""
     result = list_textbooks(page=page, page_size=page_size)
