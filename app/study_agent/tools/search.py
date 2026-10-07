@@ -18,11 +18,12 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
-from app.core import astage, get_metrics, logger
+from app.core import logger
 from app.study_agent.query_functions.embedding_search import search_by_query, search_by_vectors
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
+from app.trace import astage, get_metrics
 from app.utils import (
     agenerate_embeddings,
     get_collection_by_name,
@@ -268,15 +269,16 @@ async def search_textbook(
         if not search_query:
             return "（未提供检索问句，请重试）"
         if metrics is not None:
-            metrics.search_query = search_query
-            metrics.deep = bool(deep)
+            # 逐次检索各占一条，回填只动本次调用的 dict：并发或连续多次检索互不覆盖
+            entry = {"query": search_query, "deep": bool(deep), "recall": 0, "kept": 0, "error": None}
+            metrics.retrievals.append(entry)
         logger.info(f"search_textbook 检索问句: {search_query!r}")
 
         if not deep:
             # 快速路径：单路混合召回（稠密 + 稀疏）后截取 TOP-K
             chunks = await search_by_query(textbook_name, search_query, chapter)
             if metrics is not None:
-                metrics.recall_count = len(chunks)
+                entry["recall"] = len(chunks)
             hits = chunks[:rerank_config.top_k]
         else:
             # 深度路径：两路召回（混合 + HyDE，各扩候选池）→ RRF 融合 → 精排 TOP-K
@@ -295,7 +297,7 @@ async def search_textbook(
             merged = await rrf_merge(embedding_chunks, hyde_chunks)
             merged_hits = [entry["hit"] for entry in merged]
             if metrics is not None:
-                metrics.recall_count = len(merged_hits)
+                entry["recall"] = len(merged_hits)
             try:
                 async with astage("rerank_ms"):
                     # 交叉编码打分后与 RRF 分数加权融合（精排微调而非覆盖），只对返回结果截断
@@ -307,12 +309,14 @@ async def search_textbook(
                 hits = merged_hits[:rerank_config.top_k]
     except Exception as exc:
         # 检索失败降级：只告警并返回友好提示，交由 agent 决定回退 web 或如实说明
+        if metrics is not None:
+            entry["error"] = type(exc).__name__
         logger.warning(f"search_textbook({query!r}, deep={deep}) 失败: {exc}")
         return f"（检索教材失败：{exc}）"
 
     if metrics is not None:
-        # 精排后保留的片段数（仅深度路径精排；快速路径无精排，记最终返回条数）
-        metrics.rerank_count = len(hits) if deep else 0
+        # 送入模型前截断后的条数（补拉的代码块不计入，另由 retrieved_chunk_ids 体现）
+        entry["kept"] = len(hits)
 
     if not hits:
         return "（未检索到相关片段，请把 query 补全为自包含问句或去掉章节限定）"

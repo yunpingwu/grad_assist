@@ -21,18 +21,12 @@ from app.api.deps import get_user_id
 from app.api.req import ChatRequest
 from app.clients import mongo_client
 from app.config import mongo_config
-from app.core import (
-    end_request,
-    flush_metrics,
-    get_metrics,
-    logger,
-    mark_stage,
-    start_request,
-)
+from app.core import logger
 from app.study_agent.graph import build_graph
 from app.study_agent.state import StudyState
 from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
+from app.trace import end_request, flush_metrics, get_metrics, mark_stage, start_request
 
 router = APIRouter(tags=["study"])
 
@@ -151,6 +145,15 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
     """
     t0 = time.perf_counter()
     first_token = False
+    first_event = False
+
+    def mark_first_event() -> None:
+        """首个用户可见事件（thought / tool / token 任一）的延迟：前端真开始出现字的时刻。"""
+        nonlocal first_event
+        if not first_event:
+            mark_stage("llm_first_event_ms", (time.perf_counter() - t0) * 1000)
+            first_event = True
+
     async for chunk, meta in study_graph.astream(
         agent_input, config=config, stream_mode="messages", durability="sync"
     ):
@@ -165,12 +168,15 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
             if real_calls:
                 seg = (str(reasoning) if reasoning else "") + ("\n" if reasoning and speech else "") + speech
                 if seg.strip():
+                    mark_first_event()
                     yield {"type": "thought", "content": seg.strip()}
                 continue
             # 纯正文回合：推理 → thought；正文 → 最终回答 token
             if reasoning:
+                mark_first_event()
                 yield {"type": "thought", "content": str(reasoning)}
             if speech:
+                mark_first_event()
                 if not first_token:
                     # 首个回答正文 token 距开始执行的延迟（首 token 延迟）
                     mark_stage("llm_first_token_ms", (time.perf_counter() - t0) * 1000)
@@ -183,6 +189,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
             # 工具结果：前端展示
             tm_name = getattr(chunk, "name", None)
             if tm_name:
+                mark_first_event()
                 yield {"type": "tool","status": "done","name": tm_name,"content": getattr(chunk, "content", "") or "",}
 
     # 回答生成结束（含工具调用与最终回答），记录生成阶段总耗时

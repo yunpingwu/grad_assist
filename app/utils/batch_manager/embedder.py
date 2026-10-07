@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.core import astage
+from app.trace import astage
 from app.utils.embedding_util import generate_embeddings
 
 # 动态攒批参数：单卡 RTX 5060（8GB）+ BGE-M3（fp16，权重约 2.2GB）。

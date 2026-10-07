@@ -26,8 +26,9 @@ from langchain_core.messages import AnyMessage
 from langchain_core.prompts import PromptTemplate
 
 from app.clients.llm import get_llm_client
-from app.core import astage, load_prompt, logger
+from app.core import load_prompt, logger
 from app.study_agent.entity.intent import IntentResult, _IntentDecision
+from app.trace import astage
 from app.utils import agenerate_embeddings
 
 # 兜底层历史段的空值占位：显式标注首轮，避免模型把空白当成「问题被截断」
@@ -163,13 +164,16 @@ def _pool_scores(query_vec: list[float], pools: list[list[list[float]]]) -> list
 def format_history(messages: list[AnyMessage]) -> str:
     """将 LangChain 消息列表转为历史用户问题纯文本（供兜底层消歧）。
 
+    摘要中间件注入的 ``HumanMessage``（``additional_kwargs["lc_source"] == "summarization"``）
+    会被排除：它是模型自产的整篇回顾，不是用户问题，喂进来只会把兜底层的 input 撑大。
+
     Args:
         messages: 对话消息列表（取除最新一条外的历史用户问题）。
 
     Returns:
         纯文本的历史用户问题，每行「用户: …」；无历史返回空字符串。
     """
-    questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human"]
+    questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human" and m.additional_kwargs.get("lc_source") != "summarization"]
     return "\n".join(questions)
 
 
@@ -238,7 +242,8 @@ async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
     ).with_structured_output(_IntentDecision)
     prompt = PromptTemplate.from_template(load_prompt("intent_classify"))
     decision = await llm.ainvoke(
-        prompt.format(questions_history=(history or "").strip() or _NO_HISTORY, query=text)
+        prompt.format(questions_history=(history or "").strip() or _NO_HISTORY, query=text),
+        config={"tags": ["trace_role:intent"]},
     )
     # 白名单校验：模型可能输出枚举外的值，收敛到 unclear（防注入/越界）
     intent = decision.intent if decision.intent in VALID_INTENTS else UNCLEAR

@@ -34,7 +34,8 @@ async def hyde_doc_generate(search_query: str) -> str:
     output = await chain.ainvoke(
         {
             "search_query": search_query,
-        }
+        },
+        config={"tags": ["trace_role:hyde"]},
     )
     hyde_doc = output.strip()
     logger.info(f"假设性文档预览：{hyde_doc[:100]}")

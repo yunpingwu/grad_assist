@@ -61,9 +61,7 @@ def test_search_textbook_prefers_agent_query(monkeypatch) -> None:
         used.append(search_query)
         return _HYBRID_HITS
 
-    record = SimpleNamespace(
-        search_query="", deep=False, recall_count=0, rerank_count=0, retrieved_chunk_ids=[]
-    )
+    record = SimpleNamespace(retrievals=[], retrieved_chunk_ids=[])
     monkeypatch.setattr(search, "search_by_query", _capture)
     monkeypatch.setattr(search, "get_metrics", lambda: record)
     monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
@@ -72,7 +70,54 @@ def test_search_textbook_prefers_agent_query(monkeypatch) -> None:
         query="C 语言指针常量的用途", textbook_name="C语言程序设计", requirement="那它呢?"
     ))
     assert used == ["C 语言指针常量的用途"], f"未优先采用模型自组的检索问句: {used}"
-    assert record.search_query == "C 语言指针常量的用途"
+    assert record.retrievals[0]["query"] == "C 语言指针常量的用途"
+
+
+def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
+    """一次请求内多次检索逐条留痕，后一次不得覆盖前一次。
+
+    线上出现过 deep=False 却带 rerank 耗时的自相矛盾记录：旧实现把问句/深度/召回数
+    写成请求级标量，第二次检索（含入口写完就抛异常提前返回的路径）会污染第一次的读数。
+    """
+    record = SimpleNamespace(retrievals=[], retrieved_chunk_ids=[])
+    fast_calls = {"n": 0}
+
+    async def _fast_or_boom(textbook_name: str, query_arg: str, chapter: str | None = None) -> list[dict]:
+        # 第一次快检索正常返回，第二次抛错，用于覆盖降级分支的打点
+        fast_calls["n"] += 1
+        if fast_calls["n"] >= 2:
+            raise RuntimeError("milvus 连接超时")
+        return _HYBRID_HITS
+
+    monkeypatch.setattr(search, "get_metrics", lambda: record)
+    monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
+    monkeypatch.setattr(search, "search_by_query", _fast_or_boom)
+    monkeypatch.setattr(search, "hyde_doc_generate", _fake_hyde_generate)
+    monkeypatch.setattr(search, "agenerate_embeddings", _fake_generate_embeddings)
+    monkeypatch.setattr(search, "search_by_vectors", _fake_vectors)
+    monkeypatch.setattr(search, "rrf_merge", _fake_rrf)
+    monkeypatch.setattr(search, "arerank_chunks_weighted", _fake_arerank)
+
+    asyncio.run(search.search_textbook.coroutine(
+        query="指针的用途", deep=True, textbook_name="C语言程序设计"
+    ))
+    asyncio.run(search.search_textbook.coroutine(
+        query="数组的定义", textbook_name="C语言程序设计"
+    ))
+    assert "检索教材失败" in asyncio.run(search.search_textbook.coroutine(
+        query="越界的问句", textbook_name="C语言程序设计"
+    ))
+
+    assert [(e["query"], e["deep"], e["recall"], e["kept"]) for e in record.retrievals] == [
+        ("指针的用途", True, 2, 1),
+        ("数组的定义", False, 4, 4),
+        ("越界的问句", False, 0, 0),
+    ], record.retrievals
+    assert [e["error"] for e in record.retrievals] == [None, None, "RuntimeError"]
+
+
+async def _fake_vectors(_tb, _dense, _sparse, chapter=None, limit=5) -> list[dict]:
+    return _HYBRID_HITS
 
 
 def test_search_textbook_falls_back_to_requirement(monkeypatch) -> None:

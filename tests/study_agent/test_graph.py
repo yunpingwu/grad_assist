@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.study_agent import graph
 from app.study_agent.entity.intent import IntentResult
+from app.trace import RequestMetrics
 
 
 def test_summarization_trim_limit_not_default(monkeypatch) -> None:
@@ -23,6 +24,19 @@ def test_summarization_trim_limit_not_default(monkeypatch) -> None:
     assert graph.build_graph() == "stub_graph"
     mw = next(m for m in captured["middleware"] if isinstance(m, SummarizationMiddleware))
     assert mw.trim_tokens_to_summarize is None, "摘要输入不应裁剪：触发时全量约 32k，模型窗口 1M 装得下"
+
+
+def test_summarization_call_is_tagged_for_trace(monkeypatch) -> None:
+    """摘要那次 LLM 调用要带 ``trace_role:summary``，与 agent 首轮区分开。
+
+    摘要一触发就是 7w token 量级的调用（2026-10-06 实见），不带标签时它在观测里与
+    agent 调用混在一起，前后对比会把摘要的账记到提示词重排上。
+    """
+    captured: dict = {}
+    monkeypatch.setattr(graph, "create_agent", lambda **kw: captured.update(kw) or "stub_graph")
+    graph.build_graph()
+    mw = next(m for m in captured["middleware"] if isinstance(m, SummarizationMiddleware))
+    assert "trace_role:summary" in mw.model.config["tags"]
 
 
 def _render_system_prompt(state: dict) -> str:
@@ -49,7 +63,8 @@ def test_understand_query_passes_history_and_returns_intent_only(monkeypatch) ->
         return IntentResult("quiz", 0.95, "keyword")
 
     monkeypatch.setattr(graph, "detect_intent", _fake_detect)
-    monkeypatch.setattr(graph, "get_metrics", lambda: None)
+    record = RequestMetrics(request_id="t1")
+    monkeypatch.setattr(graph, "get_metrics", lambda: record)
     state = {
         "task_id": "t1",
         "textbook_name": "C语言程序设计",
@@ -65,6 +80,9 @@ def test_understand_query_passes_history_and_returns_intent_only(monkeypatch) ->
 
     assert update == {"intent": "quiz", "intent_confidence": 0.95, "intent_source": "keyword"}, f"不应再产出 rewritten_query: {update}"
     assert seen == [("那再来十道", "用户: 帮我出五道选择题")], "历史未随当前问句一起送进意图识别"
+    assert (record.intent, record.intent_source, record.intent_confidence) == (
+        "quiz", "keyword", 0.95
+    ), "意图三元组未写进请求指标，线上无法复盘判错是阈值还是例句池问题"
 
 
 def test_understand_query_first_turn_has_empty_history(monkeypatch) -> None:

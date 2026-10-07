@@ -14,8 +14,9 @@ import time
 from FlagEmbedding import BGEM3FlagModel
 
 from app.config import embedding_config
-from app.core import logger, mark_stage
+from app.core import logger
 from app.core.decorators import retry
+from app.trace import mark_stage
 
 _model = None
 

@@ -16,7 +16,8 @@ import time
 from FlagEmbedding import FlagReranker
 
 from app.config import rerank_config
-from app.core import logger, mark_stage
+from app.core import logger
+from app.trace import mark_stage
 
 _reranker = None
 

@@ -5,23 +5,25 @@ import asyncio
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.core import end_request, start_request
 from app.study_agent.entity.intent import _IntentDecision
 from app.study_agent.query_functions import intent_detection
+from app.trace import end_request, start_request
 
 
 class _RecordingLLM:
-    """记录发给 LLM 兜底层的 prompt 文本，并返回预置判定结果。"""
+    """记录发给 LLM 兜底层的 prompt 文本与 config tags，并返回预置判定结果。"""
 
-    def __init__(self, sink: list[str], decision: _IntentDecision) -> None:
+    def __init__(self, sink: list[str], decision: _IntentDecision, tag_sink: list[str]) -> None:
         self.sink = sink
         self.decision = decision
+        self.tag_sink = tag_sink
 
     def with_structured_output(self, _schema):
         return self
 
-    async def ainvoke(self, prompt_text: str) -> _IntentDecision:
+    async def ainvoke(self, prompt_text: str, config=None) -> _IntentDecision:
         self.sink.append(prompt_text)
+        self.tag_sink.extend((config or {}).get("tags") or [])
         return self.decision
 
 
@@ -32,7 +34,7 @@ def _stub_external_bindings(monkeypatch) -> dict:
     返回的 dict 供测试读取副作用：``llm_prompts`` 为兜底层收到的 prompt 文本，
     ``embedded`` 为送去编码的文本列表，``sim`` 为本轮 query 向量与例句向量的点积。
     """
-    state: dict = {"llm_prompts": [], "embedded": [], "sim": 0.4, "llm_kwargs": {}}
+    state: dict = {"llm_prompts": [], "embedded": [], "sim": 0.4, "llm_kwargs": {}, "llm_tags": []}
 
     async def _example_vectors() -> list[list[list[float]]]:
         # 每个意图的例句池向量取同一方向：query 向量 [sim, 0] 与任一条的点积即 sim，
@@ -43,7 +45,7 @@ def _stub_external_bindings(monkeypatch) -> dict:
         state["embedded"].extend(texts)
         return {"dense": [[state["sim"], 0.0] for _ in texts], "sparse": [{0: 1.0} for _ in texts]}
 
-    llm = _RecordingLLM(state["llm_prompts"], _IntentDecision(intent="generate", confidence=0.8))
+    llm = _RecordingLLM(state["llm_prompts"], _IntentDecision(intent="generate", confidence=0.8), state["llm_tags"])
 
     def _client(**kwargs):
         state["llm_kwargs"] = kwargs
@@ -74,6 +76,20 @@ def test_format_history_empty_without_history() -> None:
     assert intent_detection.format_history([]) == ""
 
 
+def test_format_history_skips_summarization_message() -> None:
+    """摘要消息也是 HumanMessage，但它不是用户问题：整篇塞进兜底层会让 input 涨十倍。
+
+    2026-10-06 实测：摘要在第 6 轮触发后，意图调用 input 从 371 token 跳到 4176 token，
+    intent_ms 从 0.66~0.94s 涨到 0.81~1.54s——它只是消歧用的上下文，不该是模型自产的长文。
+    """
+    summary = HumanMessage(
+        content="Here is a summary of the conversation to date:\n\n" + "指针相关内容回顾。" * 200,
+        additional_kwargs={"lc_source": "summarization"},
+    )
+    messages = [summary, AIMessage(content="指针是一种…"), HumanMessage(content="如何使用它?")]
+    assert intent_detection.format_history(messages) == ""
+
+
 def test_detect_intent_empty_input() -> None:
     r = asyncio.run(intent_detection.detect_intent(""))
     assert r.intent == "unclear" and r.source == "fallback"
@@ -82,6 +98,16 @@ def test_detect_intent_empty_input() -> None:
 def test_embedding_medium_confidence_delegates_to_llm(_stub_external_bindings) -> None:
     r = asyncio.run(intent_detection.detect_intent("随便讲讲这本书"))
     assert r.intent == "generate" and r.source == "llm"
+
+
+def test_llm_fallback_call_is_tagged_for_trace(_stub_external_bindings) -> None:
+    """兜底层调用要带 ``trace_role:intent`` 标签：观测回调靠它把这次小调用与 agent 首轮分开。
+
+    没有标签时，探针读到的一轮首次调用是这次 267 token 的意图判定，而不是 agent 的
+    3618 token 首轮——提示词重排的前后对比会整个读错对象（2026-10-06 实见）。
+    """
+    asyncio.run(intent_detection.detect_intent("随便讲讲这本书"))
+    assert _stub_external_bindings["llm_tags"] == ["trace_role:intent"]
 
 
 def test_intent_examples_pool_shape() -> None:

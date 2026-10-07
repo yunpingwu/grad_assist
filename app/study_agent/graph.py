@@ -28,7 +28,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from app.clients.llm import get_llm_client
-from app.core import get_metrics, load_prompt, logger
+from app.core import load_prompt, logger
 from app.study_agent.query_functions.context_stub import stub_old_search_results
 from app.study_agent.query_functions.intent_detection import detect_intent, format_history
 from app.study_agent.state import StudyState
@@ -44,6 +44,7 @@ from app.study_agent.tools import (
     search_web,
     write_file,
 )
+from app.trace import get_metrics
 
 # 意图 → 行为块文件的映射（白名单，防越界读文件）
 _INTENT_BLOCKS = frozenset({"explain", "generate", "quiz", "plan", "chat"})
@@ -104,6 +105,8 @@ async def understand_query(state: StudyState, runtime: Runtime) -> dict:
         if metrics is not None:
             metrics.intent = intent_result.intent
             metrics.intent_source = intent_result.source
+            # 置信度一并留痕：判错时要靠它区分「阈值/例句池检索」问题，消融实验也读这个字段
+            metrics.intent_confidence = intent_result.confidence
         logger.info(
             f"query 理解: intent={intent_result.intent}"
             f"({intent_result.source}, {intent_result.confidence:.2f}), "
@@ -141,7 +144,9 @@ def build_graph(checkpointer=None):
             study_system_prompt,  # dynamic_prompt：按意图动态渲染 system prompt
             ModelCallLimitMiddleware(run_limit=20),  # 护栏1：步数上限（到顶 end 收尾）
             SummarizationMiddleware(
-                model=get_llm_client(),
+                # 打标只给摘要这次调用：create_agent 的 model 参数只收 BaseChatModel，
+                # 所以 agent 主体调用保持未打标——观测侧把无 trace_role 的调用一律当 agent
+                model=get_llm_client().with_config(tags=["trace_role:summary"]),
                 trigger=("tokens", 32000),  # 护栏2：单次上下文超 3.2w token 才触发摘要（控成本+延迟，非防爆，窗口 1M）
                 keep=("messages", 5),        # 触发后保留最近 5 条消息不摘要
                 trim_tokens_to_summarize=None,  # 摘要输入不裁剪
