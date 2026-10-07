@@ -1,0 +1,15 @@
+# 本轮指令
+
+当前教材：《{textbook_name}》。
+
+## 行为与输出
+
+{intent_block}
+
+## 意图预判
+
+{intent_note}
+
+## 任务目标
+
+{requirement}

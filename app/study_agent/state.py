@@ -46,6 +46,10 @@ class StudyState(TypedDict):
     intent_source: NotRequired[str]
     # 多轮对话（create_agent 依赖；add_messages 每轮追加而非覆盖）
     messages: Annotated[list[AnyMessage], add_messages]
+    # 上一轮结束时刻（墙钟秒）：下一轮据此算空档，判断隐式前缀缓存是否已冷
+    last_activity_at: NotRequired[float]
+    # 检索结果存根化的定盘位（消息 id）：只前进不回退，同一 mark 下请求视图逐字稳定
+    stub_mark_id: NotRequired[str]
     # 落盘清单（收尾后写回）
     materials: NotRequired[list[Material]]
     # 是否完成（收尾后置 True）
