@@ -27,7 +27,6 @@ from app.trace import astage, get_metrics
 from app.utils import (
     agenerate_embeddings,
     get_collection_by_name,
-    query_chunks_by_ids,
     query_section_codes,
 )
 
@@ -135,6 +134,34 @@ def _format_hits(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _build_artifact(
+    textbook_name: str, query: str, deep: bool, chunks: list[dict], content: str
+) -> dict:
+    """组装 ToolMessage.artifact：原文与片段定位随消息落库，但不发给模型。
+
+    发给模型的只有 ``content``（实测 ChatOpenAI 序列化请求时不带 artifact），历史降级把
+    content 换成一行记录后，回显与审计仍能从这里的 ``content`` 取回原文。
+    """
+    records = []
+    for hit in chunks:
+        entity = hit.get("entity") or hit
+        location = " > ".join(x for x in (entity.get("chapter") or "", entity.get("section") or "") if x)
+        records.append(
+            {
+                "id": str(hit.get("id") or entity.get("id") or ""),
+                "location": location,
+                "block_type": entity.get("block_type") or "text",
+            }
+        )
+    return {
+        "textbook_name": textbook_name,
+        "query": query,
+        "deep": bool(deep),
+        "chunks": records,
+        "content": content,
+    }
+
+
 def _record_retrieved_chunk_ids(chunks: list[dict]) -> None:
     """把本次检索最终返回的 chunk ID 按顺序写入请求级指标。"""
     metrics = get_metrics()
@@ -237,14 +264,14 @@ def _enrich_hits_with_section_codes(textbook_name: str, hits: list[dict]) -> lis
     return hits + extra
 
 
-@tool
+@tool(response_format="content_and_artifact")
 async def search_textbook(
     query: str | None = None,
     deep: bool = False,
     chapter: str | None = None,
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     requirement: Annotated[str, InjectedState("requirement")] = None,
-) -> str:
+) -> tuple[str, dict]:
     """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段（可选深度召回精排）。
 
     检索侧是无状态的，不读对话历史，只按传入问句匹配教材原文——因此 query 必须自包含：
@@ -259,7 +286,7 @@ async def search_textbook(
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
     Returns:
-        编号的 TOP-K 片段（章节 + 小节 + 正文，图片 url 已附加到正文图标记处），无结果或失败时返回友好提示。
+        ``(发给模型的编号片段文本, 随消息落库但不上线的 artifact)``；无结果或失败时 artifact 为空字典。
     """
     textbook_name = textbook_name or ""
     metrics = get_metrics()
@@ -267,7 +294,7 @@ async def search_textbook(
         # 检索问句：优先用 LLM 显式传入的自包含 query，缺省回退本轮用户原问题
         search_query = (query or requirement or "").strip()
         if not search_query:
-            return "（未提供检索问句，请重试）"
+            return "（未提供检索问句，请重试）", {}
         if metrics is not None:
             # 逐次检索各占一条，回填只动本次调用的 dict：并发或连续多次检索互不覆盖
             entry = {"query": search_query, "deep": bool(deep), "recall": 0, "kept": 0, "error": None}
@@ -312,65 +339,22 @@ async def search_textbook(
         if metrics is not None:
             entry["error"] = type(exc).__name__
         logger.warning(f"search_textbook({query!r}, deep={deep}) 失败: {exc}")
-        return f"（检索教材失败：{exc}）"
+        return f"（检索教材失败：{exc}）", {}
 
     if metrics is not None:
         # 送入模型前截断后的条数（补拉的代码块不计入，另由 retrieved_chunk_ids 体现）
         entry["kept"] = len(hits)
 
     if not hits:
-        return "（未检索到相关片段，请把 query 补全为自包含问句或去掉章节限定）"
+        return "（未检索到相关片段，请把 query 补全为自包含问句或去掉章节限定）", {}
 
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
     # 正文命中后按节补拉代码块（粗粒度协同召回），使自然语言问代码能取回代码原文
     hits = _enrich_hits_with_section_codes(textbook_name, hits)
     _record_retrieved_chunk_ids(hits)
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
-    return _format_hits(hits)
+    content = _format_hits(hits)
+    return content, _build_artifact(textbook_name, search_query, deep, hits, content)
 
 
 # 冒烟测试已迁移至 tests/study_agent/tools/test_search.py
-
-
-# 单次要回取的片段上限（防一次拉回过多原文重新撑大上下文）
-_MAX_REFETCH_IDS = 8
-
-
-@tool
-async def read_chunk(
-    ids: list[str],
-    textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
-) -> str:
-    """按 chunk ID 重取教材片段原文：历史轮检索结果只保留存根（含 id 与摘录），
-
-    当需要上一轮某片段的完整原文（如用户要求展开、核对细节）时，
-    从存根中挑选 id 传入本工具精确取回，不要凭存根摘录臆造原文。
-
-    Args:
-        ids: 要重取的 chunk ID 列表（来自历史存根，一次最多 8 个）。
-
-    Returns:
-        编号的片段原文（格式与 search_textbook 相同），失败时返回友好提示。
-    """
-    if not ids:
-        return "（没有提供要重取的片段 id，请从历史存根中选 id 传入）"
-    if len(ids) > _MAX_REFETCH_IDS:
-        return f"（一次最多重取 {_MAX_REFETCH_IDS} 个片段，请挑选后分批调用）"
-    textbook_name = textbook_name or ""
-    try:
-        collection_name = get_collection_by_name(textbook_name)
-    except Exception as exc:
-        return f"（定位教材集合失败：{exc}）"
-    if not collection_name:
-        return f"（未找到教材《{textbook_name}》的登记信息，无法重取片段）"
-    try:
-        rows = query_chunks_by_ids(collection_name, ids)
-    except Exception as exc:
-        logger.warning(f"read_chunk({ids}) 失败: {exc}")
-        return f"（重取片段失败：{exc}）"
-    if not rows:
-        return "（这些 id 在教材中不存在，请核对存根中的 id）"
-    # 保持与 search_textbook 相同的请求级指标记录，便于评测追溯
-    hits = [{"id": str(row.get("id")), "entity": row} for row in rows]
-    _record_retrieved_chunk_ids(hits)
-    return _format_hits(hits)

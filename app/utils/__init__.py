@@ -9,7 +9,6 @@ from app.utils.milvus_util import (
     get_collection_by_name,
     list_chapters,
     list_textbooks,
-    query_chunks_by_ids,
     query_section_codes,
     register_textbook,
 )
@@ -26,7 +25,6 @@ __all__ = [
     "get_collection_by_name",
     "list_chapters",
     "list_textbooks",
-    "query_chunks_by_ids",
     "query_section_codes",
     "register_textbook",
     "upload_and_map",

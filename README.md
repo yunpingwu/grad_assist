@@ -33,7 +33,7 @@ flowchart LR
     React --> R[FastAPI SSE 流式输出]
   end
 
-  Store -.search_textbook / read_chunk.-> React
+  Store -.search_textbook.-> React
 ```
 
 ### 检索链路（快慢双路径）
@@ -41,12 +41,12 @@ flowchart LR
 - **检索问句**：由模型在 ReAct 循环里结合对话历史自行组织成自包含问句（检索侧无状态，不读历史），不做前置改写，省一次 LLM 往返；
 - **快路径**：BGE-M3 dense + sparse 混合召回（WeightedRanker 0.8/0.2），Milvus 单请求完成；
 - **深度路径**：在原查询之外并行生成 HyDE 假设文档向量做第二路召回，RRF（k=60）融合两路结果，再过 BGE-Reranker-large 精排；
-- **上下文控制**：wrap_model_call middleware 将历史轮检索原文替换为含 chunk id 的短存根，模型可按 id 调 `read_chunk` 重取原文，state 与审计链路不受影响。
+- **上下文控制**：before_agent middleware 在轮首把往轮检索原文降级为一行行为记录（教材名、检索问句、命中的章节位置）并写回 state；原文只存在该条 ToolMessage 的 artifact 里（随 checkpoint 落库、不进模型请求），前端历史回显改读 artifact，展示不受影响。
 
 ### Agent 能力
 
 - 意图三级漏斗路由（关键词 → embedding 相似度 → LLM 结构化输出兜底），按意图动态装配 system prompt 行为块（工具集固定）；对话历史只喂给兜底层，用于消解「那再来十道」这类省略句；兜底层单独收紧超时且不重试，判不准即回退「讲解」块，不阻塞主链路；
-- 工具：`search_textbook`（限定教材检索）、`read_chunk`（按 id 重取片段）、`list_chapters`、`write_file`/`edit_file`/`append_file`（资料生成，Human-in-the-loop 写盘确认）、`clarify`（澄清反问）、联网搜索（MCP）；
+- 工具：`search_textbook`（限定教材检索）、`list_chapters`、`write_file`/`edit_file`/`append_file`（资料生成，Human-in-the-loop 写盘确认）、`clarify`（澄清反问）、联网搜索（MCP）；
 - 会话状态经 MongoDB checkpointer 持久化，`thread_id = user_id:session_id`，支持断流续跑与写盘确认 resume。
 
 ## 技术栈

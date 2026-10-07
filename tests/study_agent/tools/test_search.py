@@ -27,7 +27,7 @@ def test_search_textbook_fast_path(monkeypatch) -> None:
     """快速路径：缺省用本轮原问题做混合召回，验证图片回绑与代码块拼回。"""
     monkeypatch.setattr(search, "search_by_query", _fake_hybrid)
 
-    fast = asyncio.run(search.search_textbook.coroutine(
+    fast, _ = asyncio.run(search.search_textbook.coroutine(
         textbook_name="C语言程序设计", requirement="指针有什么用途?"
     ))
     assert "[片段1｜c1｜第3章 > 3.1]" in fast and "[片段2" in fast, fast
@@ -47,7 +47,7 @@ def test_search_textbook_deep_path(monkeypatch) -> None:
     monkeypatch.setattr(search, "arerank_chunks_weighted", _fake_arerank)
     monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
 
-    deep = asyncio.run(search.search_textbook.coroutine(
+    deep, _ = asyncio.run(search.search_textbook.coroutine(
         deep=True, textbook_name="C语言程序设计", requirement="指针有什么用途?"
     ))
     assert "指针是C语言的核心概念" in deep, deep
@@ -104,9 +104,10 @@ def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
     asyncio.run(search.search_textbook.coroutine(
         query="数组的定义", textbook_name="C语言程序设计"
     ))
-    assert "检索教材失败" in asyncio.run(search.search_textbook.coroutine(
+    failed_content, failed_artifact = asyncio.run(search.search_textbook.coroutine(
         query="越界的问句", textbook_name="C语言程序设计"
     ))
+    assert "检索教材失败" in failed_content and failed_artifact == {}
 
     assert [(e["query"], e["deep"], e["recall"], e["kept"]) for e in record.retrievals] == [
         ("指针的用途", True, 2, 1),
@@ -138,6 +139,42 @@ def test_search_textbook_falls_back_to_requirement(monkeypatch) -> None:
 def test_search_textbook_hides_injected_state_args() -> None:
     """注入给工具的 state 字段（教材名、检索问句回退值）不得出现在模型可见的调用 schema 里。"""
     assert set(search.search_textbook.tool_call_schema.model_fields) == {"query", "deep", "chapter"}
+
+
+def test_search_textbook_returns_content_and_artifact(monkeypatch) -> None:
+    """工具输出分两通道：content 上线给模型，artifact 存原文给系统（实测 artifact 不进请求）。
+
+    降级与历史回显都靠 artifact 拿到原文，content 事后被换成一行记录也不影响这两条链路；
+    少了 artifact，「原文只活在模型上下文里」这个耦合就回来了。
+    """
+    monkeypatch.setattr(search, "search_by_query", _fake_hybrid)
+    monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
+
+    content, artifact = asyncio.run(
+        search.search_textbook.coroutine(textbook_name="C语言程序设计", requirement="指针有什么用途?")
+    )
+
+    assert "[片段1｜c1｜第3章 > 3.1]" in content, content
+    assert artifact["query"] == "指针有什么用途?" and artifact["deep"] is False
+    assert artifact["textbook_name"] == "C语言程序设计"
+    assert "指针是C语言的核心概念" in artifact["content"], "原文未随 artifact 落库"
+    assert [c["id"] for c in artifact["chunks"]] == ["c1", "c3_code", "c2", "c4_code"]
+    assert artifact["chunks"][0]["location"] == "第3章 > 3.1"
+
+
+def test_search_textbook_failure_still_returns_pair(monkeypatch) -> None:
+    """失败与空结果同样成对返回：content_and_artifact 下返回裸字符串会让 ToolNode 解包报错。"""
+
+    async def _boom(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
+        raise RuntimeError("milvus 连接超时")
+
+    monkeypatch.setattr(search, "search_by_query", _boom)
+
+    content, artifact = asyncio.run(
+        search.search_textbook.coroutine(textbook_name="C语言程序设计", requirement="指针有什么用途?")
+    )
+
+    assert "检索教材失败" in content and artifact == {}
 
 
 async def _fake_hybrid(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
@@ -172,40 +209,3 @@ async def _fake_arerank(query: str, merged: list[dict], top_k: int, alpha: float
     item["rerank_score"] = 0.99
     item["fusion_score"] = 0.99
     return [item]
-
-
-_ROWS = [
-    {"id": "c1", "text": "指针是C语言的核心概念。", "chapter": "第3章", "section": "3.1", "block_type": "text", "metadata_json": ""},
-    {"id": "c2", "text": "数组是相同类型元素的集合。", "chapter": "第3章", "section": "3.2", "block_type": "text", "metadata_json": ""},
-]
-
-
-def test_read_chunk_formats_rows(monkeypatch) -> None:
-    """按 id 重取：定位集合 → 查询 → 复用片段格式渲染（带 id 头）。"""
-    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: "tb_fake")
-    captured = {}
-
-    def _fake_query(collection_name: str, chunk_ids: list[str]) -> list[dict]:
-        captured["args"] = (collection_name, chunk_ids)
-        return _ROWS
-
-    monkeypatch.setattr(search, "query_chunks_by_ids", _fake_query)
-    out = asyncio.run(search.read_chunk.coroutine(ids=["c1", "c2"], textbook_name="C语言程序设计"))
-    assert captured["args"] == ("tb_fake", ["c1", "c2"])
-    assert "[片段1｜c1｜第3章 > 3.1] 指针是C语言的核心概念。" in out
-    assert "[片段2｜c2｜第3章 > 3.2]" in out
-
-
-def test_read_chunk_empty_and_over_limit(monkeypatch) -> None:
-    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: "tb_fake")
-    monkeypatch.setattr(search, "query_chunks_by_ids", lambda _c, ids: _ROWS[:1])
-    assert "没有" in asyncio.run(search.read_chunk.coroutine(ids=[], textbook_name="C语言程序设计"))
-    many = [f"x{i}" for i in range(20)]
-    out = asyncio.run(search.read_chunk.coroutine(ids=many, textbook_name="C语言程序设计"))
-    assert "最多" in out  # 超限直接拒绝并提示上限
-
-
-def test_read_chunk_missing_collection(monkeypatch) -> None:
-    monkeypatch.setattr(search, "get_collection_by_name", lambda _tb: None)
-    out = asyncio.run(search.read_chunk.coroutine(ids=["c1"], textbook_name="不存在教材"))
-    assert "教材" in out and "[片段" not in out

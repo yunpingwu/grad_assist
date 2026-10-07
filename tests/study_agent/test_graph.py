@@ -256,10 +256,10 @@ def test_turn_instruction_not_appended_twice_in_one_turn() -> None:
 
 
 def test_turn_instruction_hook_is_before_agent_not_wrap_model_call(monkeypatch) -> None:
-    """指令必须走 ``@before_agent``（一轮一次），不能再挂 ``wrap_model_call``（每调用一次）。
+    """指令与历史降级都走 ``@before_agent``（一轮一次），不能再挂 ``wrap_model_call``（每调用一次）。
 
-    每调用重贴就是轮内前缀分叉的成因；同时 ``before_agent`` 排在 ``understand_query`` 之后，
-    才拿得到本轮意图去选行为块。
+    每调用重贴/每调用重算视图，就是轮内前缀分叉与字节翻转的成因；同时 ``before_agent``
+    排在 ``understand_query`` 之后，才拿得到本轮意图去选行为块。
     """
     captured: dict = {}
     monkeypatch.setattr(graph, "create_agent", lambda **kw: captured.update(kw) or "stub_graph")
@@ -267,4 +267,14 @@ def test_turn_instruction_hook_is_before_agent_not_wrap_model_call(monkeypatch) 
     chain = captured["middleware"]
     assert not hasattr(graph, "append_turn_instruction"), "尾部重贴的旧挂点应已删除"
     assert chain.index(graph.record_turn_instruction) > chain.index(graph.understand_query), "指令早于意图，行为块会选错"
-    assert graph.record_turn_instruction in chain and graph.stub_old_search_results in chain
+    assert graph.record_turn_instruction in chain and graph.demote_used_tool_results in chain
+
+
+def test_read_chunk_is_retired(monkeypatch) -> None:
+    """重取工具下线：历史里连片段 id 都不留了，留着它只会让模型去调一个无从下手的工具。"""
+    captured: dict = {}
+    monkeypatch.setattr(graph, "create_agent", lambda **kw: captured.update(kw) or "stub_graph")
+    graph.build_graph()
+    names = [getattr(t, "name", None) for t in captured["tools"]]
+    assert "read_chunk" not in names, names
+    assert "search_textbook" in names

@@ -364,18 +364,12 @@ async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_
     return items
 
 
-@router.get(
-    "/history",
-    summary="会话历史",
-    description="获取当前用户某会话的全部消息（从 study checkpoint 读取），供历史回显",
-)
-async def history(session_id: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
-    """获取某会话的结构化消息列表。"""
-    if not session_id:
-        raise HTTPException(status_code=400, detail="缺少 session_id")
-    snapshot = await study_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
-    messages = (snapshot.values or {}).get("messages", [])
-    # 历史回显：只保留「用户 + 最终助手回答」；思考与检索结果按消息真实顺序折进对应回答的 steps 时间线
+def build_history(messages: list) -> list[dict]:
+    """把线程消息列表整成前端回显结构：只留「用户 + 最终回答」，思考与工具结果按真实顺序折进 steps。
+
+    工具一步优先取 ``artifact["content"]``：往轮的检索原文在轮首被降级成一行行为记录写回 state
+    （那条只给模型看），原文随消息进 checkpoint 但不进请求，回显靠它保住原文。
+    """
     items: list[dict] = []
     pending_steps: list[dict] = []
     for m in messages:
@@ -395,8 +389,23 @@ async def history(session_id: str | None = None, user_id: str = Depends(get_user
         elif m.type == "tool":
             tm_name = getattr(m, "name", None)
             if tm_name:
-                pending_steps.append({"type": "tool", "name": tm_name, "content": str(m.content)})
+                artifact = getattr(m, "artifact", None) or {}
+                content = artifact.get("content") or str(m.content)
+                pending_steps.append({"type": "tool", "name": tm_name, "content": str(content)})
     return items
+
+
+@router.get(
+    "/history",
+    summary="会话历史",
+    description="获取当前用户某会话的全部消息（从 study checkpoint 读取），供历史回显",
+)
+async def history(session_id: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+    """获取某会话的结构化消息列表。"""
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 session_id")
+    snapshot = await study_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
+    return build_history((snapshot.values or {}).get("messages", []))
 
 
 @router.delete(
