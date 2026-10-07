@@ -38,6 +38,8 @@ class StudyState(TypedDict):
     textbook_name: str
     # 用户的要求（缺省有默认指令）
     requirement: str
+    # 本轮深度检索档（前端「深度检索」开关传入，per-turn 覆盖）；search_textbook 经 InjectedState 读取
+    deep: NotRequired[bool]
     # 意图分类（前置 query 理解识别；explain/generate/quiz/plan/chat/unclear），system prompt 据此选块
     intent: NotRequired[str]
     # 意图判定置信度与来源档（keyword/embedding/llm/fallback），随意图一并透传给 system prompt

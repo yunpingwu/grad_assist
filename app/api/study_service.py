@@ -56,6 +56,7 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
         "task_id": session_id,
         "textbook_name": req.textbook_name,
         "requirement": req.query,
+        "deep": req.deep,
         "messages": [HumanMessage(content=req.query)],
     }
 

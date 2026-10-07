@@ -3,6 +3,9 @@
 import asyncio
 import json
 from types import SimpleNamespace
+from typing import get_args, get_type_hints
+
+from langchain.tools.tool_node import InjectedState
 
 from app.study_agent.tools import search
 
@@ -137,8 +140,17 @@ def test_search_textbook_falls_back_to_requirement(monkeypatch) -> None:
 
 
 def test_search_textbook_hides_injected_state_args() -> None:
-    """注入给工具的 state 字段（教材名、检索问句回退值）不得出现在模型可见的调用 schema 里。"""
-    assert set(search.search_textbook.tool_call_schema.model_fields) == {"query", "deep", "chapter"}
+    """注入给工具的 state 字段（教材名、检索问句回退值、深度档开关）不得出现在模型可见的调用 schema 里。"""
+    assert set(search.search_textbook.tool_call_schema.model_fields) == {"query", "chapter"}
+
+
+def test_search_textbook_deep_comes_from_state_not_model() -> None:
+    """深度检索由前端开关经 state 注入，模型不再自行决定 deep——模型侧无该参数时不能凭猜测降级走快检索。"""
+    hints = get_type_hints(search.search_textbook.coroutine, include_extras=True)
+    metadata = get_args(hints["deep"])
+    injected = [m for m in metadata[1:] if isinstance(m, InjectedState)]
+    assert len(injected) == 1, f"deep 未标注 InjectedState：{metadata}"
+    assert injected[0].field == "deep"
 
 
 def test_search_textbook_returns_content_and_artifact(monkeypatch) -> None:

@@ -267,22 +267,22 @@ def _enrich_hits_with_section_codes(textbook_name: str, hits: list[dict]) -> lis
 @tool(response_format="content_and_artifact")
 async def search_textbook(
     query: str | None = None,
-    deep: bool = False,
+    deep: Annotated[bool, InjectedState("deep")] = False,
     chapter: str | None = None,
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     requirement: Annotated[str, InjectedState("requirement")] = None,
 ) -> tuple[str, dict]:
-    """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段（可选深度召回精排）。
+    """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段。
 
     检索侧是无状态的，不读对话历史，只按传入问句匹配教材原文——因此 query 必须自包含：
     把「它」「这一章」「再来十道」这类指代结合上文补全为具体对象（如「C 语言指针常量的用途」）。
-    不传 query 时回退用户本轮的原问题。默认快速混合召回（稠密+稀疏），如需更高质量（如严谨作答、
-    快速检索无果时扩大召回）请设 deep=True：多做一次 HyDE 假设文档召回，再经 RRF
-    融合与交叉编码精排——结果更准但更慢。
+    不传 query 时回退用户本轮的原问题。
+
+    走快检索还是深度召回（HyDE + 精排）由用户在本轮请求上决定，不由你选择；召回为空或不够时，
+    换一种问法、放宽 chapter 或如实说明没查到。
 
     Args:
         query: 自包含的检索问句（多轮追问时务必把指代补全），缺省用用户本轮原问题。
-        deep: 是否启用深度召回（HyDE + 精排），默认 False；对答案质量要求高或快检索无果时设为 True。
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
     Returns:

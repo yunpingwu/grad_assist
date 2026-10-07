@@ -22,6 +22,10 @@ class ChatRequest(BaseModel):
 
     textbook_name: str = Field(..., description="教材名（已解析入库）")
     query: str = Field(..., min_length=0, description="用户问题或资料生成要求；仅在回应写盘确认/澄清反问时可留空")
+    deep: bool = Field(
+        default=False,
+        description="本轮检索是否走深度档（HyDE + 精排）；由前端「深度检索」开关传入，整轮所有检索共用",
+    )
     session_id: str | None = Field(default=None, description="会话 ID（裸 ID，缺省时后端生成）")
     decision: str | None = Field(
         default=None,
