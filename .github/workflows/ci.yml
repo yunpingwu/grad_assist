@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0（该仓库无 v10 移动 tag，按官方推荐用 SHA 钉住）
         with:
           version: "0.11.16" # 与本地 uv --version 对齐，升级时同步修改
           python-version: "3.13"
@@ -50,7 +50,7 @@ jobs:
       MONGO_URI: mongodb://127.0.0.1:27017
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0（该仓库无 v10 移动 tag，按官方推荐用 SHA 钉住）
         with:
           version: "0.11.16"
           python-version: "3.13"
