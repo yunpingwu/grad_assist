@@ -27,6 +27,19 @@ def test_list_chapters_empty(monkeypatch) -> None:
     assert "未查到章节结构" in out
 
 
+def test_list_chapters_output_is_bounded(monkeypatch) -> None:
+    """章节名来自 PDF 解析产物：整块进外部资料边界。"""
+    monkeypatch.setattr(
+        chapters,
+        "_list_chapters",
+        lambda _: [{"chapter": "第1章 绪论", "sections": ["1.1 概述"]}],
+    )
+    out = asyncio.run(chapters.list_chapters.coroutine(textbook_name="T"))
+
+    assert out.startswith("〔外部资料·章节 ") and out.endswith("〕")
+    assert "- 第1章 绪论（1.1 概述）" in out
+
+
 def test_list_chapters_upstream_failure_raises(monkeypatch) -> None:
     """Milvus 不可用抛带说明的异常，由图上官方中间件兜成模型可见文本。"""
 

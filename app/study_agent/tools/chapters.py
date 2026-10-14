@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.core import logger
+from app.study_agent.safety import wrap_untrusted
 from app.utils.milvus_util import list_chapters as _list_chapters
 
 
@@ -39,4 +40,5 @@ async def list_chapters(
         sections = item.get("sections") or []
         lines.append(f"- {chapter}" + (f"（{'、'.join(sections)}）" if sections else ""))
     logger.info(f"list_chapters: 共 {len(chapters)} 章")
-    return "\n".join(lines)
+    # 章节名来自 PDF 解析产物（不可信文本），与检索片段同规格包边界
+    return wrap_untrusted("\n".join(lines), "章节")

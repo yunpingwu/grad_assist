@@ -28,6 +28,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.core import logger
+from app.study_agent.safety import wrap_untrusted
 
 # 文件落盘根目录：任务文件落在 {MATERIAL_ROOT}/{教材名}/{task_id}/ 下
 MATERIAL_ROOT = Path(__file__).parents[3] / "study"
@@ -176,7 +177,8 @@ async def read_file(
     numbered = "\n".join(f"{offset + i:>5} | {line}" for i, line in enumerate(page))
     last = offset + len(page) - 1
     marker = f"[{filename} 共 {total} 行，显示 {offset}-{last} 行]"
-    return f"{marker}\n{numbered}"
+    # marker 行里的 filename 也是模型给的，连同正文一起进边界，不留在边界外显得「可信」
+    return wrap_untrusted(f"{marker}\n{numbered}", "文件")
 
 
 @tool
@@ -231,7 +233,8 @@ async def edit_file(
         context = new_text[max(0, idx - 60) : idx + len(new_string) + 120]
 
     logger.info(f"edit_file: {filename} 替换 {count} 处")
-    return f"已替换 {count} 处\n上下文: …{context}…"
+    # 回显的上下文是文件正文（可能含从外部来源抄入的文本）：包边界；「已替换 N 处」是 app 自写
+    return f"已替换 {count} 处\n上下文: …{wrap_untrusted(context, '文件')}…"
 
 
 @tool

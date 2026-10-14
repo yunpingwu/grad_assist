@@ -14,6 +14,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from app.config import llm_config, web_search_config
 from app.core import logger
+from app.study_agent.safety import wrap_untrusted
 from mcp import ClientSession
 
 
@@ -75,10 +76,12 @@ async def search_web(query: str) -> str:
 
     lines: list[str] = []
     for i, item in enumerate(results, start=1):
-        title = item.get("title") or ""
-        url = item.get("url") or ""
+        # 标题/链接是单行元数据：折叠其中的换行，防脏数据把条目形状撑破（摘要正文保真，进边界）
+        title = " ".join((item.get("title") or "").split())
+        url = " ".join((item.get("url") or "").split())
         content = item.get("content") or ""
         lines.append(f"{i}. [{title}]({url})\n   {content}")
 
     logger.info(f"search_web({query!r}) → {len(results)} 条")
-    return "\n\n".join(lines)
+    # 网页摘要不可控，整块进外部资料边界（见 app/study_agent/safety.py）
+    return wrap_untrusted("\n\n".join(lines), "网页")

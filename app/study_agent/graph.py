@@ -6,7 +6,7 @@
 
 动态提示词与前置 query 理解通过 langchain.agents 的 middleware 机制接入：
 - ``@before_agent``：作为入口节点，每轮对话只执行一次，依次做意图识别（失败回退默认行为块，
-  不阻断本轮）、把「本轮指令」落进 state、把往轮检索原文降级为一行行为记录并写回 state；
+  不阻断本轮）、把「本轮指令」落进 state、把往轮检索原文回收成一句占位并写回 state；
 - ``@dynamic_prompt``：渲染 system prompt，**只装全局静态壳**（教材名/意图/任务目标一律不进，为的是前缀缓存）。
 
 「本轮指令」（教材名 + 意图行为块 + 意图预判 + 任务目标）在轮首作为 SystemMessage 追加到
@@ -176,7 +176,7 @@ def build_graph(checkpointer=None):
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图识别），每轮一次
             record_turn_instruction,  # before_agent：本轮指令落 state 一次（须在意图之后）
-            demote_used_tool_results,  # before_agent：往轮检索原文降级为一行行为记录，写回 state
+            demote_used_tool_results,  # before_agent：往轮检索原文回收成一句占位，写回 state
             study_system_prompt,  # dynamic_prompt：只渲染全局静态壳（本轮变量不进壳）
             ModelCallLimitMiddleware(run_limit=20),  # 护栏：步数上限（到顶 end 收尾）
             # 护栏：检索是最贵也最不稳的两个工具，按轮封顶——超额的调用在模型侧就被拦下

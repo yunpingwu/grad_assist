@@ -45,6 +45,8 @@ class RequestMetrics:
     # budget_exhausted 由护栏中间件在越线时写入；turn_cost 在 flush 时统一折算，供离线重标定 BUDGET_LIMIT
     turn_cost: float = 0.0
     budget_exhausted: bool = False
+    # 输出侧留痕：答案疑似复述系统提示词/漏出配置形态（由 study_service 在 flush 前置位）
+    output_leak_suspected: bool = False
     # 逐次 LLM 调用明细，每条 {"role", "input", "output", "cached",
     # "start_ms"(距本轮开始), "ms"(该调用总时长), "first_ms"(该调用到首 chunk 的等待)}：
     # role 由调用点 tags 声明（intent/hyde/summary），空串即 agent 主体调用。
@@ -77,6 +79,7 @@ class RequestMetrics:
             "completion_tokens": self.completion_tokens,
             "turn_cost": round(self.turn_cost, 1),
             "budget_exhausted": self.budget_exhausted,
+            "output_leak_suspected": self.output_leak_suspected,
             "llm_calls_detail": self.llm_calls_detail,
             "error_type": self.error_type,
         }

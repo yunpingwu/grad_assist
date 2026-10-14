@@ -23,6 +23,7 @@ from app.study_agent.query_functions.embedding_search import search_by_query, se
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
+from app.study_agent.safety import wrap_untrusted
 from app.trace import astage, get_metrics
 from app.utils import (
     agenerate_embeddings,
@@ -357,7 +358,9 @@ async def search_textbook(
     _record_retrieved_chunk_ids(hits)
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
     content = _format_hits(hits)
-    return content, _build_artifact(textbook_name, search_query, deep, hits, content)
+    # artifact 存干净原文（/history 回显与往轮降级记录都读它）；只有给模型的 content 包边界，
+    # 边界与随机串的设计理由见 app/study_agent/safety.py
+    return wrap_untrusted(content, "教材"), _build_artifact(textbook_name, search_query, deep, hits, content)
 
 
 # 冒烟测试已迁移至 tests/study_agent/tools/test_search.py

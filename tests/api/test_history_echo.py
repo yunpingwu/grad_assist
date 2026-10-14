@@ -1,7 +1,7 @@
-"""test_history_echo.py — /history 回显读 artifact：state 里降级成一行行为记录的检索结果，前端仍展示原文。
+"""test_history_echo.py — /history 回显读 artifact：state 里被回收成占位的检索结果，前端仍展示原文。
 
-工具消息在轮首被降级时只换 ``content``，原文留在 ``artifact``（随 checkpoint 落库、不进模型请求）。
-回显若直接读 ``content``，用户刷新后看到的就是那行内部记录——故 ``/history`` 优先取 artifact。
+工具消息在轮首被回收时只换 ``content``，原文留在 ``artifact``（随 checkpoint 落库、不进模型请求）。
+回显若直接读 ``content``，用户刷新后看到的就是那句回收占位——故 ``/history`` 优先取 artifact。
 """
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.api import study_service as svc
 from app.study_agent.tools import search
 
-# artifact 由生产方的构造器产出：键名改了，回显会静默回退成 state 里那行内部记录
+# artifact 由生产方的构造器产出：键名改了，回显会静默回退成 state 里那句回收占位
 _HITS = [
     {
         "id": "c1",
@@ -23,7 +23,7 @@ _HITS = [
     }
 ]
 _ORIGINAL = search._format_hits(_HITS)
-_STUBBED = "[历史记录] 上一轮已按「指针的用途」在《C语言程序设计》取回 1 段依据：第3章 > 3.1"
+_STUBBED = "（上一轮检索原文已回收：内容已用于当时的回答，需要依据时请重新检索）"
 
 
 def test_history_shows_original_text_from_artifact() -> None:

@@ -23,6 +23,7 @@ from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
 from app.study_agent.graph import build_graph
+from app.study_agent.safety import detect_prompt_leak, strip_boundary
 from app.study_agent.state import StudyState
 from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
@@ -117,6 +118,11 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
         finally:
             # 总耗时 = 请求进入到最后一条事件（含收尾落盘前），随后聚合落库
             mark_stage("total_ms", (time.perf_counter() - t_start) * 1000)
+            # 输出侧留痕（不拦截：流式已把 token 发给前端，事后无法撤回）：
+            # 答案疑似复述系统提示词或漏出配置形态时告警并落进 metrics 记录
+            if detect_prompt_leak(metrics.answer_content):
+                metrics.output_leak_suspected = True
+                logger.warning(f"回答疑似泄露系统提示词/敏感形态（session {session_id}）")
             flush_metrics()
             end_request()
 
@@ -187,11 +193,14 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
                     metrics.answer_content += str(speech)
                 yield {"type": "token", "content": speech}
         elif node == "tools":
-            # 工具结果：前端展示
+            # 工具结果：前端展示。展示走 artifact 的干净原文 / 剥掉边界标记（与 /history 回显同一策略）：
+            # 模型侧 content 已包外部资料边界、带随机串，不该漏给用户看（见 app/study_agent/safety.py）
             tm_name = getattr(chunk, "name", None)
             if tm_name:
                 mark_first_event()
-                yield {"type": "tool","status": "done","name": tm_name,"content": getattr(chunk, "content", "") or "",}
+                artifact = getattr(chunk, "artifact", None) or {}
+                display = artifact.get("content") or strip_boundary(getattr(chunk, "content", "") or "")
+                yield {"type": "tool", "status": "done", "name": tm_name, "content": display}
 
     # 回答生成结束（含工具调用与最终回答），记录生成阶段总耗时
     mark_stage("llm_total_ms", (time.perf_counter() - t0) * 1000)
@@ -368,7 +377,7 @@ async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_
 def build_history(messages: list) -> list[dict]:
     """把线程消息列表整成前端回显结构：只留「用户 + 最终回答」，思考与工具结果按真实顺序折进 steps。
 
-    工具一步优先取 ``artifact["content"]``：往轮的检索原文在轮首被降级成一行行为记录写回 state
+    工具一步优先取 ``artifact["content"]``：往轮的检索原文在轮首被回收成一句占位写回 state
     （那条只给模型看），原文随消息进 checkpoint 但不进请求，回显靠它保住原文。
     """
     items: list[dict] = []
@@ -391,7 +400,8 @@ def build_history(messages: list) -> list[dict]:
             tm_name = getattr(m, "name", None)
             if tm_name:
                 artifact = getattr(m, "artifact", None) or {}
-                content = artifact.get("content") or str(m.content)
+                # artifact 是干净原文；无 artifact 的工具（网页/文件等）剥掉边界标记再回显
+                content = artifact.get("content") or strip_boundary(str(m.content))
                 pending_steps.append({"type": "tool", "name": tm_name, "content": str(content)})
     return items
 

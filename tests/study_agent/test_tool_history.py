@@ -1,4 +1,4 @@
-"""历史检索结果降级测试：上一轮用过的工具原文在 state 里换成一行行为记录。
+"""历史检索结果降级测试：上一轮用过的工具原文在 state 里换成一句回收占位。
 
 两条实测前提支撑这套设计：ChatOpenAI 序列化请求只带 ``ToolMessage.content``（artifact 不上线，
 但随消息进 checkpoint），所以原文留在 artifact 里供回显与审计；``add_messages`` 按消息 id
@@ -48,8 +48,8 @@ def _turn(prefix: str) -> list:
     ]
 
 
-def test_demote_replaces_used_search_result_with_one_line() -> None:
-    """上一轮那条检索结果只剩一行行为记录，且仍是一行。"""
+def test_demote_replaces_used_search_result_with_placeholder() -> None:
+    """上一轮那条检索结果只剩一句回收占位：说明失忆与重新检索的出口，不复述原文。"""
     messages = [*_turn("t1"), HumanMessage(id="t2h", content="再讲讲第二个例子")]
 
     updates = th.demote_messages(messages)
@@ -57,11 +57,10 @@ def test_demote_replaces_used_search_result_with_one_line() -> None:
     assert len(updates) == 1
     demoted = updates[0]
     assert demoted.content != _ART["content"], "原文没被换掉"
-    assert "\n" not in demoted.content, f"降级后应只有一行：{demoted.content!r}"
-    assert len(demoted.content) < 200, f"一行记录不该又长出一段：{len(demoted.content)} 字符"
-    # 行为记录要说清「查了哪本书、按什么问句、拿回几段」，否则模型不知道自己依据过什么
-    assert "C语言程序设计" in demoted.content and "指针的用途" in demoted.content
-    assert "2" in demoted.content, demoted.content
+    assert "\n" not in demoted.content, f"占位应只有一行：{demoted.content!r}"
+    assert len(demoted.content) < 200
+    assert "已回收" in demoted.content and "重新检索" in demoted.content
+    assert "指针是核心概念" not in demoted.content, "正文不该混进占位"
 
 
 def test_demote_keeps_current_turn_results_intact() -> None:

@@ -1,4 +1,4 @@
-"""历史检索结果降级：上一轮用过的工具原文在 state 里换成一行行为记录。
+"""历史检索结果降级：上一轮用过的工具原文在 state 里换成一句回收占位。
 
 ``search_textbook`` 单轮返回中位 2.3k token，实测占线程上下文 76%–78%（同线程里模型自己的
 回答只有 6.5k），而跨轮真正被引用的只有历史用户问题与回答本身——原文一旦被那一轮的回答
@@ -18,7 +18,8 @@
    省约两成，线程越长省得越多。
 
 代价要认：模型对上一轮引过的原文彻底失忆，追问细节只能重新检索——重取工具 ``read_chunk``
-已随这套设计一起下线，历史里那行记录只说明"当时依据过什么"，不再提供捞回原文的入口。
+已随这套设计一起下线，降级处只留一句「已回收」占位：不复述查过什么、在哪（检索问句在工具
+调用参数里本就可见、教材名每轮指令都带），也不提供捞回原文的入口。
 """
 
 from __future__ import annotations
@@ -30,29 +31,10 @@ from langchain_core.messages import AnyMessage, ToolMessage
 _DEMOTE_TOOLS = frozenset({"search_textbook"})
 # 降级标记写在消息自身：同一线程重入（resume 回中断点）据此跳过，不产生二次改写
 _DEMOTED_KEY = "tool_history_demoted"
-# 行为记录里最多列几个小节位置，多了只是把一行撑成一段
-_MAX_LOCATIONS = 3
-
-
-def _one_line_record(artifact: dict) -> str:
-    """把一次检索压成一行：哪本书、按什么问句、拿回几段、在哪些小节。"""
-    chunks = artifact.get("chunks") or []
-    textbook = artifact.get("textbook_name") or "教材"
-    query = (artifact.get("query") or "").strip()
-    locations: list[str] = []
-    for chunk in chunks:
-        loc = chunk.get("location") or ""
-        if loc and loc not in locations:
-            locations.append(loc)
-    shown = "、".join(locations[:_MAX_LOCATIONS])
-    if len(locations) > _MAX_LOCATIONS:
-        shown += f" 等 {len(locations)} 处"
-    deep_note = "（深度召回）" if artifact.get("deep") else ""
-    tail = f"：{shown}" if shown else ""
-    return (
-        f"[历史记录] 上一轮已按「{query}」在《{textbook}》取回 {len(chunks)} 段依据{deep_note}{tail}，"
-        "其内容已用于当时的回答，原文不在当前上下文中。"
-    )
+# 降级后的占位正文：不复述「查了什么、在哪」——检索问句在工具调用参数里本就可见、
+# 教材名每轮指令都带，占位只为说明「原文已回收、要依据请重新检索」。内容由代码写死，
+# 不含任何外部字段，无需截断/清洗。
+_DEMOTED_CONTENT = "（上一轮检索原文已回收：内容已用于当时的回答，需要依据时请重新检索）"
 
 
 def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
@@ -85,7 +67,7 @@ def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
         updates.append(
             msg.model_copy(
                 update={
-                    "content": _one_line_record(artifact),
+                    "content": _DEMOTED_CONTENT,
                     "additional_kwargs": {**(msg.additional_kwargs or {}), _DEMOTED_KEY: True},
                 }
             )
@@ -95,6 +77,6 @@ def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
 
 @before_agent
 async def demote_used_tool_results(state: dict, runtime: object) -> dict:
-    """挂点（轮首一次）：把往轮的检索原文降级为一行行为记录，写回 state。"""
+    """挂点（轮首一次）：把往轮的检索原文回收成一句占位，写回 state。"""
     updates = demote_messages(state.get("messages") or [])
     return {"messages": updates} if updates else {}
