@@ -13,6 +13,8 @@ from typing import Any
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.tracers.context import register_configure_hook
 
+from app.config import budget_config
+
 # 调用角色标签前缀：调用点用 ``config={"tags": [f"{_ROLE_TAG}intent"]}`` 声明自己是谁，
 # 未打标的就是 agent 主体调用（落库 role 为空串）。探针靠它挑出「每轮的首次 agent 调用」，
 # 否则会把意图兜底那次 267 token 的小调用当成首轮去读命中。
@@ -134,3 +136,29 @@ def detach_handler() -> None:
 def get_handler() -> LLMMetricsCallbackHandler | None:
     """返回当前上下文的计数器；未挂载时返回 None。"""
     return _cb_var.get()
+
+
+# ── 成本口径（预算护栏与落盘共用同一折算，单一来源）────────────────
+
+
+def weighted_cost(input_tokens: int, cached_tokens: int, output_tokens: int) -> float:
+    """把一次/一段调用折算成加权 token 成本：未命中输入×1 + 命中输入×折扣 + 输出×权重。
+
+    ``cached_tokens`` 是 ``input_tokens`` 的子集（命中部分仍计费、只是打折），
+    折扣与输出权重取自 ``budget_config``（BUDGET_CACHE_WEIGHT / BUDGET_OUTPUT_WEIGHT）。
+    与服务端 total_tokens 的口径不同：后者不含缓存折扣，直接拿它估成本会偏高。
+    """
+    uncached = max(input_tokens - cached_tokens, 0)
+    return (
+        uncached
+        + cached_tokens * budget_config.cache_weight
+        + output_tokens * budget_config.output_weight
+    )
+
+
+def current_weighted_cost() -> float:
+    """当前请求已发生的加权成本（读上下文计数器的累计聚合）；未挂观测时返回 0.0。"""
+    handler = get_handler()
+    if handler is None:
+        return 0.0
+    return weighted_cost(handler.input_tokens, handler.cached_tokens, handler.output_tokens)

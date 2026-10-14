@@ -36,7 +36,9 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from app.clients.llm import get_llm_client
+from app.config import budget_config
 from app.core import load_prompt, logger
+from app.study_agent.middleware import SessionBudgetMiddleware
 from app.study_agent.query_functions.intent_detection import detect_intent, format_history
 from app.study_agent.query_functions.tool_history import demote_used_tool_results
 from app.study_agent.state import StudyState
@@ -165,6 +167,9 @@ def build_graph(checkpointer=None):
     Returns:
         编译后的 CompiledStateGraph，可直接 stream / invoke。
     """
+    # 护栏：会话成本预算（BUDGET_ENABLED=false 时整体不装）。必须排在列表最后：
+    # after_model 逆注册序执行，最后注册的先跑——被 HITL interrupt 掐断的调用也能先折叠成本
+    budget_guard = [SessionBudgetMiddleware()] if budget_config.enabled else []
     return create_agent(
         model=get_llm_client(),
         tools=list(AGENT_TOOLS),  # 工具清单唯一来源（tools/__init__.py），避免两处各自漂移
@@ -190,6 +195,7 @@ def build_graph(checkpointer=None):
             HumanInTheLoopMiddleware(
                 interrupt_on={"write_file": True, "edit_file": True, "append_file": True}
             ),  # 护栏：所有写盘动作写前人工确认
+            *budget_guard,  # 护栏：per-session 成本上限（装配位置理由见 app/study_agent/middleware.py）
         ],
         state_schema=StudyState,  # 需含 messages(add_messages)
         checkpointer=checkpointer,

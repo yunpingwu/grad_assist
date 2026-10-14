@@ -6,6 +6,7 @@
 
 from typing import Annotated, NotRequired, TypedDict
 
+from langchain.agents.middleware.types import PrivateStateAttr
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
 from pydantic import BaseModel
@@ -52,3 +53,12 @@ class StudyState(TypedDict):
     materials: NotRequired[list[Material]]
     # 是否完成（收尾后置 True）
     finished: NotRequired[bool]
+
+    # —— 会话成本预算（per-session；由 SessionBudgetMiddleware 读写，口径见 app/trace/llm_usage.weighted_cost）——
+    # 已折叠的会话累计加权成本（PrivateStateAttr：不许 API 输入侧写入，只随 checkpoint 持久化）
+    session_cost: NotRequired[Annotated[float, PrivateStateAttr]]
+    # 上次折叠时当轮 trace 读数 / 所属请求 id（trace 计数器请求级，跨请求按 request_id 重新基线）
+    cost_fold_mark: NotRequired[Annotated[float, PrivateStateAttr]]
+    cost_fold_req: NotRequired[Annotated[str, PrivateStateAttr]]
+    # 已触发成本降级（禁 deep / 停追问 / 收尾说明），会话内持续生效
+    budget_exhausted: NotRequired[bool]

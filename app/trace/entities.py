@@ -41,6 +41,10 @@ class RequestMetrics:
     # cached_tokens 是 prompt_tokens 的子集（命中部分按折扣计费），不是额外增量
     cached_tokens: int = 0
     completion_tokens: int = 0
+    # —— 成本护栏：本轮加权成本（口径见 llm_usage.weighted_cost）与是否触发了降级 ——
+    # budget_exhausted 由护栏中间件在越线时写入；turn_cost 在 flush 时统一折算，供离线重标定 BUDGET_LIMIT
+    turn_cost: float = 0.0
+    budget_exhausted: bool = False
     # 逐次 LLM 调用明细，每条 {"role", "input", "output", "cached",
     # "start_ms"(距本轮开始), "ms"(该调用总时长), "first_ms"(该调用到首 chunk 的等待)}：
     # role 由调用点 tags 声明（intent/hyde/summary），空串即 agent 主体调用。
@@ -71,6 +75,8 @@ class RequestMetrics:
             "prompt_tokens": self.prompt_tokens,
             "cached_tokens": self.cached_tokens,
             "completion_tokens": self.completion_tokens,
+            "turn_cost": round(self.turn_cost, 1),
+            "budget_exhausted": self.budget_exhausted,
             "llm_calls_detail": self.llm_calls_detail,
             "error_type": self.error_type,
         }

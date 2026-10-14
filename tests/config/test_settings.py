@@ -14,3 +14,7 @@ def test_settings_loads_all_domains() -> None:
     assert isinstance(s.web_search.search_count, int) and s.web_search.search_count > 0
     assert isinstance(s.rerank.top_k, int) and s.rerank.top_k > 0
     assert 0.0 <= s.rerank.fusion_alpha <= 1.0
+    assert isinstance(s.budget.enabled, bool)
+    assert isinstance(s.budget.limit, float) and s.budget.limit > 0
+    assert 0.0 < s.budget.cache_weight <= 1.0
+    assert s.budget.output_weight > 0

@@ -20,6 +20,7 @@ minio_config = settings.minio
 mongo_config = settings.mongo
 web_search_config = settings.web_search
 rerank_config = settings.rerank
+budget_config = settings.budget
 
 __all__ = [
     "Settings",
@@ -32,4 +33,5 @@ __all__ = [
     "mongo_config",
     "web_search_config",
     "rerank_config",
+    "budget_config",
 ]

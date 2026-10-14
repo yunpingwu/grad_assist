@@ -15,7 +15,7 @@ from typing import Any
 
 from app.core.logger import logger
 from app.trace.context import get_metrics
-from app.trace.llm_usage import get_handler
+from app.trace.llm_usage import get_handler, weighted_cost
 
 # 指标落盘目录（项目根 logs/，与 study_service 的 messages.log 同目录）
 LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
@@ -37,6 +37,10 @@ def flush_metrics() -> None:
         metrics.prompt_tokens = handler.input_tokens
         metrics.cached_tokens = handler.cached_tokens
         metrics.completion_tokens = handler.output_tokens
+        # 成本护栏的折算与预算侧共用同一函数（口径单一来源），落盘供离线重标定 BUDGET_LIMIT
+        metrics.turn_cost = weighted_cost(
+            handler.input_tokens, handler.cached_tokens, handler.output_tokens
+        )
         metrics.llm_calls_detail = list(handler.calls_detail)
 
     _write_record(metrics.to_record())

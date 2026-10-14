@@ -10,6 +10,7 @@
 
 from app.trace.context import astage, end_request, get_metrics, mark_stage, stage, start_request
 from app.trace.entities import RequestMetrics
+from app.trace.llm_usage import current_weighted_cost, weighted_cost
 from app.trace.metrics import flush_metrics
 
 __all__ = [
@@ -21,4 +22,6 @@ __all__ = [
     "stage",
     "astage",
     "flush_metrics",
+    "weighted_cost",
+    "current_weighted_cost",
 ]

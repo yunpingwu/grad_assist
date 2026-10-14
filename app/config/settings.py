@@ -130,6 +130,21 @@ class RerankSettings(BaseSettings):
     fusion_alpha: float = Field(default=0.6, validation_alias="RERANKER_FUSION_ALPHA")
 
 
+class BudgetSettings(BaseSettings):
+    """会话成本预算护栏配置（per-session 加权 token 上限，口径见 app/trace/llm_usage.weighted_cost）。"""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    enabled: bool = Field(default=True, validation_alias="BUDGET_ENABLED")
+    # 会话累计加权 token 上限；默认 100w：≈30 个中位轮、≈¥2-3 量级——护栏兜的是失控会话，
+    # 且超限只是降级（禁 deep/停追问/收尾说明）不是中断。标定口径见 logs/<日期>/metrics.log 的 turn_cost
+    limit: float = Field(default=1_000_000, validation_alias="BUDGET_LIMIT")
+    # 缓存命中 token 的折扣权重（与 tool_history「命中按 20% 计费折算」的既有口径一致）
+    cache_weight: float = Field(default=0.2, validation_alias="BUDGET_CACHE_WEIGHT")
+    # 输出 token 相对未命中输入 token 的权重（DeepSeek 系输出单价约为输入的数倍）
+    output_weight: float = Field(default=4.0, validation_alias="BUDGET_OUTPUT_WEIGHT")
+
+
 class Settings(BaseModel):
     """顶层配置聚合，实例化一次后按域访问。
 
@@ -142,6 +157,7 @@ class Settings(BaseModel):
         mongo: MongoDB 配置。
         web_search: 联网搜索配置。
         rerank: 重排序模型配置。
+        budget: 会话成本预算护栏配置。
     """
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -152,3 +168,4 @@ class Settings(BaseModel):
     mongo: MongoSettings = Field(default_factory=MongoSettings)
     web_search: WebSearchSettings = Field(default_factory=WebSearchSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
+    budget: BudgetSettings = Field(default_factory=BudgetSettings)
