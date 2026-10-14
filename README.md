@@ -2,7 +2,7 @@
 
 面向复习备考的教材问答与助手系统：将扫描版计算机教材处理为**可追问、可溯源**的知识库，覆盖教材摄入、混合检索、多轮问答与离线评测四大环节。独立完成前后端与服务化联调。
 
-![python](https://img.shields.io/badge/Python-3.13-blue) ![framework](https://img.shields.io/badge/Agent-LangGraph%20%2B%20FastAPI-green)
+![CI](https://github.com/yunpingwu/grad_assist/actions/workflows/ci.yml/badge.svg) ![python](https://img.shields.io/badge/Python-3.13-blue) ![framework](https://img.shields.io/badge/Agent-LangGraph%20%2B%20FastAPI-green)
 
 ## 核心指标
 
@@ -67,7 +67,7 @@ cp .env.example .env   # 填入 LLM API Key 等，模型默认走阿里云百炼
 python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
 ```
 
-首次运行会从 HuggingFace 下载 `BAAI/bge-m3` 与 `BAAI/bge-reranker-large`；CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`（GPU 需按 pyproject 中注释切换 torch 源）。
+首次运行会从 HuggingFace 下载 `BAAI/bge-m3` 与 `BAAI/bge-reranker-large`；CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`（torch 源按平台自动选择：Windows 装 CUDA 版、Linux 装 CPU 版，见 pyproject 的 `[tool.uv.sources]`）。
 
 ### 主要接口
 
@@ -118,3 +118,5 @@ uv run pytest            # 单元测试（默认 -m "not integration"，不依�
 uv run pytest -m integration   # 端到端测试，需 .env 中的真实凭据
 uv run ruff check .
 ```
+
+push / PR 到 `main` 后由 GitHub Actions 自动执行上述 ruff + pytest（`.github/workflows/ci.yml`）；CI 自带 MongoDB 容器，单元测试不依赖本地中间件。依赖由 `uv.lock` 锁定，**修改依赖后需 `uv lock` 并把锁文件一并提交**，否则 CI 的 `uv sync --locked` 会直接失败。

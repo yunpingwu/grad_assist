@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.11.16" # 与本地 uv --version 对齐，升级时同步修改
+          python-version: "3.13"
+          enable-cache: true
+      # 不装项目依赖，秒级出结果；ruff 版本与 pyproject dev 组保持一致，升级时同步修改
+      - run: uvx --from 'ruff==0.16.3' ruff check .
+
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:6.0 # 与 docker/docker-compose.yml 保持一致
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # 仅为让 app/api/study_service.py 模块级 build_graph 通过（CI 不发起真实 LLM 调用）
+      ALIBABA_API_KEY: dummy
+      # 显式走 127.0.0.1，避免 localhost 解析到 ::1 的不确定性
+      MONGO_URI: mongodb://127.0.0.1:27017
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.11.16"
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --no-sync pytest tests -q

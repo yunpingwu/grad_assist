@@ -55,24 +55,21 @@ select = ["E", "F", "W", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "app/api/*.py" = ["B008"]
 
-# 指定 PyTorch GPU 软件源
+# PyTorch 软件源：Windows（本地 GPU 开发机）用 CUDA 版，Linux（CI 等无 GPU 环境）用 CPU 版
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
-# 强制 PyTorch 相关依赖从 GPU 软件源安装
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-
-# 指定 PyTorch CPU 软件源
-#[[tool.uv.index]]
-#name = "pytorch-cpu"
-#url = "https://download.pytorch.org/whl/cpu"
-#explicit = true
-
-# 强制 PyTorch 相关依赖从 CPU 软件源安装
-#[tool.uv.sources]
-#torch = { index = "pytorch-cpu" }
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cpu", marker = "sys_platform != 'win32'" },
+]
 
 
