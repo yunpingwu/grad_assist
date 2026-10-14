@@ -286,7 +286,10 @@ async def search_textbook(
         chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
 
     Returns:
-        ``(发给模型的编号片段文本, 随消息落库但不上线的 artifact)``；无结果或失败时 artifact 为空字典。
+        ``(发给模型的编号片段文本, 随消息落库但不上线的 artifact)``；召回为空时 artifact 为空字典。
+
+    Raises:
+        RuntimeError: 检索链路不可用；空召回是正常结果，不走这里。
     """
     textbook_name = textbook_name or ""
     metrics = get_metrics()
@@ -335,11 +338,11 @@ async def search_textbook(
                 logger.warning(f"deep 检索精排失败，回退 RRF：{exc}")
                 hits = merged_hits[:rerank_config.top_k]
     except Exception as exc:
-        # 检索失败降级：只告警并返回友好提示，交由 agent 决定回退 web 或如实说明
         if metrics is not None:
-            entry["error"] = type(exc).__name__
+            entry["error"] = type(exc).__name__  # 观测侧留痕：本次检索降级到失败
         logger.warning(f"search_textbook({query!r}, deep={deep}) 失败: {exc}")
-        return f"（检索教材失败：{exc}）", {}
+        # 交给图上的官方 ToolRetryMiddleware：先原地重试一次，耗尽后由它把说明文本回给模型
+        raise RuntimeError(f"教材检索失败: {type(exc).__name__}: {exc}") from exc
 
     if metrics is not None:
         # 送入模型前截断后的条数（补拉的代码块不计入，另由 retrieved_chunk_ids 体现）

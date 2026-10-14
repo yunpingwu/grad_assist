@@ -25,11 +25,15 @@ async def _search_web(query: str, count: int | None = None) -> list[dict]:
         count: 返回条数（缺省用配置 search_count）。
 
     Returns:
-        形如 [{title, url, content}] 的结果列表；失败或未配置 API Key 返回空列表。
+        形如 [{title, url, content}] 的结果列表（真搜不到时为空列表）。
+
+    Raises:
+        RuntimeError: 联网链路本身不可用（未配置 API Key / MCP 报错 / 响应解析失败），
+            与"搜到了但没内容"区分开——后者返回空列表。
     """
     if not llm_config.api_key:
-        logger.warning("未配置 ALIBABA_API_KEY，跳过联网搜索")
-        return []
+        logger.warning("未配置 ALIBABA_API_KEY，联网搜索不可用")
+        raise RuntimeError("联网搜索未启用：未配置 ALIBABA_API_KEY")
     count = count or web_search_config.search_count
     http_client = httpx2.AsyncClient(headers={"Authorization": f"Bearer {llm_config.api_key}"})
     try:
@@ -50,7 +54,7 @@ async def _search_web(query: str, count: int | None = None) -> list[dict]:
                 ]
     except Exception as exc:
         logger.warning(f"联网搜索失败(query={query!r}): {exc}")
-        return []
+        raise RuntimeError(f"联网搜索失败: {type(exc).__name__}: {exc}") from exc
     finally:
         await http_client.aclose()
 

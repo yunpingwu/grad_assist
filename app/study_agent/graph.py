@@ -26,6 +26,8 @@ from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     ModelRequest,
     SummarizationMiddleware,
+    ToolCallLimitMiddleware,
+    ToolRetryMiddleware,
     before_agent,
     dynamic_prompt,
 )
@@ -38,17 +40,7 @@ from app.core import load_prompt, logger
 from app.study_agent.query_functions.intent_detection import detect_intent, format_history
 from app.study_agent.query_functions.tool_history import demote_used_tool_results
 from app.study_agent.state import StudyState
-from app.study_agent.tools import (
-    append_file,
-    ask_clarification,
-    edit_file,
-    list_chapters,
-    list_files,
-    read_file,
-    search_textbook,
-    search_web,
-    write_file,
-)
+from app.study_agent.tools import AGENT_TOOLS
 from app.trace import get_metrics
 
 # 意图 → 行为块文件的映射（白名单，防越界读文件）
@@ -175,15 +167,18 @@ def build_graph(checkpointer=None):
     """
     return create_agent(
         model=get_llm_client(),
-        tools=[search_textbook, list_chapters, search_web,
-               ask_clarification,
-               write_file, append_file, read_file, edit_file, list_files],
+        tools=list(AGENT_TOOLS),  # 工具清单唯一来源（tools/__init__.py），避免两处各自漂移
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图识别），每轮一次
             record_turn_instruction,  # before_agent：本轮指令落 state 一次（须在意图之后）
             demote_used_tool_results,  # before_agent：往轮检索原文降级为一行行为记录，写回 state
             study_system_prompt,  # dynamic_prompt：只渲染全局静态壳（本轮变量不进壳）
             ModelCallLimitMiddleware(run_limit=20),  # 护栏：步数上限（到顶 end 收尾）
+            # 护栏：检索是最贵也最不稳的两个工具，按轮封顶——超额的调用在模型侧就被拦下
+            ToolCallLimitMiddleware(tool_name="search_textbook", run_limit=4),
+            ToolCallLimitMiddleware(tool_name="search_web", run_limit=2),
+            # 护栏：工具抛异常 → 先原地重试一次，耗尽后回官方说明文本（模型据此改参数或收尾）
+            ToolRetryMiddleware(max_retries=1, on_failure="continue"),
             SummarizationMiddleware(
                 # 打标只给摘要这次调用：create_agent 的 model 参数只收 BaseChatModel，
                 # 所以 agent 主体调用保持未打标——观测侧把无 trace_role 的调用一律当 agent

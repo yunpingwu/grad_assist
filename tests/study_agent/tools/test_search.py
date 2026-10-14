@@ -5,6 +5,7 @@ import json
 from types import SimpleNamespace
 from typing import get_args, get_type_hints
 
+import pytest
 from langchain.tools.tool_node import InjectedState
 
 from app.study_agent.tools import search
@@ -107,10 +108,11 @@ def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
     asyncio.run(search.search_textbook.coroutine(
         query="数组的定义", textbook_name="C语言程序设计"
     ))
-    failed_content, failed_artifact = asyncio.run(search.search_textbook.coroutine(
-        query="越界的问句", textbook_name="C语言程序设计"
-    ))
-    assert "检索教材失败" in failed_content and failed_artifact == {}
+    # 检索失败：抛 RuntimeError，由图上的官方 ToolRetryMiddleware 出说明文本（此处只验证抛点与打点）
+    with pytest.raises(RuntimeError, match="教材检索失败"):
+        asyncio.run(search.search_textbook.coroutine(
+            query="越界的问句", textbook_name="C语言程序设计"
+        ))
 
     assert [(e["query"], e["deep"], e["recall"], e["kept"]) for e in record.retrievals] == [
         ("指针的用途", True, 2, 1),
@@ -174,19 +176,17 @@ def test_search_textbook_returns_content_and_artifact(monkeypatch) -> None:
     assert artifact["chunks"][0]["location"] == "第3章 > 3.1"
 
 
-def test_search_textbook_failure_still_returns_pair(monkeypatch) -> None:
-    """失败与空结果同样成对返回：content_and_artifact 下返回裸字符串会让 ToolNode 解包报错。"""
-
+def test_search_textbook_failure_raises(monkeypatch) -> None:
+    """检索链路故障抛异常（带中文说明），由图上官方中间件兜成模型可见文本。"""
     async def _boom(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
         raise RuntimeError("milvus 连接超时")
 
     monkeypatch.setattr(search, "search_by_query", _boom)
 
-    content, artifact = asyncio.run(
-        search.search_textbook.coroutine(textbook_name="C语言程序设计", requirement="指针有什么用途?")
-    )
-
-    assert "检索教材失败" in content and artifact == {}
+    with pytest.raises(RuntimeError, match="milvus 连接超时"):
+        asyncio.run(
+            search.search_textbook.coroutine(textbook_name="C语言程序设计", requirement="指针有什么用途?")
+        )
 
 
 async def _fake_hybrid(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:

@@ -16,7 +16,7 @@ from langchain.tools import tool
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
-# 单次澄清请求的问题数上限（模型超出直接报错，让它自行收敛重试）
+# 单次澄清请求的问题数上限（模型超出即报错，说明文本会回给模型自行收敛）
 MAX_CLARIFY_QUESTIONS = 3
 
 # 取消澄清的 resume 标记：前端/服务端在"新问题撞上澄清挂起"时发送 → 工具返回空答案，模型自行兜底
@@ -93,9 +93,15 @@ def ask_clarification(questions: list[ClarifyQuestion]) -> list[ClarifyAnswer]:
 
     Returns:
         人工确认后每个问题的最终答案（选中的 method 或自定义文本），按 {id, answer} 返回供继续执行原任务。
+
+    Raises:
+        ValueError: 问题数不在 1-3 内（说明文本回给模型，让它自行收敛后重试）。
     """
     if not 1 <= len(questions) <= MAX_CLARIFY_QUESTIONS:
-        raise ValueError(f"一次最多提出 {MAX_CLARIFY_QUESTIONS} 个澄清问题，请精简后再调用")
+        raise ValueError(
+            f"一次最多提出 {MAX_CLARIFY_QUESTIONS} 个澄清问题（当前 {len(questions)} 个）："
+            f"把问题精简到 1-{MAX_CLARIFY_QUESTIONS} 个关键问题后重新调用"
+        )
 
     # 输入归一化：choice 无选项时降级为 open，避免前端空卡片
     normalized: list[ClarifyQuestion] = []

@@ -24,7 +24,12 @@ async def list_chapters(
     Returns:
         教材「章 → 节」结构清单。
     """
-    chapters = _list_chapters(textbook_name or "")
+    try:
+        chapters = _list_chapters(textbook_name or "")
+    except Exception as exc:
+        # 章节聚合依赖 Milvus：不可用时交给图上的官方 ToolRetryMiddleware 出说明文本
+        logger.warning(f"list_chapters({textbook_name!r}) 失败: {exc}")
+        raise RuntimeError(f"章节结构查询失败: {type(exc).__name__}: {exc}") from exc
     if not chapters:
         return "（未查到章节结构，可能教材尚未解析入库）"
 
