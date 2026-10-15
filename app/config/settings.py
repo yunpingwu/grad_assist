@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,10 +28,12 @@ load_dotenv()
 
 
 class LLMSettings(BaseSettings):
-    """大语言模型配置（阿里云百炼 OpenAI 兼容接口）。"""
+    """大语言模型配置（默认走阿里云百炼 OpenAI 兼容接口，可切 DeepSeek 官方平台）。"""
 
     model_config = SettingsConfigDict(extra="ignore")
 
+    # 供应商选择：alibaba=阿里云百炼（默认）；deepseek=DeepSeek 官方平台（见 DeepSeekSettings）
+    provider: Literal["alibaba", "deepseek"] = Field(default="alibaba", validation_alias="LLM_PROVIDER")
     model: str = Field(default="deepseek-v4-flash", validation_alias="MODEL")
     visual_model: str = Field(default="", validation_alias="VISUAL_MODEL")
     base_url: str = Field(
@@ -38,6 +42,26 @@ class LLMSettings(BaseSettings):
     )
     api_key: str = Field(default="", validation_alias="ALIBABA_API_KEY")
     temperature: float = 0.1
+
+
+class DeepSeekSettings(BaseSettings):
+    """DeepSeek 官方平台配置（``LLM_PROVIDER=deepseek`` 时启用）。
+
+    与百炼的两处口径差异：① 平台侧思考模式**默认开启**（effort=high），要关得显式传
+    ``thinking={"type": "disabled"}``；② 模型名是 deepseek-v4-pro / deepseek-v4-flash
+    （旧的 deepseek-chat / deepseek-reasoner 已按官方公告下线）。base_url 走不带 ``/v1``
+    的官方地址即可（OpenAI 兼容）。
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    api_key: str = Field(default="", validation_alias="DEEPSEEK_API_KEY")
+    base_url: str = Field(default="https://api.deepseek.com", validation_alias="DEEPSEEK_BASE_URL")
+    model: str = Field(default="deepseek-flash", validation_alias="DEEPSEEK_MODEL")
+    # 默认关思考：agent 一轮十几到几十次调用，思考是主要耗时与成本项；需要时再开
+    enable_thinking: bool = Field(default=False, validation_alias="DEEPSEEK_ENABLE_THINKING")
+    # 思考强度（官方取值 low/high/max，默认 high；关闭思考走 enable_thinking）
+    reasoning_effort: Literal["low", "high", "max"] = Field(default="high", validation_alias="DEEPSEEK_REASONING_EFFORT")
 
 
 class EmbeddingSettings(BaseSettings):
@@ -150,6 +174,7 @@ class Settings(BaseModel):
 
     Attributes:
         llm: 大语言模型配置。
+        deepseek: DeepSeek 官方平台配置。
         embedding: 嵌入模型配置。
         milvus: Milvus 配置。
         mineru: MinerU 配置。
@@ -161,6 +186,7 @@ class Settings(BaseModel):
     """
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    deepseek: DeepSeekSettings = Field(default_factory=DeepSeekSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     milvus: MilvusSettings = Field(default_factory=MilvusSettings)
     mineru: MineruSettings = Field(default_factory=MineruSettings)

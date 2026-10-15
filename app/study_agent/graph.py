@@ -171,7 +171,7 @@ def build_graph(checkpointer=None):
     # after_model 逆注册序执行，最后注册的先跑——被 HITL interrupt 掐断的调用也能先折叠成本
     budget_guard = [SessionBudgetMiddleware()] if budget_config.enabled else []
     return create_agent(
-        model=get_llm_client(),
+        model=get_llm_client(enable_thinking=False),
         tools=list(AGENT_TOOLS),  # 工具清单唯一来源（tools/__init__.py），避免两处各自漂移
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图识别），每轮一次

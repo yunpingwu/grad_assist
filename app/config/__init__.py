@@ -13,6 +13,7 @@ settings = Settings()
 
 # 兼容旧版扁平导出：各域配置对象（属性与旧 dataclass 一致）
 llm_config = settings.llm
+deepseek_config = settings.deepseek
 embedding_config = settings.embedding
 milvus_config = settings.milvus
 mineru_config = settings.mineru
@@ -26,6 +27,7 @@ __all__ = [
     "Settings",
     "settings",
     "llm_config",
+    "deepseek_config",
     "embedding_config",
     "milvus_config",
     "mineru_config",

@@ -25,7 +25,7 @@ import asyncio
 from langchain_core.messages import AnyMessage
 from langchain_core.prompts import PromptTemplate
 
-from app.clients.llm import get_llm_client
+from app.clients.llm import bind_structured_output, get_llm_client
 from app.core import load_prompt, logger
 from app.study_agent.entity.intent import IntentResult, _IntentDecision
 from app.trace import astage
@@ -237,9 +237,11 @@ async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
         text: 当前用户 query 原文。
         history: 历史用户问题纯文本（``format_history`` 产物），首轮为空。
     """
-    llm = get_llm_client(
-        enable_thinking=False, timeout=_LLM_TIMEOUT_S, max_retries=_LLM_MAX_RETRIES
-    ).with_structured_output(_IntentDecision)
+    # 结构化输出方式按供应商挑（官方平台不支持 json_schema，见 bind_structured_output 注释）
+    llm = bind_structured_output(
+        get_llm_client(enable_thinking=False, timeout=_LLM_TIMEOUT_S, max_retries=_LLM_MAX_RETRIES),
+        _IntentDecision,
+    )
     prompt = PromptTemplate.from_template(load_prompt("intent_classify"))
     decision = await llm.ainvoke(
         prompt.format(questions_history=(history or "").strip() or _NO_HISTORY, query=text),

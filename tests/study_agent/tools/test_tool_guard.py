@@ -35,7 +35,8 @@ class _FakeLLM:
 def tool_rails(monkeypatch) -> list:
     """从 build_graph 抓生产装配，只留工具相关的护栏——测的就是线上那几件。"""
     captured: dict = {}
-    monkeypatch.setattr(graph_mod, "get_llm_client", lambda: _FakeLLM())
+    # 生产里 build_graph 会带 enable_thinking 等实参调它，假实现要能吃下任意参数
+    monkeypatch.setattr(graph_mod, "get_llm_client", lambda *_a, **_kw: _FakeLLM())
     monkeypatch.setattr(graph_mod, "create_agent", lambda **kwargs: captured.update(kwargs))
 
     graph_mod.build_graph()

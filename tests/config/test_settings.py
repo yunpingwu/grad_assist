@@ -7,6 +7,11 @@ def test_settings_loads_all_domains() -> None:
     s = Settings()
     # 仅断言非敏感字段的存在性与类型，避免依赖 .env 具体值
     assert isinstance(s.llm.model, str) and s.llm.model
+    assert s.llm.provider in ("alibaba", "deepseek")
+    assert isinstance(s.deepseek.model, str) and s.deepseek.model
+    assert isinstance(s.deepseek.base_url, str) and s.deepseek.base_url
+    assert isinstance(s.deepseek.enable_thinking, bool)
+    assert s.deepseek.reasoning_effort in ("low", "high", "max")
     assert isinstance(s.embedding.dim, int) and isinstance(s.embedding.device, str)
     assert isinstance(s.milvus.uri, str) and s.milvus.uri
     assert isinstance(s.minio.endpoint, str) and isinstance(s.minio.secure, bool)

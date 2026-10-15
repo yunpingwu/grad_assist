@@ -18,7 +18,7 @@ class _RecordingLLM:
         self.decision = decision
         self.tag_sink = tag_sink
 
-    def with_structured_output(self, _schema):
+    def with_structured_output(self, _schema, **_kw):
         return self
 
     async def ainvoke(self, prompt_text: str, config=None) -> _IntentDecision:

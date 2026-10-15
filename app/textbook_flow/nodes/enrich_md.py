@@ -42,10 +42,14 @@ _CODE_CONTEXT_CHARS = 200
 
 
 def get_model() -> tuple[Any, Any]:
-    """返回 (文本模型, 视觉模型),分别用于代码块与图片的富化。"""
+    """返回 (文本模型, 视觉模型),分别用于代码块与图片的富化。
+
+    教材富化是离线批处理且依赖百炼的视觉模型，固定走百炼平台——不随 LLM_PROVIDER
+    切换（DeepSeek 官方平台没有对应的视觉模型，切过去这两个调用会打错平台）。
+    """
     return (
-        get_llm_client(llm_config.model),
-        get_llm_client(llm_config.visual_model),
+        get_llm_client(llm_config.model, provider="alibaba"),
+        get_llm_client(llm_config.visual_model, provider="alibaba"),
     )
 
 
