@@ -10,6 +10,7 @@ import json
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage
@@ -78,7 +79,7 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
                     break
             if interrupt_value is not None:
                 break
-        pending_count = max(len(getattr(snapshot, "tasks", ())), 1)  # 无快照时兜底 1
+        pending_count = _hanging_write_count(snapshot)
         if interrupt_value and interrupt_value.get("type") == "clarify":
             if req.clarify_answers is not None:
                 # 用户回应上轮澄清反问：按问题逐一作答，续跑同一线程
@@ -89,7 +90,7 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
                 await study_graph.ainvoke(Command(resume={CANCEL_MARKER: True}), config)
                 agent_input = state
         elif req.decision in ("approve", "reject"):
-            # 用户回应上轮确认：对全部 pending 中断统一生效，续跑同一线程
+            # 用户回应上轮确认：对该中断里全部挂起的写盘调用统一生效，续跑同一线程
             agent_input = Command(resume={"decisions": [{"type": req.decision}] * pending_count})
         else:
             # 方案A：停在写盘确认却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
@@ -294,6 +295,23 @@ def _dump_messages(messages: list) -> list[dict]:
 
 
 CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
+
+
+def _hanging_write_count(snapshot: Any) -> int:
+    """挂起的写盘调用数 = 各中断 payload 里 ``action_requests`` 的总和（无快照时兜底 1）。
+
+    HITL 中间件把一轮内**所有**待确认的工具调用打包进同一个 interrupt；resume 的 decisions
+    数必须等于挂起的调用数，否则中间件直接抛 "Number of human decisions (n) does not match
+    number of hanging tool calls (m)"。数 graph task 数（恒为 1）在模型一次发多起写盘时会踩这条：
+    真机 2026-10-15 上模型一次发出两个 edit_file，恢复被拒后线程卡死，下一轮调用直接 400。
+    """
+    count = 0
+    for task in getattr(snapshot, "tasks", ()):
+        for intr in getattr(task, "interrupts", ()):
+            value = getattr(intr, "value", None)
+            if isinstance(value, dict):
+                count += len(value.get("action_requests") or ())
+    return max(count, 1)
 
 
 @router.get("/study/files", summary="任务产物文件列表", description="列出某任务目录内已生成的文件（相对路径 + 大小）")
