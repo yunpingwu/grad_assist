@@ -22,6 +22,7 @@ mongo_config = settings.mongo
 web_search_config = settings.web_search
 rerank_config = settings.rerank
 budget_config = settings.budget
+trace_config = settings.trace
 
 __all__ = [
     "Settings",
@@ -36,4 +37,5 @@ __all__ = [
     "web_search_config",
     "rerank_config",
     "budget_config",
+    "trace_config",
 ]

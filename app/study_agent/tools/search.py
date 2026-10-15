@@ -24,7 +24,7 @@ from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_gener
 from app.study_agent.query_functions.merge_recalls import rrf_merge
 from app.study_agent.query_functions.rerank import arerank_chunks_weighted
 from app.study_agent.safety import wrap_untrusted
-from app.trace import astage, get_metrics
+from app.trace import astage, mark_tool
 from app.utils import (
     agenerate_embeddings,
     get_collection_by_name,
@@ -163,19 +163,19 @@ def _build_artifact(
     }
 
 
-def _record_retrieved_chunk_ids(chunks: list[dict]) -> None:
-    """把本次检索最终返回的 chunk ID 按顺序写入请求级指标。"""
-    metrics = get_metrics()
-    if metrics is None:
-        return
+def _hit_chunk_ids(chunks: list[dict]) -> list[str]:
+    """取本次检索最终返回的 chunk ID（保序、去重、跳过缺 ID 的条目）。
+
+    写进本次工具步的 meta 后，请求级的 ``retrieved_chunk_ids`` 由它派生（去重保序），
+    证据只落一处，不会出现「steps 里记了、请求级忘了记」的分家。
+    """
+    ids: dict[str, None] = {}
     for hit in chunks:
         entity = hit.get("entity") or hit
         chunk_id = hit.get("id") or entity.get("id")
-        if chunk_id is None:
-            continue
-        chunk_id = str(chunk_id)
-        if chunk_id not in metrics.retrieved_chunk_ids:
-            metrics.retrieved_chunk_ids.append(chunk_id)
+        if chunk_id is not None:
+            ids.setdefault(str(chunk_id), None)
+    return list(ids)
 
 
 # 召回后二次补拉代码块的上限（控制检索延迟与 prompt 体积）
@@ -293,23 +293,20 @@ async def search_textbook(
         RuntimeError: 检索链路不可用；空召回是正常结果，不走这里。
     """
     textbook_name = textbook_name or ""
-    metrics = get_metrics()
     try:
         # 检索问句：优先用 LLM 显式传入的自包含 query，缺省回退本轮用户原问题
         search_query = (query or requirement or "").strip()
         if not search_query:
             return "（未提供检索问句，请重试）", {}
-        if metrics is not None:
-            # 逐次检索各占一条，回填只动本次调用的 dict：并发或连续多次检索互不覆盖
-            entry = {"query": search_query, "deep": bool(deep), "recall": 0, "kept": 0, "error": None}
-            metrics.retrievals.append(entry)
+        # 观测挂到本次工具步的 meta 上（并发或连续多次检索各写各的步，互不覆盖）；
+        # 失败不再自己写 error：on_tool_error 会把 status/error 落在同一条工具步上
+        mark_tool(query=search_query, deep=bool(deep))
         logger.info(f"search_textbook 检索问句: {search_query!r}")
 
         if not deep:
             # 快速路径：单路混合召回（稠密 + 稀疏）后截取 TOP-K
             chunks = await search_by_query(textbook_name, search_query, chapter)
-            if metrics is not None:
-                entry["recall"] = len(chunks)
+            mark_tool(recall=len(chunks))
             hits = chunks[:rerank_config.top_k]
         else:
             # 深度路径：两路召回（混合 + HyDE，各扩候选池）→ RRF 融合 → 精排 TOP-K
@@ -327,8 +324,7 @@ async def search_textbook(
             )
             merged = await rrf_merge(embedding_chunks, hyde_chunks)
             merged_hits = [entry["hit"] for entry in merged]
-            if metrics is not None:
-                entry["recall"] = len(merged_hits)
+            mark_tool(recall=len(merged_hits))
             try:
                 async with astage("rerank_ms"):
                     # 交叉编码打分后与 RRF 分数加权融合（精排微调而非覆盖），只对返回结果截断
@@ -339,15 +335,12 @@ async def search_textbook(
                 logger.warning(f"deep 检索精排失败，回退 RRF：{exc}")
                 hits = merged_hits[:rerank_config.top_k]
     except Exception as exc:
-        if metrics is not None:
-            entry["error"] = type(exc).__name__  # 观测侧留痕：本次检索降级到失败
         logger.warning(f"search_textbook({query!r}, deep={deep}) 失败: {exc}")
         # 交给图上的官方 ToolRetryMiddleware：先原地重试一次，耗尽后由它把说明文本回给模型
         raise RuntimeError(f"教材检索失败: {type(exc).__name__}: {exc}") from exc
 
-    if metrics is not None:
-        # 送入模型前截断后的条数（补拉的代码块不计入，另由 retrieved_chunk_ids 体现）
-        entry["kept"] = len(hits)
+    # 送入模型前截断后的条数（补拉的代码块不计入，另由 meta.chunk_ids 体现）
+    mark_tool(kept=len(hits))
 
     if not hits:
         return "（未检索到相关片段，请把 query 补全为自包含问句或去掉章节限定）", {}
@@ -355,7 +348,8 @@ async def search_textbook(
     logger.info(f"search_textbook({query!r}, deep={deep}) → {len(hits)} 条")
     # 正文命中后按节补拉代码块（粗粒度协同召回），使自然语言问代码能取回代码原文
     hits = _enrich_hits_with_section_codes(textbook_name, hits)
-    _record_retrieved_chunk_ids(hits)
+    # 证据随本次工具步落盘，请求级 retrieved_chunk_ids 由它派生（见 RequestMetrics 属性）
+    mark_tool(chunk_ids=_hit_chunk_ids(hits))
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
     content = _format_hits(hits)
     # artifact 存干净原文（/history 回显与往轮降级记录都读它）；只有给模型的 content 包边界，

@@ -11,6 +11,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, ModelRequest, ModelResponse
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
@@ -47,6 +48,30 @@ def test_current_weighted_cost_reads_context_handler() -> None:
         handler = get_handler()
         handler.input_tokens, handler.cached_tokens, handler.output_tokens = 1000, 400, 100
         assert current_weighted_cost() == weighted_cost(1000, 400, 100)
+    finally:
+        detach_handler()
+
+
+def test_tool_internal_llm_tokens_count_into_weighted_cost() -> None:
+    """工具内部发起的 LLM 调用（hyde 等）也计入成本读数——护栏不能漏掉工具里的花费。"""
+    inner = GenericFakeChatModel(messages=iter([AIMessage(
+        content="假设文档",
+        usage_metadata={"input_tokens": 500, "output_tokens": 40, "total_tokens": 540,
+                        "input_token_details": {"cache_read": 300}},
+    )]))
+
+    @tool
+    async def tool_with_llm(q: str) -> str:
+        """工具内调 LLM"""
+        doc = await inner.ainvoke(q)
+        return str(doc.content)
+
+    detach_handler()
+    assert current_weighted_cost() == 0.0
+    attach_handler()
+    try:
+        asyncio.run(tool_with_llm.ainvoke({"q": "x"}))
+        assert current_weighted_cost() == weighted_cost(500, 300, 40)
     finally:
         detach_handler()
 

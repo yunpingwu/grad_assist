@@ -10,7 +10,8 @@
     uv run python -m app.trace.scripts.cache_probe --compare \\
         data/trace/runs/before_*.jsonl data/trace/runs/after_*.jsonl
 
-盯的数只有一个：**每轮首次 agent 调用的 cached**。它按 ``llm_calls_detail`` 里 role 为空的那条取——
+盯的数只有一个：**每轮首次 agent 调用的 cached**。它按逐次 LLM 明细（新记录取 ``steps`` 里
+kind=="llm"、老记录取 ``llm_calls_detail``，见 ``_llm_detail``）中 role 为空的那条取——
 一轮里排在最前的往往是意图兜底层那次 267~371 token 的小调用（2026-10-06 实见），拿它当首轮就是把
 重排效果读成噪声；意图/hyde/summary 三种调用点各自打了 ``trace_role:`` 标签，剩下的才是 agent 的。
 
@@ -133,6 +134,27 @@ def _match_records(records: list[dict[str, Any]], session_id: str, sent: list[di
     return rows
 
 
+def _llm_detail(record: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """从一条记录里取逐次 LLM 调用明细，归一成 role/input/cached/output 四键。
+
+    新格式在 ``steps`` 里（筛 kind=="llm"，token 在 ``tokens.{in,cached,out}``）；
+    历史日志是平铺的 ``llm_calls_detail``——探针要能并排比对新旧两批数据，两处都得认。
+    """
+    steps = (record or {}).get("steps")
+    if steps:
+        return [
+            {
+                "role": step.get("role", ""),
+                "input": (step.get("tokens") or {}).get("in") or 0,
+                "cached": (step.get("tokens") or {}).get("cached") or 0,
+                "output": (step.get("tokens") or {}).get("out") or 0,
+            }
+            for step in steps
+            if step.get("kind") == "llm"
+        ]
+    return list((record or {}).get("llm_calls_detail") or [])
+
+
 def _split_by_role(detail: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """按角色归堆：role 为空串即 agent 主体调用（intent/hyde/summary 由调用点打标）。
 
@@ -146,7 +168,7 @@ def _split_by_role(detail: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
 
 
 def _turn_row(tag: str, index: int, query: str, sent: dict[str, Any], record: dict[str, Any] | None) -> dict[str, Any]:
-    detail = list((record or {}).get("llm_calls_detail") or [])
+    detail = _llm_detail(record)
     labeled = any("role" in entry for entry in detail)
     grouped = _split_by_role(detail)
     agent_calls = grouped.get("", [])

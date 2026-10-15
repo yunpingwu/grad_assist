@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 
 from app.trace.entities import RequestMetrics
-from app.trace.llm_usage import attach_handler, detach_handler
+from app.trace.llm_usage import attach_handler, current_tool_step, detach_handler
 
 # 请求级指标上下文：存 RequestMetrics 的引用，跨 task 共享累加
 _current: ContextVar[RequestMetrics | None] = ContextVar("grad_assist_req_metrics", default=None)
@@ -36,7 +36,8 @@ def start_request(session_id: str, query: str) -> RequestMetrics:
         query=query,
     )
     _current.set(metrics)
-    attach_handler()
+    # handler 与 metrics 共享同一条 steps 时间线：LLM 调用步与工具执行步同列一条线
+    attach_handler(metrics)
     return metrics
 
 
@@ -52,12 +53,21 @@ def get_metrics() -> RequestMetrics | None:
 
 
 def mark_stage(name: str, cost_ms: float) -> None:
-    """累加某阶段耗时到当前请求指标（无上下文时静默跳过）。
+    """累加某阶段耗时（无上下文时静默跳过）。
+
+    路由规则：在工具步内触发的阶段（如检索内部的 ``hyde_ms`` / ``rerank_ms``）记进**该工具步**
+    的 ``meta.phases``——同轮多次检索各自归因，不互相混加；工具外的请求级阶段（总耗时/首事件/
+    首 token/intent 等）仍落 ``stage_ms`` 整请求合计。
 
     Args:
         name: 阶段名，如 ``hyde_ms`` / ``embedding_ms``。
         cost_ms: 本次耗时（毫秒）。
     """
+    step = current_tool_step()
+    if step is not None:
+        phases = step.meta.setdefault("phases", {})
+        phases[name] = round(phases.get(name, 0.0) + cost_ms, 2)
+        return
     metrics = get_metrics()
     if metrics is not None:
         metrics.stage_ms[name] = metrics.stage_ms.get(name, 0.0) + cost_ms

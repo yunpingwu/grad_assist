@@ -1,8 +1,12 @@
-"""观测聚合与落库：合并请求上下文指标与 LLM 采集结果，追加写入按天隔离的 ``logs/<日期>/metrics.log``。
+"""观测聚合与落库：合并请求上下文指标与调用侧聚合读数，追加写入按天隔离的 ``logs/<日期>/metrics.log``。
+
+逐次留痕（LLM 调用步与工具执行步）由 ``llm_usage`` 的回调直接写进 ``metrics.steps``（共享同一
+列表），这里只补齐请求级聚合读数与派生标记，再落盘。
 
 本包分层（依赖单向，禁止反向引 app.core 门面）：
 ``entities``（数据形状与落库视图）← ``context``（请求上下文/阶段计时）/ ``llm_usage``（调用侧采集），
 ``metrics`` 是同时读这两者的编排与落盘点，对外入口在 ``app/trace/__init__.py``。
+落盘入口收敛在 ``_write_record`` 一处（换存储只需要改它）。
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from typing import Any
 
 from app.core.logger import logger
 from app.trace.context import get_metrics
+from app.trace.entities import RequestMetrics
 from app.trace.llm_usage import get_handler, weighted_cost
 
 # 指标落盘目录（项目根 logs/，与 study_service 的 messages.log 同目录）
@@ -23,7 +28,7 @@ _LOG_WRITE_LOCK = threading.Lock()
 
 
 def flush_metrics() -> None:
-    """把当前请求指标合并 LLM 调用计数与 token/缓存明细后追加到当天日期的 metrics.log。
+    """把当轮聚合读数与派生标记合并进指标后追加到当天日期的 metrics.log。
 
     写失败仅告警不阻断；无观测上下文时静默跳过。
     """
@@ -41,9 +46,30 @@ def flush_metrics() -> None:
         metrics.turn_cost = weighted_cost(
             handler.input_tokens, handler.cached_tokens, handler.output_tokens
         )
-        metrics.llm_calls_detail = list(handler.calls_detail)
 
+    _mark_resolved(metrics)
     _write_record(metrics.to_record())
+
+
+def _mark_resolved(metrics: RequestMetrics) -> None:
+    """给每个 LLM 步的 tool_calls 标 ``resolved``：本请求内是否有对应工具步真正执行过。
+
+    ``false`` 的来路：HITL 写盘确认被拦在本轮（续跑在下一请求才执行）、ToolCallLimit/预算
+    中间件短路返回人造消息、模型发出了但请求中断。被拦的调用没有工具步可入，只能这样留痕；
+    续跑那轮的执行步在**另一条请求记录**里（同 tool_call_id），跨记录对照才看得到落点。
+
+    只标 agent 主体调用（role 为空）：intent 这类非 agent 调用走结构化输出，其 "tool_calls"
+    是 function_calling 的载荷、不经过工具执行链路，标 resolved 只会误导读者。
+    """
+    executed = {
+        step.tool_call_id for step in metrics.steps if getattr(step, "tool_call_id", None)
+    }
+    for step in metrics.steps:
+        if getattr(step, "role", ""):
+            continue
+        output = getattr(step, "output", None)
+        for call in (output or {}).get("tool_calls") or []:
+            call["resolved"] = call.get("id") in executed
 
 
 def _write_record(record: dict[str, Any]) -> None:

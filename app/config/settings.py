@@ -169,6 +169,21 @@ class BudgetSettings(BaseSettings):
     output_weight: float = Field(default=4.0, validation_alias="BUDGET_OUTPUT_WEIGHT")
 
 
+class TraceSettings(BaseSettings):
+    """观测落盘保真度（steps 时间线里 message/工具结果的正文留多少）。
+
+    三档：digest 只留长度与指纹（最省，判「两次调用是否同前缀」够用）；preview 另留首尾
+    摘要（排障主用档）；full 连正文一起落（日志大 10~20 倍，只在复现具体问题时开）。
+    单个 agent 调用的输入有一两万 token，全量落盘会让单条记录膨胀到数百 KB。
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    payload: Literal["digest", "preview", "full"] = Field(default="preview", validation_alias="TRACE_PAYLOAD")
+    preview_head: int = Field(default=120, validation_alias="TRACE_PREVIEW_HEAD")
+    preview_tail: int = Field(default=40, validation_alias="TRACE_PREVIEW_TAIL")
+
+
 class Settings(BaseModel):
     """顶层配置聚合，实例化一次后按域访问。
 
@@ -183,6 +198,7 @@ class Settings(BaseModel):
         web_search: 联网搜索配置。
         rerank: 重排序模型配置。
         budget: 会话成本预算护栏配置。
+        trace: 观测落盘保真度配置。
     """
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -195,3 +211,4 @@ class Settings(BaseModel):
     web_search: WebSearchSettings = Field(default_factory=WebSearchSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
+    trace: TraceSettings = Field(default_factory=TraceSettings)

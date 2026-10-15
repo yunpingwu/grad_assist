@@ -2,13 +2,13 @@
 
 import asyncio
 import json
-from types import SimpleNamespace
 from typing import get_args, get_type_hints
 
 import pytest
 from langchain.tools.tool_node import InjectedState
 
 from app.study_agent.tools import search
+from app.trace import llm_usage
 
 _HYBRID_HITS = [
     {"id": "c1", "distance": 0.8, "entity": {
@@ -90,42 +90,41 @@ def test_search_textbook_deep_path(monkeypatch) -> None:
 
 
 def test_search_textbook_prefers_agent_query(monkeypatch) -> None:
-    """多轮指代由模型自组自包含问句：显式 query 优先于本轮原问题，并写进检索打点。"""
+    """多轮指代由模型自组自包含问句：显式 query 优先于本轮原问题，并写进本次工具步的 meta。"""
     used: list[str] = []
 
     async def _capture(textbook_name: str, search_query: str, chapter: str | None = None) -> list[dict]:
         used.append(search_query)
         return _HYBRID_HITS
 
-    record = SimpleNamespace(retrievals=[], retrieved_chunk_ids=[])
     monkeypatch.setattr(search, "search_by_query", _capture)
-    monkeypatch.setattr(search, "get_metrics", lambda: record)
     monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
 
-    asyncio.run(search.search_textbook.coroutine(
-        query="C 语言指针常量的用途", textbook_name="C语言程序设计", requirement="那它呢?"
+    llm_usage.attach_handler()
+    asyncio.run(search.search_textbook.ainvoke(
+        {"query": "C 语言指针常量的用途", "textbook_name": "C语言程序设计", "requirement": "那它呢?"}
     ))
     assert used == ["C 语言指针常量的用途"], f"未优先采用模型自组的检索问句: {used}"
-    assert record.retrievals[0]["query"] == "C 语言指针常量的用途"
+    assert _tool_steps()[0].meta["query"] == "C 语言指针常量的用途"
 
 
 def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
-    """一次请求内多次检索逐条留痕，后一次不得覆盖前一次。
+    """一次请求内多次检索各写各的工具步，后一次不得覆盖前一次（含失败那次）。
 
     线上出现过 deep=False 却带 rerank 耗时的自相矛盾记录：旧实现把问句/深度/召回数
     写成请求级标量，第二次检索（含入口写完就抛异常提前返回的路径）会污染第一次的读数。
+    现在每次检索独占一条工具步，meta 挂在各自的步上，天然互不覆盖；失败由 on_tool_error
+    落在同一条步的 status/error 上。
     """
-    record = SimpleNamespace(retrievals=[], retrieved_chunk_ids=[])
     fast_calls = {"n": 0}
 
     async def _fast_or_boom(textbook_name: str, query_arg: str, chapter: str | None = None) -> list[dict]:
-        # 第一次快检索正常返回，第二次抛错，用于覆盖降级分支的打点
+        # 第一次快检索正常返回，第二次抛错，用于覆盖降级分支的留痕
         fast_calls["n"] += 1
         if fast_calls["n"] >= 2:
             raise RuntimeError("milvus 连接超时")
         return _HYBRID_HITS
 
-    monkeypatch.setattr(search, "get_metrics", lambda: record)
     monkeypatch.setattr(search, "_enrich_hits_with_section_codes", lambda _tb, hits: hits)
     monkeypatch.setattr(search, "search_by_query", _fast_or_boom)
     monkeypatch.setattr(search, "hyde_doc_generate", _fake_hyde_generate)
@@ -134,24 +133,33 @@ def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
     monkeypatch.setattr(search, "rrf_merge", _fake_rrf)
     monkeypatch.setattr(search, "arerank_chunks_weighted", _fake_arerank)
 
-    asyncio.run(search.search_textbook.coroutine(
-        query="指针的用途", deep=True, textbook_name="C语言程序设计"
+    llm_usage.attach_handler()
+    asyncio.run(search.search_textbook.ainvoke(
+        {"query": "指针的用途", "deep": True, "textbook_name": "C语言程序设计"}
     ))
-    asyncio.run(search.search_textbook.coroutine(
-        query="数组的定义", textbook_name="C语言程序设计"
+    asyncio.run(search.search_textbook.ainvoke(
+        {"query": "数组的定义", "textbook_name": "C语言程序设计"}
     ))
-    # 检索失败：抛 RuntimeError，由图上的官方 ToolRetryMiddleware 出说明文本（此处只验证抛点与打点）
+    # 检索失败：抛 RuntimeError，由图上的官方 ToolRetryMiddleware 出说明文本（此处只验证抛点与留痕）
     with pytest.raises(RuntimeError, match="教材检索失败"):
-        asyncio.run(search.search_textbook.coroutine(
-            query="越界的问句", textbook_name="C语言程序设计"
+        asyncio.run(search.search_textbook.ainvoke(
+            {"query": "越界的问句", "textbook_name": "C语言程序设计"}
         ))
 
-    assert [(e["query"], e["deep"], e["recall"], e["kept"]) for e in record.retrievals] == [
-        ("指针的用途", True, 2, 1),
-        ("数组的定义", False, 4, 4),
-        ("越界的问句", False, 0, 0),
-    ], record.retrievals
-    assert [e["error"] for e in record.retrievals] == [None, None, "RuntimeError"]
+    deep_step, fast_step, failed_step = _tool_steps()
+    assert (deep_step.meta["deep"], deep_step.meta["recall"], deep_step.meta["kept"]) == (True, 2, 1)
+    assert deep_step.meta["chunk_ids"] == ["c1"], "证据 ID 随本次检索的步落盘"
+    assert (fast_step.meta["deep"], fast_step.meta["recall"], fast_step.meta["kept"]) == (False, 4, 4)
+    assert fast_step.meta["chunk_ids"] == ["c1", "c3_code", "c2", "c4_code"]
+    assert failed_step.status == "error" and failed_step.error == "RuntimeError"
+    assert failed_step.meta == {"query": "越界的问句", "deep": False}, "失败前的读数照留，不编 kept"
+
+
+def _tool_steps() -> list:
+    """当前 handler 时间线里的工具步（本文件只跑工具，不跑 LLM）。"""
+    handler = llm_usage.get_handler()
+    assert handler is not None
+    return [step for step in handler.steps if step.kind == "tool"]
 
 
 async def _fake_vectors(_tb, _dense, _sparse, chapter=None, limit=5) -> list[dict]:
