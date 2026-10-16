@@ -10,7 +10,7 @@
 |---|---|---|
 | Recall@5（300 题检索评测集） | 79.6% → **84.8%** | 快路径（dense/sparse 混合召回）→ 深度路径（HyDE + RRF + Rerank） |
 | 多轮会话评测 | **50 会话 × 200 轮全部通过** | 无会话串扰；检索触发率 88% → 99%，追问轮 hit@5 0.662 → 0.887 |
-| 上下文 Prompt Token | 平均 **-30%** | 历史轮检索原文压缩为可回读存根（`stub_old_search_results` middleware） |
+| 跨轮缓存命中率 | 49% → **92%** | 13 轮会话逐次调用实测：静态壳 + 尾部本轮指令 + 往轮原文回收让断裂点只随轮首前移（数据口径见 `logs/<日期>/metrics.log` 的 `cached`/`input_digest`） |
 
 评测脚本与指标计算均在 [app/eval/](app/eval) 内，可离线复现（评测集与教材 PDF 因体积与版权未随仓库分发，见「评测复现」）。
 
@@ -41,7 +41,11 @@ flowchart LR
 - **检索问句**：由模型在 ReAct 循环里结合对话历史自行组织成自包含问句（检索侧无状态，不读历史），不做前置改写，省一次 LLM 往返；
 - **快路径**：BGE-M3 dense + sparse 混合召回（WeightedRanker 0.8/0.2），Milvus 单请求完成；
 - **深度路径**：在原查询之外并行生成 HyDE 假设文档向量做第二路召回，RRF（k=60）融合两路结果，再过 BGE-Reranker-large 精排；
-- **上下文控制**：before_agent middleware 在轮首把往轮检索原文降级为一行行为记录（教材名、检索问句、命中的章节位置）并写回 state；原文只存在该条 ToolMessage 的 artifact 里（随 checkpoint 落库、不进模型请求），前端历史回显改读 artifact，展示不受影响。
+- **上下文控制**（三层，逐层都只动「发给模型的视图」，不动 state 台账）：
+  1. **静态壳 + 尾部本轮指令**：system prompt 只装全局静态内容，教材名/意图/任务目标每轮作为一条尾部 SystemMessage 追加一次——前缀缓存从第一条 token 起命中；
+  2. **往轮原文回收**：轮首把上一轮用过的工具原文换成一句占位（判据是「体积过线 + `artifact` 里存着干净原文」，不认工具名单）；原文随 ToolMessage 的 artifact 落 checkpoint 但不进请求，`/history` 回显仍读得到原文；
+  3. **会话压缩**：视图逼近模型窗口一半（`MODEL_CONTEXT_WINDOW` / `DEEPSEEK_CONTEXT_WINDOW` × 50%）时，在轮首把更早的历史收成一份中文回顾置顶，水位线之后的消息原样保留；被压掉的消息留在 state 里，回显与审计不受影响。摘要调用失败时保持完整历史（下轮再试），不会用一条报错顶掉对话。
+  另有一道 per-session 成本护栏兜底（轮内不设体积闸门：成批取材料的大任务需要它）。
 
 ### Agent 能力
 

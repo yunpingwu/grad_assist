@@ -1,8 +1,16 @@
-"""历史检索结果降级：上一轮用过的工具原文在 state 里换成一句回收占位。
+"""历史工具原文降级：上一轮用过的工具原文在 state 里换成一句回收占位。
 
-``search_textbook`` 单轮返回中位 2.3k token，实测占线程上下文 76%–78%（同线程里模型自己的
-回答只有 6.5k），而跨轮真正被引用的只有历史用户问题与回答本身——原文一旦被那一轮的回答
-消化完，留在上下文里就只是每轮重复发送。
+回收谁由「**体积大 + 原文另有去处**」两条判据决定，不按工具名单：结果过线
+（≥ ``_MIN_DEMOTE_CHARS``）且 ``artifact`` 里存着干净原文的工具消息，跨轮留在上下文里
+就只是每轮重新计费。``search_textbook`` 单轮返回实测 p50 9.1k 字符（最大 12.6k），
+而跨轮真正被引用的只有历史用户问题与回答本身——原文一旦被那一轮的回答消化完，
+留在上下文里就只是每轮重复发送。
+
+体积有界的工具结果**不回收**：``read_file`` 分页上限 100 行、``search_web`` 固定条数，
+它们留在上下文里比让模型重读更划算（回收反而换来一次多余的工具往返）。这条判据同时是
+给未来工具的契约：结果可能很大时把原文放进 ``artifact``（``response_format=
+"content_and_artifact"``），回收机制自动认得，不必回来改名单——名单式判据的坏处正是
+新工具悄悄漏网（旧版只列了 search_textbook）。
 
 三条机制前提决定了现在的做法：
 
@@ -27,23 +35,38 @@ from __future__ import annotations
 from langchain.agents.middleware import before_agent
 from langchain_core.messages import AnyMessage, ToolMessage
 
-# 只降级这几类"带检索 artifact、体积大、内容已被回答消化"的工具结果
-_DEMOTE_TOOLS = frozenset({"search_textbook"})
+# 回收的体量门槛（字符）：低于它的结果留在上下文里更划算——重取一次的工具往返，
+# 成本高于它每轮占的那点 token（检索实测 p50 9.1k 字符，这条只挡住零散小结果）
+_MIN_DEMOTE_CHARS = 2000
 # 降级标记写在消息自身：同一线程重入（resume 回中断点）据此跳过，不产生二次改写
 _DEMOTED_KEY = "tool_history_demoted"
 # 降级后的占位正文：不复述「查了什么、在哪」——检索问句在工具调用参数里本就可见、
-# 教材名每轮指令都带，占位只为说明「原文已回收、要依据请重新检索」。内容由代码写死，
+# 教材名每轮指令都带，占位只为说明「原文已回收、要依据请重新取用」。内容由代码写死，
 # 不含任何外部字段，无需截断/清洗。
-_DEMOTED_CONTENT = "（上一轮检索原文已回收：内容已用于当时的回答，需要依据时请重新检索）"
+_DEMOTED_CONTENT = "（上一轮工具原文已回收：内容已用于当时的回答，需要依据时请重新取用）"
 
 
-def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
-    """把最后一条用户提问之前的检索结果降级，返回用于写回 state 的替换消息。
+def recoverable_text(message: AnyMessage) -> str:
+    """工具消息里可回显的干净原文（``artifact["content"]``）；没有就返回空串。
+
+    这就是「回收后回显还拿得回原文」的依据，也是回收判据的一半——artifact 里没有干净原文
+    的工具结果一律不动（宁可多占点上下文，也不能让回显丢掉原文）。
+    """
+    artifact = getattr(message, "artifact", None) or {}
+    text = artifact.get("content") if isinstance(artifact, dict) else None
+    return text if isinstance(text, str) else ""
+
+
+def demote_messages(messages: list[AnyMessage], bookmark: str | None = None) -> list[ToolMessage]:
+    """把最后一条用户提问之前的工具原文降级，返回用于写回 state 的替换消息。
 
     "最后一条 HumanMessage 之后"属于本轮：模型正要靠它生成回答，此刻降级等于让它无据可答。
+    已在压缩水位线之下的消息同样跳过——它们早就不进模型视图（见 ``compaction.py``），
+    再回收只是白写一次 checkpoint。
 
     Args:
         messages: 本轮开始时的完整消息列表。
+        bookmark: 会话压缩水位线（``compacted_upto``）；缺省表示还没压缩过。
 
     Returns:
         需要降级的消息副本（同 id、同 ``tool_call_id``，仅 ``content`` 与标记变化）；无需降级时为空列表。
@@ -54,16 +77,18 @@ def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
             last_human = index
     if last_human <= 0:
         return []
+    floor = next((i for i, m in enumerate(messages) if m.id == bookmark), -1) if bookmark else -1
 
     updates: list[ToolMessage] = []
-    for msg in messages[:last_human]:
-        if msg.type != "tool" or getattr(msg, "name", None) not in _DEMOTE_TOOLS:
+    for index, msg in enumerate(messages[:last_human]):
+        if index <= floor:
+            continue  # 已在水位线之下：不在视图里，回收没有意义
+        if msg.type != "tool":
             continue
         if (msg.additional_kwargs or {}).get(_DEMOTED_KEY):
             continue
-        artifact = getattr(msg, "artifact", None) or {}
-        if not artifact.get("chunks"):
-            continue  # 失败或零命中的检索没有原文可留，保持原样
+        if len(recoverable_text(msg)) < _MIN_DEMOTE_CHARS:
+            continue  # 无原文可回显 / 体积本来就有界：留着比回收划算
         updates.append(
             msg.model_copy(
                 update={
@@ -78,5 +103,5 @@ def demote_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
 @before_agent
 async def demote_used_tool_results(state: dict, runtime: object) -> dict:
     """挂点（轮首一次）：把往轮的检索原文回收成一句占位，写回 state。"""
-    updates = demote_messages(state.get("messages") or [])
+    updates = demote_messages(state.get("messages") or [], state.get("compacted_upto"))
     return {"messages": updates} if updates else {}

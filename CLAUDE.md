@@ -34,7 +34,7 @@ uv run ruff check .                            # line-length 150，select E/F/W/
 
 两条 LangGraph 流水线 + 一套存储（Milvus / MongoDB / MinIO / 本地盘），架构图与检索链路见 README。需要读多处代码才能拼出来的部分：
 
-- **问答 Agent**（`app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/摘要/HITL/预算护栏）。
+- **问答 Agent**（`app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
 - **教材摄入**（`app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
 - **观测**（`app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
 - **API**（`app/api/`）：两个 APIRouter 挂同一 FastAPI；对话与摄入各用独立 checkpoint collection。
@@ -46,7 +46,9 @@ uv run ruff check .                            # line-length 150，select E/F/W/
 提示词与消息的排布都是为「从第一条 token 起完全相同」的缓存命中服务的，改动前先想缓存：
 
 - `dynamic_prompt` 的 system prompt **只装全局静态壳**；教材名 / 意图 / 任务目标一律由 `record_turn_instruction`（`graph.py`）作为**尾部 SystemMessage 每轮追加一次**（`lc_source="turn_instruction"` 标记，同内容不重复追加）。别把这些塞回 system prompt，也别每次模型调用重贴。
-- 摘要中间件触发阈值 6.4w tokens、保留最近 3 条；预算降级的收尾说明是**转瞬即逝**的（不进 checkpoint、不动静态壳）。
+- **会话压缩只裁模型视图，不删 state**（`compaction.py`，自研件，不用官方 `SummarizationMiddleware`）：超「窗口 × 50%」（窗口默认 50w → 触发线 25w）时在 `before_agent` 生成一份回顾追加进消息流 + 推进水位线 `compacted_upto`，`awrap_model_call` 按水位线裁请求视图。三条纪律：①必须排在 `record_turn_instruction` **之前**（否则本轮指令会被折进回顾）；②摘要调用失败/产出为空就返回 None、state 一条不动（官方件会把报错写成回顾再删历史）；③触发读数取 provider 上报的 `usage_metadata.total_tokens`，字符估算（1.3 字符/token + 8k 固定开销）只作兜底且生效时告警——中文内容下 chars/4 会低估约 3 倍。
+- 压缩注入的整篇回顾（`lc_source="summarization"`）**不是用户消息**：回显、会话计数、意图层历史一律用 `message_sources.is_summary_message` 排除（标记词表见 `app/study_agent/message_sources.py`，别再抄字面量）。
+- 预算降级的收尾说明是**转瞬即逝**的（不进 checkpoint、不动静态壳）。
 - `safety.wrap_untrusted` 的边界随机串每次包裹新生成并**冻结进文本**；往轮检索原文回收（`tool_history.py`）是**一次性、永不回改**的。
 - 判断缓存是否被打断看 `logs/<日期>/metrics.log` 里每次调用的 `cached` 与 `input_digest`（相邻调用 digest 相同即前缀未变）。
 
