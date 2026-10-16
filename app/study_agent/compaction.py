@@ -172,6 +172,8 @@ class HistoryCompactionMiddleware(AgentMiddleware[StudyState]):
             metrics.compacted = {
                 "trigger_tokens": trigger["tokens"],
                 "trigger_source": trigger["source"],
+                "trigger_reported": trigger["reported"],
+                "trigger_estimated": trigger["estimated"],
                 "dropped_msgs": len(dropped),
                 "dropped_tokens": dropped_tokens,
                 "kept_msgs": len(kept),
@@ -197,20 +199,25 @@ class HistoryCompactionMiddleware(AgentMiddleware[StudyState]):
     # ── 内部 ────────────────────────────────────────────
 
     def _trigger(self, view: list[AnyMessage]) -> dict[str, Any] | None:
-        """到线返回触发读数（含口径来源），否则 None。
+        """到线返回触发读数，否则 None。
 
-        取「上报值」与「字符估算」的较大者：上报值可信但依赖服务端回 usage，估算永远在线。
-        估算生效即意味上报那条路断了——日志里留痕告警，不静默。
+        口径取「上报值」与「字符估算」的较大者：两者量的不是同一刻——上报值是**上一次调用**
+        的用量，估算量的是**当前视图**（多一条新提问、可能多几段工具结果），所以估算常常略大，
+        这不是异常。只有**压根没有上报读数**才说明服务端没回 usage、口径真的退化了，那时才告警。
         """
-        reported = reported_tokens(view) or 0
+        reported = reported_tokens(view)
         estimated = estimate_tokens(view) + FIXED_OVERHEAD_TOKENS
-        used = max(reported, estimated)
+        used = max(reported or 0, estimated)
         if used < self.threshold:
             return None
-        source = "reported" if reported >= estimated else "estimated"
-        if source == "estimated":
-            logger.warning(f"会话压缩触发口径退化为字符估算（≈{estimated} ≥ {self.threshold}）：服务端没回 usage？")
-        return {"tokens": used, "source": source}
+        if reported is None:
+            logger.warning(f"会话压缩触发口径没有 provider 上报读数（服务端没回 usage？），退化为字符估算 ≈{estimated}")
+        return {
+            "tokens": used,
+            "source": "reported" if reported is not None else "estimated",
+            "reported": reported,
+            "estimated": estimated,
+        }
 
     async def _summarize(self, dropped: list[AnyMessage], textbook_name: str) -> str:
         """生成回顾正文；失败或空结果返回空串（调用方据此保持 state 不动）。"""

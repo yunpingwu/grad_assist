@@ -79,7 +79,8 @@ def test_reported_tokens_win_over_char_estimate() -> None:
 
     assert reported_tokens(messages) == 25_008
     assert estimate_tokens(messages) + FIXED_OVERHEAD_TOKENS < 25_008, "这批短消息的估算本就该低于上报值"
-    assert mw._trigger(messages) == {"tokens": 25_008, "source": "reported"}
+    trigger = mw._trigger(messages)
+    assert trigger["tokens"] == 25_008 and trigger["source"] == "reported"
 
 
 def test_trigger_falls_back_to_estimate_without_reported_usage() -> None:
@@ -91,6 +92,29 @@ def test_trigger_falls_back_to_estimate_without_reported_usage() -> None:
 
     assert trigger is not None and trigger["source"] == "estimated", trigger
     assert trigger["tokens"] == estimate_tokens(messages) + FIXED_OVERHEAD_TOKENS
+
+
+def test_estimate_larger_than_reported_is_not_a_degradation() -> None:
+    """上报值存在时口径就是「reported」，哪怕估算略大——两者量的不是同一刻。
+
+    上报值是上一次调用的用量，估算量的是当前视图（多一条新提问、可能多几段工具结果），
+    真机（小窗口 A/B）因此每轮都被误标成「退化为字符估算」，日志里刷出 8 条假告警。
+    只有压根没有上报读数才算退化。
+    """
+    messages = [
+        HumanMessage(content="问题"),
+        AIMessage(
+            content="回答" + "细" * 20_000,  # 正文远大于上报值，估算必然反超
+            usage_metadata={"input_tokens": 100, "output_tokens": 8, "total_tokens": 108},
+        ),
+    ]
+    mw = _middleware()
+
+    trigger = mw._trigger(messages)
+
+    assert trigger is not None
+    assert trigger["source"] == "reported", "有上报读数就不算退化"
+    assert trigger["reported"] == 108 and trigger["estimated"] > 108
 
 
 def test_under_threshold_stays_untouched() -> None:
