@@ -1,0 +1,24 @@
+[
+  {
+    "dataset": "os",
+    "config": "hyb_50",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T10:41:40+08:00",
+    "evaluated_at": "2026-10-16T12:17:24+08:00",
+    "summary": {
+      "context_precision": 0.9059722221884475,
+      "context_recall": 0.9066666666666667,
+      "faithfulness": 0.9403064713064713,
+      "answer_relevancy": 0.8181118977134676,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  }
+]

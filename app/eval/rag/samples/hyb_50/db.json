@@ -1,0 +1,566 @@
+{
+  "schema": 1,
+  "dataset": "db",
+  "collection": "tb_c4540366b9e9e962",
+  "config": "hyb_50",
+  "top_k": 5,
+  "generation": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "temperature": 0.1,
+    "prompt": "answer.prompt@409463638ea5",
+    "generated_at": "2026-10-16T10:41:05+08:00"
+  },
+  "samples": [
+    {
+      "id": "DB-20260916-001",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_af2ed509_sec_a8ddeb07_text_0000_25ec58cb21ee",
+        "v1_tb_0f3d67ab0c_ch_af2ed509_sec_93a96152_text_0000_1142ae976225",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_0732c85c_text_0000_4c8d3128e9b1",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_f0f331f6_text_0000_dc67f933be5f",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2aa9b5ce_text_0001_b5535cec5dca"
+      ],
+      "response": "把堆文件换为另一种存储组织时，需要调整模式/内模式映像，使模式保持不变，从而应用程序不必改变，体现数据的物理独立性。\n\n拆分逻辑表时，需要调整外模式/模式映像，使外模式保持不变，从而应用程序不必修改，体现数据的逻辑独立性。"
+    },
+    {
+      "id": "DB-20260916-002",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_c0f80eec_sec_df03c9d2_text_0000_169537f04ca6",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_4ed08a52_text_0001_b28a64bcb752",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_a9092994_text_0000_1903f2941b07",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_4ad72f1e_code_0000_45bd9b2adc8f",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_73bcbf31_text_0000_6351c51536ef"
+      ],
+      "response": "新增一名学生改变的是关系（关系是元组的集合，新增元组即改变关系实例），关系模式不变。\n\n若新增一个出生日期属性，则改变的是关系模式（属性集发生变化），关系也随之改变。"
+    },
+    {
+      "id": "DB-20260916-003",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_d346e149_text_0000_2575afb47561",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_445f9153_text_0000_c66fad37923a",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_7a635727_text_0000_80979193695d",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_bac43545_text_0000_729fa8ad4768",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_bac43545_text_0001_b9984c12623a"
+      ],
+      "response": "不能直接做并运算。\n\n并运算要求关系 R 和关系 S 具有相同的目 n（即两个关系都有 n 个属性），且相应的属性取自同一个域。R(A,B) 有 2 个属性，S(C) 只有 1 个属性，目不同，不满足条件。\n\n仅把 S 的列名改成 A 也不能解决。因为并运算的条件不只是属性个数相同，还要求相应的属性取自同一个域；只改列名并不能使属性个数从 1 个变为 2 个，也不能满足“具有相同的目”这一条件。"
+    },
+    {
+      "id": "DB-20260916-004",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_445f9153_text_0000_c66fad37923a",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_445f9153_text_0001_68da3b7e5c91",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_d5a1db52_text_0000_06f017e6591c",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_e26df03c_text_0000_7706e97589d9",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_91d5621f_text_0000_7adbe5e4ca7b"
+      ],
+      "response": "R÷S 的结果是 {甲, 丙}。\n\n丙多选了 C 不会被排除。除运算的条件是：元组在 X 上分量值 x 的象集 Yₓ 包含 S 在 Y 上投影的集合。丙的象集为 {A, B, C}，包含 S 的投影 {A, B}，满足条件，所以丙保留。"
+    },
+    {
+      "id": "DB-20260916-005",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_e652015a_text_0000_a1fa5c52c7bc",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_e652015a_text_0001_57657c7b521f",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_dbe0cc16_text_0000_e07290f38586",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_7a635727_text_0000_80979193695d",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_fbba49ef_text_0001_75f6742d61be"
+      ],
+      "response": "等值连接结果的列为 A、R.B、S.B、C，元组为 (1, x, x, 9)。\n\n自然连接结果的列为 A、B、C，元组为 (1, x, 9)。\n\n区别在于：自然连接要求两个关系中进行比较的分量必须是同名的属性列，并且在结果中把重复的属性列去掉；等值连接不要求属性列同名，也不去掉重复的属性列。"
+    },
+    {
+      "id": "DB-20260916-006",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2206a8b0_text_0000_5b5dfcf7c2bc",
+        "v1_tb_0f3d67ab0c_ch_c0f80eec_sec_8aa08367_text_0000_0b6dee125931",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_fb6447ac_code_0000_ca9e8c4c3902",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2206a8b0_code_0000_7fbd8940ac53",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_42aebdb9_code_0000_c887d0fcbe48"
+      ],
+      "response": "年份条件放在 WHERE 子句，人数条件放在 HAVING 短语。\n\nWHERE 子句作用于基本表或视图，从中选择满足条件的元组；HAVING 短语作用于组，从中选择满足条件的组。关系数据库管理系统先处理 WHERE 子句，根据条件选出合格元组，生成一个临时表，再使用 GROUP BY 子句对临时表分组，最后用 HAVING 条件中的聚集函数对每一组进行计数，选出满足条件的组。\n\n因此，年份条件用于筛选元组，应放 WHERE；人数条件是对分组后每组用聚集函数 COUNT 计数，应放 HAVING。WHERE 子句不能用聚集函数作为条件表达式。"
+    },
+    {
+      "id": "DB-20260916-007",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_ffe25498_text_0000_f4c577120695",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_47df6334_text_0000_90d99d9f7c0b",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_53d3066e_text_0000_fd5c0ad11763",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2206a8b0_code_0000_7fbd8940ac53",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_0e5a75d5_code_0000_2525f1441832"
+      ],
+      "response": "SELECT sid, COUNT(*) AS 门数\nFROM Enroll\nWHERE year = 2025\nGROUP BY sid\nHAVING COUNT(*) >= 3;"
+    },
+    {
+      "id": "DB-20260916-008",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_f8c66219_text_0000_23ef76c83c68",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_f8c66219_code_0000_f119c60a2530",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_8f525e9f_code_0000_7c7359a6eaf5",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_0e406429_code_0000_478ca5c3658c",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_a8c989e2_code_0000_4b4669eafba5"
+      ],
+      "response": "会选出 2 行，即成绩为 55 和 80 的记录；成绩为 NULL 的记录不会被选出。\n\n因为 Grade 为空值时，`Grade<60` 和 `Grade>=60` 都不能成立，空值不能直接用等号或这类比较运算判断。原文指出，涉及空值要用 `IS NULL` 或 `IS NOT NULL`，例如“查询缺少成绩的学生的学号和相应的课程号”使用 `IS NULL`，并强调“注意这里的‘IS’不能用等号( = )代替”。因此，`WHERE Grade<60 OR Grade>=60` 不能表示选择所有记录，它漏掉了 Grade 为 NULL 的行。"
+    },
+    {
+      "id": "DB-20260916-009",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_56953d56_text_0000_f944bb59fce9",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_56953d56_code_0000_7eaa93488228",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_56953d56_text_0001_0d8757bbcca0",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_8f525e9f_text_0000_075c298f2b79",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_f8c66219_text_0000_23ef76c83c68"
+      ],
+      "response": "x>ANY 为 TRUE，x>ALL 为 FALSE。\n\n>ANY 等价于 >MIN，>ALL 等价于 >MAX。"
+    },
+    {
+      "id": "DB-20260916-010",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_0b278d1f_text_0000_4be20140b1d3",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_e26df03c_text_0000_7706e97589d9",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_56953d56_text_0000_f944bb59fce9",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_831a32bc_text_0000_117718c2004c",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_8f525e9f_text_0000_075c298f2b79"
+      ],
+      "response": "UNION 返回 1、2、3，共 3 行；UNION ALL 返回 1、1、2、2、3，共 5 行。\n\n依据：使用 UNION 将多个查询结果合并起来时，系统会自动去掉重复元组；如果要保留重复元组则用 UNION ALL 操作符。"
+    },
+    {
+      "id": "DB-20260916-011",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_b2ec0b10_text_0000_e910ce052b9b",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_08ed34ea_code_0000_9cc6d6fd79ab",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_d761ba6e_code_0000_c19d0230b8bc",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_831a32bc_code_0000_9dbd9554b27a",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_53d3066e_code_0000_b193e99fcd8b"
+      ],
+      "response": "用相关 EXISTS 子查询表达为：\n\n```sql\nSELECT name\nFROM Student\nWHERE EXISTS (\n    SELECT *\n    FROM Enroll\n    WHERE Enroll.sid = Student.sid\n);\n```\n\n说明：外层查询依次取 Student 中每个元组，用其 sid 值去检查 Enroll 表；若 Enroll 中存在这样的元组，其 sid 值等于此 Student.sid 值，则 WHERE 子句返回真值，取该学生的 name 送入结果表。由于外层查询按 Student 元组逐个判断，每个学生至多输出一次。"
+    },
+    {
+      "id": "DB-20260916-012",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_4ad72f1e_text_0000_b8b02aecc6be",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_908fc880_code_0000_44f2233b8c3f",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_908fc880_code_0000_44f2233b8c3f",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_42aebdb9_text_0000_d9e94b9274c0",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2aa9b5ce_text_0001_b5535cec5dca"
+      ],
+      "response": "通过视图更新数据时，关系数据库管理系统会检查视图定义中的条件，若不满足条件则拒绝执行该操作。V 定义中包含 dept='CS' 的条件并带有 WITH CHECK OPTION，把 dept 改为 'Math' 不满足该条件，因此被拒绝。\n\n对视图的更新最终要转换为对基本表的更新。由于视图是不实际存储数据的虚表，更新视图最终修改的是导出该视图的基本表。"
+    },
+    {
+      "id": "DB-20260916-013",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_4ad72f1e_text_0000_b8b02aecc6be",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2aa9b5ce_text_0001_b5535cec5dca",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_42aebdb9_text_0000_d9e94b9274c0",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_dbe0cc16_text_0000_15f3b9c5ca0b",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2aa9b5ce_text_0000_7cd78ed0a9ec"
+      ],
+      "response": "因为该视图的平均成绩是由 SC 表中对元组分组后计算平均值得来的。系统无法修改各科成绩以使某学生的平均成绩成为 90，所以对视图的更新无法转换成对基本表 SC 的更新，该视图是不可更新的。"
+    },
+    {
+      "id": "DB-20260916-014",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_94defc9c_text_0000_840aff06d177",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6c988010_text_0000_f9b20abeb259",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_2ee1e061_text_0000_e9af9d5889dd",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2f7488e5_code_0000_3b0924068271",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_f8c66219_text_0000_23ef76c83c68"
+      ],
+      "response": "插入 (1,B) 能通过；插入 (1,A) 不能通过；插入 (NULL,B) 不能通过。\n\n原因：用 PRIMARY KEY 定义主码后，对基本表插入记录时，关系数据库管理系统按实体完整性规则自动检查：① 检查主码值是否唯一，如果不唯一则拒绝插入或修改；② 检查主码的各个属性是否为空，只要有一个为空就拒绝插入或修改。\n\n(1,B) 与已有 (1,A) 主码值不同，且各属性均非空，因此可以通过。(1,A) 与已有记录主码值相同，不唯一，因此拒绝插入。(NULL,B) 中主码属性 sid 为空值，因此拒绝插入。"
+    },
+    {
+      "id": "DB-20260916-015",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6c988010_text_0000_f9b20abeb259",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_3b65b8cb_text_0000_3a3711ac91e5",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_715e1e98_text_0000_18ed42b475f5",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_a9092994_text_0000_044623fa25c7",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_a21af493_text_0000_6edf833e7c80"
+      ],
+      "response": "删除仍被员工引用的部门时：\n\n- **拒绝**：不允许该删除操作执行。该策略一般设置为默认策略。\n- **级联删除**：删除被参照表（Department）的一个元组导致与参照表（Employee）的不一致时，删除参照表中所有导致不一致的元组，即删除该部门的所有员工元组。\n- **设置为空值**：将参照表中所有造成不一致的元组的对应属性设置为空值，即把被删除部门中员工的外码 dept 设置为空值。\n\n设置NULL的前提：外码列必须允许空值。对于参照完整性，除了应该定义外码，还应定义外码列是否允许空值。"
+    },
+    {
+      "id": "DB-20260916-016",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_6a0cdfee_text_0000_6f372fec684a",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6a0cdfee_text_0000_d80cfd036143",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6a0cdfee_text_0001_ca922672e96f",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_6a0cdfee_text_0001_8688505f1e47",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6a0cdfee_code_0000_4f079c3668fa"
+      ],
+      "response": "GRANT SELECT, UPDATE(name) ON TABLE Student TO U;\n\n不应出现 WITH GRANT OPTION。如果指定了 WITH GRANT OPTION 子句，则获得某种权限的用户还可以把这种权限再授予其他的用户；如果没有指定该子句，则获得某种权限的用户只能使用该权限，不能传播。"
+    },
+    {
+      "id": "DB-20260916-017",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_49f2fe76_text_0000_f45e8babf9b5",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6a0cdfee_text_0001_ca922672e96f",
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_49f2fe76_text_0000_8a5ab1abd09f",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_6a0cdfee_text_0001_8688505f1e47",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_855c2c74_text_0000_0ca55cb87c3a"
+      ],
+      "response": "不一定。系统只收回直接或间接从 A 处获得的权限。如果 C 还从其他用户（如 D）处获得了对表 T 的 SELECT 权限，则 C 仍具有此权限。"
+    },
+    {
+      "id": "DB-20260916-018",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_799f1fca_text_0000_adf9d5f1701f",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_4ed08a52_text_0001_b28a64bcb752",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_67a15ce1_text_0003_5e940cda00bc",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_67a15ce1_text_0000_4c2fb357b94e",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_b064a619_text_0000_b5c1f67eedb8"
+      ],
+      "response": "不能。函数依赖不是指关系模式的某个或某些关系满足的约束条件，而是指 R 在不同时刻的关系实例均要满足的约束条件。仅凭当前员工表碰巧没有同名员工，不能宣布“姓名→年龄”是关系模式上的函数依赖。\n\n反例条件是：如果允许有同名人，则年龄就不再函数依赖于姓名了。也就是说，只要存在两个元组在姓名上的属性值相等，而在年龄上的属性值不等，就不满足定义 6.1，姓名→年龄不成立。"
+    },
+    {
+      "id": "DB-20260916-019",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_b7acdbaf_text_0001_0fe9c7984356",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_333184eb_text_0000_93569eddbfb6",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_a22aa9c2_text_0000_9d0ac89d3364",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0000_52e4828c04f9",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc"
+      ],
+      "response": "A是候选码，AB不是候选码。\n\n判断依据：设 K 为 R(U,F) 中的属性或属性组，若 K 完全函数确定 U，则 K 为 R 的候选码。候选码的任何真子集一定不是候选码。\n\n由 A→B、B→C 可推出 A→C，因此 A→ABC，即 A 完全函数确定全部属性，所以 A 是候选码。\n\nAB 虽然也能函数确定全部属性，但 A 是 AB 的真子集，且 A 已经是候选码，所以 AB 不是候选码。最小性要求候选码的任何真子集都不能是候选码；AB 不满足这一条件。"
+    },
+    {
+      "id": "DB-20260916-020",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0000_52e4828c04f9",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_333184eb_text_0000_93569eddbfb6",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_a22aa9c2_text_0000_9d0ac89d3364",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_59c0baac_text_0000_824786b6711d"
+      ],
+      "response": "非主属性 name 不完全函数依赖于候选码 (sid,cid)，只依赖于 sid，因此不满足 2NF。\n\n分解为：\n- SC(sid, cid, grade)\n- S(sid, name)\n\n分解后，SC 的码为 (sid,cid)，grade 完全函数依赖于码；S 的码为 sid，name 完全函数依赖于码。"
+    },
+    {
+      "id": "DB-20260916-021",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0001_034da6ceaa31",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0000_52e4828c04f9",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_a1c6fa74_text_0000_06adf1de1d15",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_70a2fd6e_text_0002_b742dd833b0f"
+      ],
+      "response": "该模式所有字段原子化，满足1NF。码为eid，非主属性dept、office都完全函数依赖于eid，因此满足2NF。但存在eid→dept、dept→office，即office传递依赖于码eid，所以不满足3NF。\n\n分解时应消除传递依赖，可分解为：\n- ED(eid, dept)\n- DO(dept, office)"
+    },
+    {
+      "id": "DB-20260916-022",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_333184eb_text_0000_93569eddbfb6",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0000_52e4828c04f9",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_b7acdbaf_text_0001_0fe9c7984356",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_a22aa9c2_text_0000_9d0ac89d3364"
+      ],
+      "response": "不满足BCNF。\n\nBCNF要求：若 $X \\to Y$ 且 $Y \\not\\subseteq X$，则 X 必含有码；即每一个决定因素都包含码。\n\n在依赖集 $\\{AB \\to C,\\ C \\to B\\}$ 中，$C \\to B$ 的决定因素 C 不包含码（AB 和 AC 是全部候选码，C 不是码，也不包含码），因此违反BCNF条件。\n\n违反条件的依赖是 $C \\to B$。"
+    },
+    {
+      "id": "DB-20260916-023",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_333184eb_text_0000_93569eddbfb6",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_67a15ce1_text_0003_5e940cda00bc",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_f8105b57_text_0000_edfeedee3075",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_b7acdbaf_text_0000_ae5e0bd21c94",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_799f1fca_text_0000_adf9d5f1701f"
+      ],
+      "response": "A能决定全部属性。\n\n推理次序：\n\n1. 已知 A→B。\n2. 由 A→B 和 B→C，根据传递律得 A→C。\n3. 由 A→B 和 A→C，根据合并规则得 A→BC。\n4. 由 A→BC 和 AC→D，根据伪传递规则（由 X→Y，WY→Z，有 XW→Z），令 X=A，Y=BC，W=A，Z=D，得 A→D。\n5. 由 A→BC 和 A→D，根据合并规则得 A→BCD，即 A 决定全部属性。"
+    },
+    {
+      "id": "DB-20260916-024",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0000_171072424144",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0001_655debea9514",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_b828d073_text_0000_df3b95eee5af",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0002_0fcf57f33ae4",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_dbe0cc16_text_0000_e07290f38586"
+      ],
+      "response": "自然连接后是笛卡儿积：{(1,x),(1,y),(2,x),(2,y)}。\n\n因为R1与R2没有共同属性，自然连接退化为笛卡儿积，所以mρ(r)比原来的r多出了(1,y)和(2,x)等元组，不满足r=mρ(r)，因此不是无损分解。"
+    },
+    {
+      "id": "DB-20260916-025",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0000_171072424144",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0001_655debea9514",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_360655f7_text_0000_016f38014f85",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_70a2fd6e_text_0000_bc27d178c26f",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_376ec748_text_0000_96e6d1d193db"
+      ],
+      "response": "这个结论不成立。保持函数依赖和无损连接是两个不同的概念。\n\n保持函数依赖的分解检查的是：分解后各关系模式的函数依赖集的并集的闭包，是否等于原函数依赖集的闭包，即 \\(F^{+}=\\left(\\bigcup_{i=1}^{k}F_{i}\\right)^{+}\\)。\n\n无损连接的分解检查的是：对 \\(R(U,F)\\) 的任何一个关系 r，是否均有 \\(r=m_{\\rho}(r)\\) 成立，其中 \\(m_{\\rho}(r)\\) 是 r 在各关系模式上投影的连接。\n\n教材中的例子说明：\\(R(\\{\\text{学号},\\text{姓名},\\text{课程号},\\text{课程名称}\\},\\{\\text{学号}\\rightarrow\\text{姓名},\\text{课程号}\\rightarrow\\text{课程名称}\\})\\) 分解为 \\(R_{1}(\\{\\text{学号},\\text{姓名}\\})\\) 和 \\(R_{2}(\\{\\text{课程号},\\text{课程名称}\\})\\)，这个分解是保持函数依赖的，但 \\(R_{1}\\) 和 \\(R_{2}\\) 之间不存在公共属性，自然连接退化为笛卡儿积，因此不满足无损连接性。"
+    },
+    {
+      "id": "DB-20260916-026",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_5e77344f_text_0000_01f2a069593c",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_7e8e96cc_code_0000_1ea7d20744a2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_59955b29_text_0000_61ce4d13652a",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_7e8e96cc_text_0000_65df31657ce6",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_2ee1e061_text_0000_e9af9d5889dd"
+      ],
+      "response": "该失败场景直接要求原子性。原子性指事务中包括的诸操作要么都做，要么都不做；上述转账包含从A减100元、向B加100元两个操作，扣款后崩溃而尚未入账，说明只做了一个操作，违反原子性。\n\n在余额总和不变这一业务约束下，一致性与原子性密切相关。事务执行的结果必须是使数据库从一个一致性状态转为另一个一致性状态；上述两个操作全做或全不做，数据库都处于一致性状态，如果只做一个操作，则逻辑上就会发生错误，减少或增加100元，这时数据库就处于不一致性状态。"
+    },
+    {
+      "id": "DB-20260916-027",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_02b42821_sec_3690b1ec_text_0000_8505e99e74db",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_59955b29_text_0000_61ce4d13652a",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_42d7a28a_text_0000_8632fc534ab6",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_9981ec6a_text_0000_5f3f70316f81",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_dbe0cc16_text_0000_b9e64edf46b2"
+      ],
+      "response": "旧值和新值对应的日志尚未写入稳定存储，而数据页已持久化，此时掉电后，日志文件中没有登记这个修改，以后就无法恢复这个修改了。\n\n正确写入次序是：必须先写日志文件，后写数据库。即首先把日志记录写到日志文件中，然后再写数据库的修改。"
+    },
+    {
+      "id": "DB-20260916-028",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_0d3b5369_text_0000_f7ec89a6b112",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_dbe0cc16_text_0000_b9e64edf46b2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_0b70954f_text_0000_5901c2f67c34",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_7e8e96cc_text_0000_65df31657ce6",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_3cdd7540_text_0000_73ea66e63156"
+      ],
+      "response": "反向扫描日志文件，查找该事务的更新操作，对该事务的更新操作执行逆操作，将日志记录中“更新前的值”写入数据库；继续反向扫描，查找该事务的其他更新操作并做同样处理，直至读到此事务的开始标记。\n\n因此先撤销“由20改成30”，把更新前的值20写入数据库；再撤销“由10改成20”，把更新前的值10写入数据库。最终X是10。"
+    },
+    {
+      "id": "DB-20260916-029",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_0b70954f_text_0000_5901c2f67c34",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_7e8e96cc_text_0000_65df31657ce6",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_9d195684_text_0000_b7c3d764e010",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_9981ec6a_text_0000_5f3f70316f81",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_59955b29_text_0000_61ce4d13652a"
+      ],
+      "response": "对 T1 执行重做（REDO），对 T2 执行撤销（UNDO）。\n\n系统故障时，有些已完成的事务的结果可能有一部分甚至全部留在缓冲区，尚未写回到磁盘上的物理数据库中，应将这些事务已提交的结果重新写入数据库，即重做所有已提交的事务；同时，一些尚未完成的事务的结果可能已送入物理数据库，需要清除这些事务对数据库的所有修改，即强行撤销所有未完成的事务。"
+    },
+    {
+      "id": "DB-20260916-030",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_9981ec6a_text_0000_5f3f70316f81",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_59955b29_text_0000_61ce4d13652a",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_dbe0cc16_text_0000_b9e64edf46b2",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_0d3b5369_text_0000_f7ec89a6b112",
+        "v1_tb_0f3d67ab0c_ch_b7d6fd82_sec_f897b8ce_text_0000_c4f206f78eff"
+      ],
+      "response": "动态转储期间允许对数据库进行存取或修改，转储结束时后备副本上的数据并不能保证正确有效。例如，在转储期间某时刻把A=100转储到磁带上，下一时刻某一事务将A改为200，转储结束后后备副本上的A已是过时的数据。\n\n因此，必须把数据转储期间各事务对数据库的修改活动登记下来，建立日志文件。后备副本加上日志文件才能把数据库恢复到某一时刻的正确状态。"
+    },
+    {
+      "id": "DB-20260916-031",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_0b70954f_text_0000_5901c2f67c34",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_dbe0cc16_text_0000_b9e64edf46b2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_74a58030_text_0000_f19f6f59b332",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_b7d6fd82_sec_f897b8ce_text_0000_c4f206f78eff"
+      ],
+      "response": "T1 在检查点之前已提交，不必执行重做操作。\n\nT2 在检查点之后才提交，它对数据库所做的修改在故障发生时可能还在缓冲区中，尚未写入数据库，所以要重做。\n\nT3 在故障发生时还未完成，所以予以撤销。"
+    },
+    {
+      "id": "DB-20260916-032",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_4e83d925_text_0000_93769960f90e",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_a1b2311d_text_0000_09240a78f7b0",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_b23c897b_text_0000_b8ea375678d2"
+      ],
+      "response": "T2申请S锁相容，T3申请X锁不相容。因为T1持有S锁时，其他事务只能再对A加S锁，而不能加X锁。\n\nS锁持有者不能直接写A。事务T对数据对象A加上S锁后，T可以读A但不能修改A。"
+    },
+    {
+      "id": "DB-20260916-033",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_091c37c0_text_0000_106903eb54e6",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_a1b2311d_text_0000_09240a78f7b0",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0000_7d2653e25945"
+      ],
+      "response": "二级封锁协议要求事务 T 在读取数据 R 之前必须先对其加 S 锁，读完后即可释放 S 锁；X 锁则持有到事务结束才释放。\n\n它能防脏读，是因为：若某事务已对数据加了 X 锁并修改，其他事务请求加 S 锁时只能等待；等前者因故被撤销、数据恢复原值并释放 X 锁后，后者才获得 S 锁，读到的是原值，不会读到被撤销事务修改过的脏数据。\n\n它仍可能发生不可重复读，是因为读完数据后即可释放 S 锁。事务在两次读取之间释放了 S 锁，其他事务便可获得 X 锁并修改该数据，导致该事务再次读取时得到不同的值。原文明确指出：在二级封锁协议中，由于读完数据后即可释放 S 锁，所以它不能保证可重复读。"
+    },
+    {
+      "id": "DB-20260916-034",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_a1b2311d_text_0000_09240a78f7b0",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_091c37c0_text_0000_106903eb54e6",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_b7d6fd82_sec_59955b29_text_0000_3e72e165cd7f"
+      ],
+      "response": "三级封锁协议要求事务 T 在读取数据 R 之前必须先对其加 S 锁，直到事务结束才释放。这样其他事务只能再对 R 加 S 锁，而不能加 X 锁，即只能读 R，不能修改 R。因此 T 再次读取 R 时，读出的值不会变，从而防止不可重复读。\n\n代价是：S 锁要持有到事务结束才释放，而不是读完即可释放，其他事务若想修改该数据就必须等待，导致并发度降低。"
+    },
+    {
+      "id": "DB-20260916-035",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_3cdd7540_text_0000_73ea66e63156",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_c46c6bf8_text_0000_9c5cd0877595",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_7e8e96cc_code_0000_1ea7d20744a2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_39091202_text_0000_021bc680f4d1",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_19cb6822_text_0000_35096368a53d"
+      ],
+      "response": "前者是不可重复读：事务 T₁ 读取数据后，事务 T₂ 执行更新操作，T₁ 再次读该数据时得到与前一次不同的值。\n\n后者是幻读：事务 T₁ 按一定条件从数据库中读取某些数据记录后，事务 T₂ 插入了一些记录，T₁ 再次按相同条件读取数据时，发现多了一些记录。"
+    },
+    {
+      "id": "DB-20260916-036",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0000_7d2653e25945",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0001_aa97d006c9d1",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_a1b2311d_text_0000_09240a78f7b0",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_091c37c0_text_0000_106903eb54e6"
+      ],
+      "response": "不遵守两段锁协议。\n\n该序列在释放A之后又申请了S(C)，即释放封锁之后又申请了新的封锁，违反了两段锁协议“在释放一个封锁之后，事务不再申请和获得任何其他封锁”的要求。\n\n调整加解锁次序使其符合协议：把释放A、释放B、释放C都移到所有加锁操作之后，即改为S(A)、X(B)、S(C)、释放A、释放B、释放C。这样扩展阶段只加锁不释放，收缩阶段只释放不加锁。"
+    },
+    {
+      "id": "DB-20260916-037",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_c0d609a0_text_0000_3f7ca3a66f4a",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_b23c897b_text_0000_b8ea375678d2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0001_aa97d006c9d1",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_a745d86c_text_0000_17204e5869c0"
+      ],
+      "response": "T1 等待 T2，T2 等待 T1，形成有向环：T1 → T2 → T1。\n\n判断：并发控制子系统周期性地生成事务等待图并进行检测，如果发现图中存在回路，则表示系统中出现了死锁。\n\n解除：选择一个处理死锁代价最小的事务，将其撤销，释放此事务持有的所有锁，使其他事务得以继续运行下去；对撤销的事务所执行的数据修改操作必须加以恢复。"
+    },
+    {
+      "id": "DB-20260916-038",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2625ef67_text_0000_70afb62a56ea",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_19cb6822_text_0000_35096368a53d",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_21b58e46_text_0000_bbd428522aa8",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2625ef67_text_0001_fd4db00c39f2",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_c0d609a0_text_0000_3f7ca3a66f4a"
+      ],
+      "response": "R1(A)与W2(A)属于冲突操作。\n\n判据：冲突操作是指不同的事务对同一个数据的读写操作和写写操作。R1(A)与W2(A)是不同事务对同一数据A的读操作与写操作，符合冲突操作的定义。\n\nR1(A)与R2(A)是不同事务对同一数据的读读操作，不属于冲突操作；W1(A)与W2(B)是不同事务对不同数据的写操作，也不属于冲突操作。"
+    },
+    {
+      "id": "DB-20260916-039",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_b7d6fd82_sec_59955b29_text_0000_3e72e165cd7f",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0000_7d2653e25945",
+        "v1_tb_0f3d67ab0c_ch_b7d6fd82_sec_f897b8ce_text_0001_4a05a2dcc115",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_af4c0aa6_text_0000_88ab4d148e41"
+      ],
+      "response": "封锁粒度越大，数据库所能封锁的数据单元越少，并发度越小，系统开销也越小；封锁粒度越小，并发度越高，系统开销越大。\n\n两个事务修改同一页上不同的两条记录时：若封锁粒度是数据页，一个事务必须对包含该记录的整个数据页加锁，另一事务要修改同一页中的另一条记录时被迫等待，直到前者释放页上的锁；若封锁粒度是元组，两个事务可分别对两条记录加锁，不需要互相等待，从而提高了系统的并行度，但锁管理开销更大。\n\n若要读取整张大表：若封锁粒度是元组，必须对表中每一个元组加锁，显然开销极大。因此，需要处理某个关系的大量元组的事务，可以以关系为封锁粒度；选择封锁粒度时应同时考虑封锁开销和并发度两个因素，适当选择封锁粒度以求得最优的效果。"
+    },
+    {
+      "id": "DB-20260916-040",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_af4c0aa6_text_0000_88ab4d148e41",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_4e83d925_text_0000_93769960f90e",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0000_7d2653e25945",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260"
+      ],
+      "response": "SIX 锁表示对它加 S 锁，再加 IX 锁，即 SIX = S + IX。对某个表加 SIX 锁，表示该事务要读整个表（所以要对该表加 S 锁），同时会更新个别元组（所以要对该表加 IX 锁）。\n\n仍需对待修改行加 X 锁，是因为若事务 T 对数据对象 A 加上 X 锁，则只允许 T 读取和修改 A，其他任何事务都不能再对 A 加任何类型的锁，直到 T 释放 A 上的锁为止。"
+    },
+    {
+      "id": "DB-20260916-041",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_85c9c99b_text_0000_983457720d7d",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_d8948c22_text_0000_6aa26682a341",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_ced20ede_text_0000_598254b96ef5",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_43ba1f33_text_0000_6c6a262367db",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_5f314860_text_0000_30a31170def1"
+      ],
+      "response": "B+树是平衡的，即从树根到树叶的所有路径都一样长；所有叶结点都在同一级上，因此从根查找到任意叶子的路径长度一致。\n\n非叶结点与叶结点的作用不同：\n\n- 非叶结点：指针指向其下层的孩子结点。P₁指向的子树所有属性值Key均满足Key<K₁；Pᵢ（i=2,3,…,n-1）指向的子树所有属性值Key均满足Kᵢ₋₁≤Key<Kᵢ；Pₙ指向的子树所有属性值Key均满足Key≥Kₙ₋₁。\n- 叶结点：没有孩子。含有j-1项的叶结点有j个指针，前j-1个指针指向相应的关系表元组，第j个指针指向兄弟叶结点；最后一个叶结点的Pₙ为空。借助叶结点中指向兄弟叶结点的指针，B+树的叶子层结点形成一个顺序集合。"
+    },
+    {
+      "id": "DB-20260916-042",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_d8948c22_text_0000_6aa26682a341",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_85c9c99b_text_0000_983457720d7d",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_ced20ede_text_0000_598254b96ef5",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_5f314860_text_0000_30a31170def1",
+        "v1_tb_0f3d67ab0c_ch_5c4982b7_sec_d05513b3_text_0000_ed13a28d24a3"
+      ],
+      "response": "范围查询时，先用随机查找方法找到范围条件的入口点，然后从该入口点开始顺序搜索。后面的所有属性值（包括本叶结点中的属性值和其后面的所有兄弟叶结点中的属性值）都满足查询条件，取出相应的元组指针即可。当前叶结点遍历完，沿指向下一叶结点的指针继续，直到最后一个叶结点。\n\n主要步骤：先用随机查找方法找到 20 的元组，它是范围查找的入口点；以此开始顺序搜索，取出满足条件的元组指针；当前叶结点遍历完后，沿指向下一叶结点的指针继续，直到找到 40 的结束点。"
+    },
+    {
+      "id": "DB-20260916-043",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_6c6be75f_text_0000_5b39aae792db",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_e903dc1f_text_0000_09074479b1d6",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_43ba1f33_text_0000_6c6a262367db",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_acc17f83_text_0000_3beecefc3181",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_f79e5693_text_0000_12be6adcc42a"
+      ],
+      "response": "稀疏索引中，基本表的每个物理存储块只对应一个索引项，因此与稠密索引相比，它节省的是索引项数量，进而减小索引尺寸。稠密索引中关系表的每条记录都对应一个索引项，而稀疏索引只存放每个物理块第一条记录的索引属性值及指向该物理块的指针。\n\n定位到块之后还需在块内查找，是因为稀疏索引项只指向物理块，并不直接指向块内某条具体记录。例如查询学号20180012时，先找到属性值小于或等于20180012的最大索引项，即20180011的索引项，再根据指针找到相应存储块，然后在该块中顺序搜索，查找Sno属性值为20180012的记录。"
+    },
+    {
+      "id": "DB-20260916-044",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_a48643b1_text_0000_9281981db3c1",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_3eb2d1e2_text_0000_5b596f21003b",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_cb51be0a_text_0000_1a4c8e604234",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_5f314860_text_0000_30a31170def1",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_814f3bd7_text_0000_2e1faca74edf"
+      ],
+      "response": "哈希存储方式中哈希桶存放的是数据记录；哈希索引中哈希桶存放的是索引属性值及指向相应数据记录的指针。\n\n哈希索引与关系表的哈希存储方式的区别正在于哈希桶的存放内容：哈希存储的桶中直接存数据记录，哈希索引的桶中存索引键值，通过指针指向数据记录。\n\n已有哈希索引并不意味着原表记录必须按同样方式重排。哈希索引是索引结构，桶中存放索引项（属性值和指向相应记录的指针），记录本身仍存放在原处，由指针指向；而哈希存储是用哈希函数确定相应记录存储在哪个块中，记录按哈希属性值对应到存储位置。"
+    },
+    {
+      "id": "DB-20260916-045",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_b109e0e4_text_0000_5e2bcee533fa",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_5e5cc890_text_0000_2c62015a8ba5",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_dbe0cc16_text_0002_e938ffc69b3a",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_0e406429_text_0000_ec81004545c9",
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_59955b29_text_0000_ccb238d8107f"
+      ],
+      "response": "对于小关系，使用全表顺序扫描，即使选择列上有索引。\n\n对于大关系，若选择条件是“非主属性=值”且选择列上有索引，要估算查询结果的元组数目，如果比例较小（<10%）可以使用索引扫描方法，否则还是使用全表顺序扫描；对于属性上的非等值查询或者范围查询，同样如果选择率<10%可以使用索引扫描方法，否则还是使用全表顺序扫描。\n\n当选择率较高，或者要查找的元组均匀地分布在查找的表中，索引扫描算法的性能不如全表扫描算法，因为除了对表的扫描操作，还要加上对B+树索引的扫描操作，对每一个检索码，从B+树根结点到叶结点路径上的每个结点都要执行一次I/O操作。\n\n10%阈值不应作为所有数据库的固定规则。教材将其表述为启发式规则，并指出在实际的关系数据库管理系统中启发式规则要多得多；系统会按照算法规则或估计执行代价来做出选择。"
+    },
+    {
+      "id": "DB-20260916-046",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_47df6334_text_0000_90d99d9f7c0b",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_d761ba6e_text_0000_30e0a4e57fda",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_53d3066e_text_0000_fd5c0ad11763",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_91d5621f_text_0001_65594dce28a6",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_ffe25498_text_0000_f4c577120695"
+      ],
+      "response": "选择下推能减少连接操作处理的元组数，投影下推能减少连接操作处理的字段数。投影时应保留连接条件和选择条件中涉及的字段，即 Student 与 Enroll 的连接字段以及 Student.dept 字段。"
+    },
+    {
+      "id": "DB-20260916-047",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_25663346_text_0000_42c84d3c0b1f",
+        "v1_tb_0f3d67ab0c_ch_02b42821_sec_383ade08_text_0000_7b095ec4b41c",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_fbba49ef_text_0000_c705ba5ed551",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_3b7114a6_text_0000_ec6e037b9a26",
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_fbba49ef_text_0001_75f6742d61be"
+      ],
+      "response": "排序-合并连接算法尤其适合参与连接的诸表已经按连接属性排好序的情况。若两表已按同一连接属性排好序，则无需再排序，直接依次扫描两表，将具有相同连接属性值的元组连接起来，两表都只要扫描一遍即可。\n\n若输入未排序，首先需分别对两个表按连接属性排序，执行时间要加上对两个表的排序时间。对于包含 B 个块的文件，外排序代价大约是 4B；因此总代价为 cost = 5B_R + 5B_S + (F_RS * N_R * N_S) / M_RS。在内存足够大时，也可以不生成全局有序文件，直接在有序子表上合并，节省 2B 的代价。"
+    },
+    {
+      "id": "DB-20260916-048",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_553c8a6c_text_0000_59e9a9500c57",
+        "v1_tb_0f3d67ab0c_ch_22120551_sec_bb5e4559_text_0000_9ba87aa8eda5",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_a48643b1_text_0000_9281981db3c1",
+        "v1_tb_0f3d67ab0c_ch_02b42821_sec_1a0f7227_text_0000_75fd260ce656",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_3eb2d1e2_text_0000_5b596f21003b"
+      ],
+      "response": "先用小表建哈希表，是因为哈希连接算法假设两个表中较小的表在第一阶段（划分阶段）后可以完全放入内存的哈希桶中。具体做法是对包含较少元组的表进行一遍处理，把它的元组按哈希函数分散到哈希表的桶中；然后对另一个表进行一遍处理，把该表的元组也按同一个哈希函数散列，映射到相应的哈希桶，检索该桶中的元组并进行匹配连接。\n\n两阶段哈希函数的要求是：使用同一个哈希函数，且哈希码是连接属性。"
+    },
+    {
+      "id": "DB-20260916-049",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_b411f3ef_text_0000_04fbb1dd5dd6",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_4ea815bb_text_0000_ebaf27d29e18",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_88a69e48_text_0000_195fc2594835",
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_97b4d8c0_text_0000_3d724c9c0e3e",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_88a69e48_text_0001_6dd85a17ea98"
+      ],
+      "response": "维是时间、地区、电器商品种类，度量是销售额。多维数据模型的数据结构用多维数组（维1，维2，…，维n，度量值）表示，该销售数据即三维数组（时间，地区，电器商品种类，销售额），一般用多维方体（cube）表示，也称为超立方体。它是数据分析时用户的数据视图，是面向分析的数据模型，用于为分析人员提供多种观察的视角和面向分析的操作；通过切片、切块、旋转、向上综合、向下钻取等操作，用户能从多角度和多侧面观察数据、剖析数据，从而深入了解包含在数据中的信息与内涵。"
+    },
+    {
+      "id": "DB-20260916-050",
+      "retrieved_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_c0f80eec_sec_ed3ecbba_text_0000_7e7314a35a17",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_f80758a1_text_0000_4576ff014ea5",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_e4d159c2_text_0001_db4e6bfc7245",
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_a3667ecd_text_0000_21dc64b52302",
+        "v1_tb_0f3d67ab0c_ch_02b42821_sec_846a6ba6_text_0000_e5f45b185e6e"
+      ],
+      "response": "HTAP（混合事务分析处理）希望解决的是：通过一套数据库软件、同一个SQL接口，在同一份数据上既支持事务交易负载，又支持分析负载。其核心思想是将事务处理系统与分析处理系统集成在一个数据库引擎内，实现实时的事务与分析处理。\n\n单一行存（传统关系数据库管理系统主要采取行存储方式）的缺点是对分析型负载的查询处理效率比较低。行列混合存储则通常在数据库内部采用适合事务处理的行存储和适合分析处理的列存储混合引擎，通过一定的优化机制，实现内部行存储数据向列存储数据的迁移和存储结构转换，从而同时提高事务型和分析型应用负载的处理效率。"
+    }
+  ]
+}

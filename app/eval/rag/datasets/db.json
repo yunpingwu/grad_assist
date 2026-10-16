@@ -1,0 +1,723 @@
+{
+  "schema": 2,
+  "textbook": "数据库系统概论(第6版)_(王珊,杜小勇,陈红)_(z-library.sk,_1lib.sk,.",
+  "collection": "tb_c4540366b9e9e962",
+  "source_snapshot_sha256": "d286071ab7113d13e730e37e79fcbcf2f40de7bbd4eb089f3265f42cf02535a7",
+  "gold_policy": "直接证据集合；多块表示互补依据；未做全库穷举相关性标注，可能存在其他等价证据。",
+  "revision": "2026-10-16.2",
+  "notes": [
+    "部分chapter/section标签跨章错位，以正文判断主题。",
+    "解析含公式、代码及图片说明，参考答案需区分原文规则和新编推导。"
+  ],
+  "questions": [
+    {
+      "id": "DB-20260916-001",
+      "question": "数据库把堆文件换为另一种存储组织，另一次又拆分了逻辑表。若希望应用原有数据视图保持不变，分别需要调整哪一级映像，体现哪种独立性？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_af2ed509_sec_93a96152_text_0000_1142ae976225",
+        "v1_tb_0f3d67ab0c_ch_af2ed509_sec_a8ddeb07_text_0000_25ec58cb21ee"
+      ],
+      "reference_answer": "更换存储组织时调整模式/内模式映像，使逻辑模式保持不变，这是物理独立性；拆分逻辑表时调整外模式/模式映像以保持原有外模式，这是逻辑独立性。能通过映像维持原视图时，依赖该视图的应用可以不修改。",
+      "answer_points": [
+        "存储组织变化调整模式/内模式映像，体现物理独立性。",
+        "逻辑模式变化调整外模式/模式映像以维持原外模式，体现逻辑独立性。",
+        "应用依赖外模式，映像能够维持原视图时可不改应用。"
+      ]
+    },
+    {
+      "id": "DB-20260916-002",
+      "question": "Student表新增了一名学生，但列名、类型和完整性规则均未变化。这改变的是关系还是关系模式？若新增一个出生日期属性又如何？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_ef38c3ea_text_0000_63337a99a09f"
+      ],
+      "reference_answer": "新增学生改变的是当前关系实例；关系是元组集合。关系模式描述属性、域及约束，因此列和规则不变时模式不变；新增出生日期属性则改变了模式。",
+      "answer_points": [
+        "插入元组改变当前关系实例，即值。",
+        "关系模式描述属性、域和约束等结构，即型。",
+        "新增属性改变关系模式。"
+      ]
+    },
+    {
+      "id": "DB-20260916-003",
+      "question": "关系代数中R(A,B)和S(C)能否直接做并运算？仅把S的列名改成A能否解决？说明并运算的条件。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_d346e149_text_0000_2575afb47561"
+      ],
+      "reference_answer": "不能直接求并。并运算要求列数一致且对应属性来自同一域；将C改名为A只改变名字，S仍只有一列，所以问题未解决。",
+      "answer_points": [
+        "不能，R有两列而S只有一列。",
+        "并运算要求关系目相同且对应属性来自同一域。",
+        "仅重命名不改变列数，不能满足条件。"
+      ]
+    },
+    {
+      "id": "DB-20260916-004",
+      "question": "选课关系R(学生,课程)={(甲,A),(甲,B),(乙,A),(丙,A),(丙,B),(丙,C)}，要求课程集合S(课程)={A,B}。R÷S的结果是什么？丙多选了C会被排除吗？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_445f9153_text_0000_c66fad37923a"
+      ],
+      "reference_answer": "R÷S={(甲),(丙)}。甲和丙都选了A、B，乙缺少B。除运算判断象集是否包含要求集合，允许额外课程，因此丙不会因为选了C而被排除。",
+      "answer_points": [
+        "结果为甲、丙组成的单属性关系。",
+        "除法要求某学生的课程集合包含S的全部课程。",
+        "多选C不会排除丙，要求包含而非恰好相等。"
+      ]
+    },
+    {
+      "id": "DB-20260916-005",
+      "question": "R(A,B)有元组(1,x),(2,y)，S(B,C)有元组(x,9),(z,8)。按R.B=S.B做等值连接和自然连接，结果的列与元组分别有什么不同？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4a8c6409_sec_e652015a_text_0000_a1fa5c52c7bc"
+      ],
+      "reference_answer": "两者都匹配R的(1,x)与S的(x,9)。等值连接保留两份B，结果列为R.A,R.B,S.B,S.C，元组为(1,x,x,9)；自然连接去掉重复的B列，结果为(A,B,C)=(1,x,9)。",
+      "answer_points": [
+        "两者都只匹配B=x的那一对元组。",
+        "等值连接保留双方的B列，得到(1,x,x,9)。",
+        "自然连接合并同名连接属性B，得到A,B,C上的(1,x,9)。"
+      ]
+    },
+    {
+      "id": "DB-20260916-006",
+      "question": "要统计2025年每门课的选课人数，并只保留人数超过30的课程。年份条件和人数条件分别应该放WHERE还是HAVING，为什么？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2206a8b0_text_0000_5b5dfcf7c2bc"
+      ],
+      "reference_answer": "年份条件放WHERE，课程放GROUP BY，人数条件放HAVING COUNT(*)>30。WHERE筛选原始记录，HAVING筛选聚合后的组，不能把这两个层次混为一谈。",
+      "answer_points": [
+        "年份=2025是元组筛选，放WHERE。",
+        "按课程GROUP BY后，用HAVING COUNT(*)>30筛选组。",
+        "处理逻辑为先筛选行，再分组聚合，再筛选组。"
+      ]
+    },
+    {
+      "id": "DB-20260916-007",
+      "question": "表Enroll(sid,cid,year)中每个学生每年每门课最多一条记录。写SQL查询2025年选课数至少3门的学生学号及门数。",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_2206a8b0_text_0000_5b5dfcf7c2bc"
+      ],
+      "reference_answer": "SELECT sid, COUNT(*) AS course_count FROM Enroll WHERE year=2025 GROUP BY sid HAVING COUNT(*)>=3; 题设保证选课记录无重复，因此COUNT(*)即该年选课门数。",
+      "answer_points": [
+        "使用WHERE year=2025筛选记录。",
+        "按sid分组，输出sid和COUNT(*)。",
+        "使用HAVING COUNT(*)>=3，不能用WHERE筛聚合结果。"
+      ]
+    },
+    {
+      "id": "DB-20260916-008",
+      "question": "成绩列依次为55、80、NULL。WHERE Grade<60 OR Grade>=60会选出几行？为什么它不能表示选择所有记录？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_8f525e9f_text_0000_075c298f2b79"
+      ],
+      "reference_answer": "选出2行。对于NULL，两个比较都为UNKNOWN，析取仍为UNKNOWN；WHERE只选择条件为TRUE的行。三值逻辑下，这个条件不等价于无条件选择全部记录。",
+      "answer_points": [
+        "仅选出55、80两行。",
+        "NULL参与这两个比较均得到UNKNOWN，UNKNOWN OR UNKNOWN仍为UNKNOWN。",
+        "WHERE只保留TRUE，因而NULL行被排除。"
+      ]
+    },
+    {
+      "id": "DB-20260916-009",
+      "question": "子查询返回非空且无NULL的集合{60,80}。对x=70而言，x>ANY与x>ALL分别是什么结果？这两种判断分别可与哪个极值比较等价？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_56953d56_text_0000_f944bb59fce9"
+      ],
+      "reference_answer": "70>ANY为真，70>ALL为假。ANY只需满足其中至少一个比较，ALL要求满足全部比较。在非空且无NULL时，分别相当于与MIN和MAX比较。",
+      "answer_points": [
+        "70>ANY为真，因为至少大于60。",
+        "70>ALL为假，因为不大于80。",
+        "在题设非空且无NULL前提下，>ANY等价于>MIN，>ALL等价于>MAX。"
+      ]
+    },
+    {
+      "id": "DB-20260916-010",
+      "question": "两个单列SQL查询分别返回[1,1,2]和[2,3]，类型一致。UNION和UNION ALL各返回哪些值及多少行？不考虑输出顺序。",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_0b278d1f_text_0000_4be20140b1d3"
+      ],
+      "reference_answer": "UNION得到{1,2,3}共3行；UNION ALL得到多重集[1,1,2,2,3]共5行。ALL保留重复，普通UNION会去掉重复元组。",
+      "answer_points": [
+        "UNION去重后为1、2、3，共3行。",
+        "UNION ALL保留重复，共5行，其中1两次、2两次、3一次。",
+        "集合查询要求两边列数和对应类型相容；题设满足。"
+      ]
+    },
+    {
+      "id": "DB-20260916-011",
+      "question": "Student(sid,name)中sid唯一，Enroll(sid,cid)中一名学生可选多门课。只要选过课就输出学生姓名，每个学生至多输出一次，应如何用相关EXISTS子查询表达？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_b2ec0b10_text_0000_e910ce052b9b"
+      ],
+      "reference_answer": "SELECT s.name FROM Student s WHERE EXISTS (SELECT 1 FROM Enroll e WHERE e.sid=s.sid); EXISTS判断相关子查询是否非空，因此一个学生选多门课也只让该学生的外层行输出一次。不同学生可以同名。",
+      "answer_points": [
+        "外层遍历Student。",
+        "内层通过e.sid=s.sid与外层关联。",
+        "EXISTS只判断是否至少有一条记录，不因多门课复制外层学生行。"
+      ]
+    },
+    {
+      "id": "DB-20260916-012",
+      "question": "视图V仅包含dept='CS'的员工并定义WITH CHECK OPTION。通过V把某员工dept改为'Math'，为什么会被拒绝？最终修改的是哪张表？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_4ad72f1e_text_0000_b8b02aecc6be"
+      ],
+      "reference_answer": "V上的更新最终作用于对应基本表，但WITH CHECK OPTION会检查更新后的数据是否仍满足dept='CS'。改成Math将违反该条件，因此被拒绝。",
+      "answer_points": [
+        "该更新使元组不满足视图定义条件。",
+        "WITH CHECK OPTION要求视图更新后满足其条件，因此拒绝。",
+        "普通可更新视图的更新最终转换为基本表更新。"
+      ]
+    },
+    {
+      "id": "DB-20260916-013",
+      "question": "一个视图只包含学生学号和该生平均成绩。为什么一般不能通过把平均成绩改成90，唯一确定基础成绩表该怎么修改？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_4ad72f1e_text_0000_b8b02aecc6be"
+      ],
+      "reference_answer": "平均成绩是多行成绩的聚合结果，改成90无法说明应该改哪几门课、每门改多少。不同基础表修改都可能得到同一平均值，因此通常不能把这样的视图更新唯一地转换为基础表更新。",
+      "answer_points": [
+        "平均成绩由多条基础记录聚合得到。",
+        "达到90的各门成绩组合可能有多种，无法唯一反推。",
+        "视图更新需能有意义地转换为基础表更新，该聚合视图一般不可直接更新。"
+      ]
+    },
+    {
+      "id": "DB-20260916-014",
+      "question": "选课表主键为(sid,cid)，已存在(1,A)。判断插入(1,B)、(1,A)、(NULL,B)能否通过实体完整性检查，并说明原因。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_94defc9c_text_0000_840aff06d177"
+      ],
+      "reference_answer": "仅考虑实体完整性，(1,B)可插入，(1,A)因主键重复而拒绝，(NULL,B)因主键中的sid为空而拒绝。联合主键要求整组值唯一且每个分量均非空。",
+      "answer_points": [
+        "(1,B)的完整主键不同且非空，可以通过该检查。",
+        "(1,A)重复完整主键，应拒绝。",
+        "(NULL,B)有主键分量为空，应拒绝。"
+      ]
+    },
+    {
+      "id": "DB-20260916-015",
+      "question": "Employee.dept外键引用Department.id。删除一个仍被员工引用的部门时，拒绝、级联删除、设置NULL三种策略各会产生什么结果？设置NULL还需什么前提？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_6c988010_text_0000_f9b20abeb259"
+      ],
+      "reference_answer": "拒绝策略保留部门及员工；级联删除会删除该部门和引用它的员工行；设置NULL会删除部门并把相关员工的dept置空。最后一种要求dept可为空，若dept同时受NOT NULL或主键约束，则不能这样处理。",
+      "answer_points": [
+        "拒绝策略不允许这次部门删除。",
+        "级联删除连同引用该部门的员工记录一起删除。",
+        "SET NULL把引用字段置空，要求该字段允许NULL且不违反其他约束。"
+      ]
+    },
+    {
+      "id": "DB-20260916-016",
+      "question": "用户U只能查询Student表并修改name列，且不允许把权限授给别人。给出符合需求的GRANT语句并解释WITH GRANT OPTION是否应出现。",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_7ee1badd_sec_6a0cdfee_text_0000_6f372fec684a"
+      ],
+      "reference_answer": "GRANT SELECT, UPDATE(name) ON TABLE Student TO U; 不附加WITH GRANT OPTION，因此U只能使用这两项权限，不能据此转授他人。",
+      "answer_points": [
+        "授予Student表的SELECT权限。",
+        "仅授予name列的UPDATE权限。",
+        "不加WITH GRANT OPTION，避免转授权限。"
+      ]
+    },
+    {
+      "id": "DB-20260916-017",
+      "question": "A把表T的SELECT授给B且允许转授，B授给C；D又独立给C同样权限。A级联撤销给B的授权后，C一定失去SELECT吗？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_384974f9_sec_49f2fe76_text_0000_8a5ab1abd09f"
+      ],
+      "reference_answer": "不会必然失去。级联撤销会去掉A→B→C这条授权路径，但C仍有D提供的独立有效授权，所以仍可查询T。",
+      "answer_points": [
+        "B失去来自A的授权。",
+        "C通过B获得的授权链被级联撤销。",
+        "C仍保留来自D的独立授权，因此不一定失去SELECT。"
+      ]
+    },
+    {
+      "id": "DB-20260916-018",
+      "question": "当前员工表碰巧没有同名员工，能否仅凭这份数据宣布“姓名→年龄”是关系模式上的函数依赖？举出反例条件。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_799f1fca_text_0000_adf9d5f1701f"
+      ],
+      "reference_answer": "不能。当前实例没有冲突只能说明目前未违反这一依赖；模式级函数依赖必须由业务语义保证对所有合法实例成立。若允许两位同名而年龄不同的员工，就存在反例。",
+      "answer_points": [
+        "不能仅根据单个当前实例决定模式级依赖。",
+        "函数依赖需要在所有合法实例中满足，应由业务语义或约束保证。",
+        "若允许同名但不同年龄的员工，则姓名不能函数确定年龄。"
+      ]
+    },
+    {
+      "id": "DB-20260916-019",
+      "question": "R(A,B,C)的全部依赖由A→B、B→C推出。A和AB分别是不是候选码？说明最小性如何影响判断。",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_a22aa9c2_text_0000_9d0ac89d3364",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_f8105b57_text_0000_edfeedee3075"
+      ],
+      "reference_answer": "A的闭包为ABC，是候选码。AB也能确定ABC，但删去B后A仍能确定全部属性，所以AB只是非最小的超码，不是候选码。",
+      "answer_points": [
+        "A可经传递推出B、C，确定全部属性，是候选码。",
+        "AB也确定全部属性，是超码。",
+        "AB含可删去的B，不满足最小性，因此不是候选码。"
+      ]
+    },
+    {
+      "id": "DB-20260916-020",
+      "question": "R(sid,cid,name,grade)满足1NF，唯一候选码为(sid,cid)，且sid→name、(sid,cid)→grade。它为何不满足2NF？给出消除该问题的分解。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc"
+      ],
+      "reference_answer": "name仅由sid决定，而sid只是候选码的一部分，因此存在部分函数依赖，违反2NF。可分解为Student(sid,name)和SC(sid,cid,grade)，分别保存学生信息与选课成绩。",
+      "answer_points": [
+        "name是非主属性，只依赖联合码的真子集sid。",
+        "存在非主属性对候选码的部分依赖，因此不满足2NF。",
+        "可分为Student(sid,name)和SC(sid,cid,grade)。"
+      ]
+    },
+    {
+      "id": "DB-20260916-021",
+      "question": "Employee(eid,dept,office)中仅有eid→dept、dept→office及其推论，所有字段原子化。它满足2NF却不满足3NF的原因是什么？应如何分解？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0f2dea93_text_0000_19363cbc7cfc",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_59c0baac_text_0000_824786b6711d"
+      ],
+      "reference_answer": "eid是单属性码，因此没有对码真子集的部分依赖，满足2NF；但eid→dept→office形成非主属性的传递依赖，违反3NF。分解为Employee(eid,dept)和Department(dept,office)可去掉这一依赖链带来的冗余。",
+      "answer_points": [
+        "唯一候选码eid为单属性，不存在非主属性对码的部分依赖，满足2NF。",
+        "office通过非码dept传递依赖eid，违反3NF。",
+        "分为Employee(eid,dept)和Department(dept,office)。"
+      ]
+    },
+    {
+      "id": "DB-20260916-022",
+      "question": "R(A,B,C)满足1NF，依赖集为{AB→C,C→B}。已知AB和AC是全部候选码，三个属性均为主属性。它满足BCNF吗？请指出违反条件的依赖。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_8386100f_text_0000_52e4828c04f9"
+      ],
+      "reference_answer": "不满足BCNF。C→B的右侧不包含于左侧，是非平凡依赖，但C不能确定A，因而不是超码。即使B是主属性，BCNF仍要求C这样的决定因素包含码。",
+      "answer_points": [
+        "C→B是非平凡依赖。",
+        "C只能推出BC，不能推出A，因此C不是超码。",
+        "BCNF要求非平凡依赖的决定因素含候选码，所以该模式不满足BCNF。"
+      ]
+    },
+    {
+      "id": "DB-20260916-023",
+      "question": "对R(A,B,C,D)，已知A→B、B→C、AC→D。用函数依赖推理说明A能否决定全部属性，并给出推理次序。",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_f8105b57_text_0000_edfeedee3075"
+      ],
+      "reference_answer": "可以。A先推出B，再经B→C推出C；已知A与C后利用AC→D得到D，因此A+=ABCD，A可决定所有属性。",
+      "answer_points": [
+        "A→B且B→C，由传递性得A→C。",
+        "合并A本身与C可得到AC。",
+        "由AC→D得A→D，所以A闭包为ABCD。"
+      ]
+    },
+    {
+      "id": "DB-20260916-024",
+      "question": "原关系R(A,B)只有(1,x),(2,y)，分解为R1(A)与R2(B)。自然连接后是什么结果？这为什么不是无损分解？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_0d897d8d_text_0000_171072424144"
+      ],
+      "reference_answer": "连接得到(1,x),(1,y),(2,x),(2,y)。两张表没有共同属性，连接成为笛卡儿积，产生原来不存在的组合，因此该分解不是无损连接分解。",
+      "answer_points": [
+        "两个投影分别为{1,2}和{x,y}。",
+        "没有公共属性，自然连接退化为笛卡儿积，产生4个元组。",
+        "额外出现(1,y),(2,x)，不能恢复为恰好原关系，因此有损。"
+      ]
+    },
+    {
+      "id": "DB-20260916-025",
+      "question": "有人认为“分解后的表保留了所有原函数依赖，就一定能无损恢复原关系”。这个结论是否成立？两种要求分别检查什么？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_360655f7_text_0000_016f38014f85",
+        "v1_tb_0f3d67ab0c_ch_506f4afe_sec_70a2fd6e_text_0000_bc27d178c26f"
+      ],
+      "reference_answer": "不成立。保持依赖用于保证分解后仍能维护原有依赖约束；无损连接要求分解后的投影连接能恢复原关系。教材给出保持依赖却因无公共属性产生笛卡儿积的反例，两者应分别验证。",
+      "answer_points": [
+        "结论不成立，保持依赖和无损连接互不等价。",
+        "保持依赖关心原依赖能否由各分量上的依赖推出。",
+        "无损连接关心投影后的自然连接是否恰好恢复原关系，不产生伪元组。"
+      ]
+    },
+    {
+      "id": "DB-20260916-026",
+      "question": "从账户A向B转账100元，扣款后程序崩溃但还没入账。该失败场景直接要求ACID中的哪项性质？在余额总和不变这一业务约束下，它与一致性有什么联系？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_5e77344f_text_0000_01f2a069593c"
+      ],
+      "reference_answer": "直接涉及原子性：转账两步必须作为一个工作单位，失败时不能只留下扣款。撤销部分修改可避免破坏余额总和约束；一致性要求事务把数据库从满足业务约束的状态带到另一个满足约束的状态。",
+      "answer_points": [
+        "原子性要求扣款和入账要么都做、要么都不做。",
+        "失败后应撤销未完成转账的部分修改。",
+        "在正确事务逻辑下，全做或全不做可维护余额总和等一致性约束。"
+      ]
+    },
+    {
+      "id": "DB-20260916-027",
+      "question": "更新数据页已经持久化，旧值和新值对应的日志却还没写入稳定存储，此时掉电有什么恢复风险？正确写入次序是什么？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_42d7a28a_text_0000_8632fc534ab6"
+      ],
+      "reference_answer": "若先写数据后丢失日志，系统可能不知道如何撤销已落盘的未提交修改。正确次序是先持久化相应日志，再允许对应数据页修改落盘，即先写日志原则。",
+      "answer_points": [
+        "数据已修改却没有相应日志，恢复时可能无法撤销或恢复该修改。",
+        "应先把对应日志持久化，再把数据修改写入数据库。",
+        "这就是先写日志原则。"
+      ]
+    },
+    {
+      "id": "DB-20260916-028",
+      "question": "某未提交事务先把X由10改成20，再改成30，然后失败。用旧值日志UNDO时为什么要反向处理？最终X是多少？",
+      "category": "computation",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_0d3b5369_text_0000_f7ec89a6b112"
+      ],
+      "reference_answer": "UNDO应倒序扫描该事务日志，先将30恢复为20，再将20恢复为10，最终X=10。若正序写回旧值10后又写回20，会留下错误的中间状态。",
+      "answer_points": [
+        "先撤销最后一次修改，30恢复为20。",
+        "再撤销前一次修改，20恢复为10。",
+        "最终为10；顺序撤销可能把错误中间值留下。"
+      ]
+    },
+    {
+      "id": "DB-20260916-029",
+      "question": "系统崩溃时，事务T1已提交但修改还在缓冲区，T2未提交但部分修改已落盘。按教材介绍的恢复机制，应分别对T1和T2做什么？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_0d3b5369_text_0000_f7ec89a6b112"
+      ],
+      "reference_answer": "T1需要REDO，使已提交的修改恢复到数据库；T2需要UNDO，撤销未完成事务已经落盘的修改。不能简单地把所有事务一律重做或一律撤销。",
+      "answer_points": [
+        "对T1重做REDO，恢复已提交但可能未持久化的数据。",
+        "对T2撤销UNDO，清除未完成事务的落盘修改。",
+        "分别维护已提交结果与未提交事务原子性。"
+      ]
+    },
+    {
+      "id": "DB-20260916-030",
+      "question": "备份期间仍允许事务更新数据，为什么这份动态转储副本不能单独保证一致性？恢复时还应结合什么？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_9981ec6a_text_0000_5f3f70316f81",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_42d7a28a_text_0000_8632fc534ab6"
+      ],
+      "reference_answer": "动态转储期间数据仍在变化，副本中不同部分可能对应不同状态，单靠副本无法保证一致。应保留并结合相关日志，通过必要的恢复操作得到一致数据库。",
+      "answer_points": [
+        "动态转储与更新并发，不同部分可能来自不同时间点。",
+        "备份副本本身可能不是一致性快照。",
+        "需要结合相关日志恢复到一致状态。"
+      ]
+    },
+    {
+      "id": "DB-20260916-031",
+      "question": "采用教材中会刷出数据缓冲区的检查点方案。T1在检查点前提交，T2在检查点后提交，T3到崩溃仍未完成。三者的恢复处理有何不同？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_0b70954f_text_0000_5901c2f67c34"
+      ],
+      "reference_answer": "在题设检查点方案下，T1无需REDO，T2需要REDO，T3需要UNDO。检查点使此前已提交事务不必从头重做，从而缩小恢复范围。",
+      "answer_points": [
+        "T1修改已在检查点前或建立时写入数据库，无需重做。",
+        "T2在检查点后提交，需要重做可能未落盘的修改。",
+        "T3未完成，需要撤销。"
+      ]
+    },
+    {
+      "id": "DB-20260916-032",
+      "question": "T1持有数据A的S锁，T2申请S锁，T3申请X锁。在T1未释放且无其他条件时，哪些请求相容？S锁持有者能否直接写A？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95"
+      ],
+      "reference_answer": "T2可以获得S锁并读取A；T3的X锁与T1的S锁冲突。T1也不能仅凭S锁修改A，必须取得排他锁后才可写。",
+      "answer_points": [
+        "T2的S锁与T1的S锁相容。",
+        "T3的X锁与现有S锁冲突，需要等待。",
+        "S锁只授予读权限，写A需要取得合适的排他锁。"
+      ]
+    },
+    {
+      "id": "DB-20260916-033",
+      "question": "二级封锁协议中写锁持有到事务结束，但读完就释放S锁。它为什么能防脏读，却仍可能发生不可重复读？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_091c37c0_text_0000_106903eb54e6"
+      ],
+      "reference_answer": "未提交写入仍受X锁保护，读事务无法越过该锁取得脏数据；但读事务释放S锁后，别人可以修改并提交，之后再次读取就可能不同。因此二级封锁防脏读但不保证可重复读。",
+      "answer_points": [
+        "未提交写事务持有X锁，会阻止其他事务取得S锁读取其修改。",
+        "读完释放S锁后，其他事务可以修改并提交该数据。",
+        "原事务再次读取可能看到新值，因此不能保证可重复读。"
+      ]
+    },
+    {
+      "id": "DB-20260916-034",
+      "question": "三级封锁协议把读取数据的S锁保留到事务结束，为什么能防止同一已读记录被别的事务更新后导致的不可重复读？代价是什么？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_e63e1c2e_text_0000_ecd4d80b1260",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_6b3cfe6a_text_0000_9202ad937c95"
+      ],
+      "reference_answer": "已读记录的S锁持续到事务结束，与其他事务所需X锁冲突，因此这些记录不能中途被更新，避免相应的不可重复读。代价是其他写事务等待更久，并发受到限制。",
+      "answer_points": [
+        "S锁在事务结束前不释放。",
+        "其他写事务无法取得同一数据的X锁，不能在此期间更新已读记录。",
+        "锁占用时间更长，会增加等待并限制并发。"
+      ]
+    },
+    {
+      "id": "DB-20260916-035",
+      "question": "T1两次读取同一个余额，第二次值变了；另一个场景中T1两次查询salary>10000，第二次多了一条新员工记录。按教材分类，这分别是什么异常？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_3cdd7540_text_0000_73ea66e63156",
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_39091202_text_0000_021bc680f4d1"
+      ],
+      "reference_answer": "前者是不可重复读，后者是幻读。不可重复读关注已读数据被修改；幻读关注插入或删除造成同一条件查询的记录集合变化。",
+      "answer_points": [
+        "同一已读记录值被更新导致前后不同，是不可重复读。",
+        "条件查询多出符合条件的新行，是幻读。",
+        "区别在于已有行值变化与结果集合成员变化。"
+      ]
+    },
+    {
+      "id": "DB-20260916-036",
+      "question": "锁序列S(A)、X(B)、释放A、S(C)、释放B、释放C是否遵守两段锁协议？如不遵守，如何只调整加解锁次序使它符合协议？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2108bb5f_text_0000_7d2653e25945"
+      ],
+      "reference_answer": "不遵守。释放A已进入收缩阶段，之后不能再申请C的锁。可把S(C)移到首次解锁之前：S(A)、X(B)、S(C)、释放A、释放B、释放C。",
+      "answer_points": [
+        "不遵守，释放A后又申请S(C)。",
+        "两段锁要求首次解锁后不再申请新锁。",
+        "可改为S(A)、X(B)、S(C)、释放A、释放B、释放C。"
+      ]
+    },
+    {
+      "id": "DB-20260916-037",
+      "question": "T1持有A的X锁并等待B，T2持有B的X锁并等待A。画出文字形式的等待关系，说明如何判断及解除该状态。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_c0d609a0_text_0000_3f7ca3a66f4a"
+      ],
+      "reference_answer": "T1→T2→T1形成环，表示死锁。系统可选择撤销代价较小的事务，回滚其修改并释放持有的锁，使另一事务继续执行。",
+      "answer_points": [
+        "等待图为T1→T2和T2→T1。",
+        "形成有向环，存在死锁。",
+        "可选择代价较小的事务撤销并回滚其修改，释放锁使其他事务继续。"
+      ]
+    },
+    {
+      "id": "DB-20260916-038",
+      "question": "不同事务的R1(A)与R2(A)、R1(A)与W2(A)、W1(A)与W2(B)三组操作，哪组属于冲突操作？解释判据。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_2625ef67_text_0000_70afb62a56ea"
+      ],
+      "reference_answer": "只有第二组冲突。冲突操作要求来自不同事务、作用于同一个数据项，并且至少一个是写操作；读读以及对不同数据项的操作不构成这里的冲突。",
+      "answer_points": [
+        "只有R1(A)与W2(A)冲突。",
+        "R1(A)与R2(A)都只读，不冲突。",
+        "W1(A)与W2(B)访问不同数据，不冲突；冲突需不同事务、同一数据且至少一个写。"
+      ]
+    },
+    {
+      "id": "DB-20260916-039",
+      "question": "两个事务修改同一页上不同的两条记录。比较页锁与行锁对并发和锁管理开销的影响；如果要读取整张大表，结论又应怎样权衡？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_af4c0aa6_text_0000_88ab4d148e41"
+      ],
+      "reference_answer": "页锁把同页不同记录一起锁住，两个修改会互相等待；行锁可提高并发，但需要管理更多锁。整表读取时逐行锁定的开销可能很大，所以粗细粒度都不是绝对更优，应按访问范围和并发需求权衡。",
+      "answer_points": [
+        "页级锁可能使两事务互相等待，行锁允许锁定不同记录提高并发。",
+        "细粒度需要管理更多锁，开销较大。",
+        "整表读取若逐行加锁可能代价很高，应综合锁开销和并发需求选粒度。"
+      ]
+    },
+    {
+      "id": "DB-20260916-040",
+      "question": "某事务要读取整张表，同时更新其中少数行。按多粒度封锁，表级SIX锁表达什么含义？为什么仍需对待修改行加X锁？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_f19bce09_sec_4e83d925_text_0000_93769960f90e"
+      ],
+      "reference_answer": "SIX是S与IX的结合：允许读整表，同时声明将对某些后裔行取得X锁。IX只表达意向，实际修改那些行时仍需要相应X锁。",
+      "answer_points": [
+        "SIX=S+IX，表级共享读取并表示后裔将加排他锁的意向。",
+        "S部分用于读取整表，IX部分声明将修改部分行。",
+        "意向锁不替代行级X锁，实际修改仍需锁住对应行。"
+      ]
+    },
+    {
+      "id": "DB-20260916-041",
+      "question": "B+树为什么从根查找到任意叶子的路径长度一致？非叶结点与叶结点在索引中的作用有什么不同？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_85c9c99b_text_0000_983457720d7d"
+      ],
+      "reference_answer": "所有叶结点处于同一级，所以根到叶的长度一致。非叶结点负责按键值引导查找，叶结点包含索引键与记录指针，并通过兄弟指针连接以支持顺序访问。",
+      "answer_points": [
+        "B+树是平衡多级索引，所有叶结点处于同一级。",
+        "非叶结点通过有序键和子结点指针导航。",
+        "叶结点保存索引键及记录指针，并以兄弟指针顺序连接。"
+      ]
+    },
+    {
+      "id": "DB-20260916-042",
+      "question": "用B+树查询键值在[20,40]之间的所有记录，为什么不必为每一个键都重新从根开始查找？描述主要步骤。",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_d8948c22_text_0000_6aa26682a341",
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_85c9c99b_text_0000_983457720d7d"
+      ],
+      "reference_answer": "先从根定位20对应的起始叶位置，然后沿叶层有序索引项和兄弟指针扫描，收集20到40的键，到第一个超过40的键停止。叶层链使连续范围查询不必反复从根查找。",
+      "answer_points": [
+        "先沿树定位范围起点所在叶结点。",
+        "在叶层按有序键及兄弟指针向后扫描。",
+        "输出范围内项，遇到大于40的键即可停止。"
+      ]
+    },
+    {
+      "id": "DB-20260916-043",
+      "question": "一个关系按键有序存储，每块首条记录建立一项稀疏索引。与稠密索引相比它节省什么？定位到块之后为什么还需在块内查找？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_6c6be75f_text_0000_5b39aae792db"
+      ],
+      "reference_answer": "稀疏索引为每块首项保留入口，索引更小。它先通过首键定位可能包含目标的块，块内其他记录没有单独索引项，因此还需在该块中查找目标。",
+      "answer_points": [
+        "稀疏索引只覆盖部分键/每块首项，项数和存储开销较少。",
+        "找到不大于目标键的合适首项后定位数据块。",
+        "目标记录可能不是块首，仍需在该块中查找。"
+      ]
+    },
+    {
+      "id": "DB-20260916-044",
+      "question": "哈希组织的关系表与哈希索引都使用桶。两者桶里保存的内容有什么不同？已有哈希索引是否意味着原表记录必须按同样方式重排？",
+      "category": "multi_hop",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_0bf1977c_sec_a48643b1_text_0000_9281981db3c1"
+      ],
+      "reference_answer": "哈希存储把记录本身放在桶中；哈希索引把索引键与记录地址放在桶中。索引通过指针访问原表，因此建立这样的索引并不要求原表也采用同样的哈希存储组织。",
+      "answer_points": [
+        "哈希存储的桶直接保存数据记录。",
+        "哈希索引的桶保存键值及指向记录的指针。",
+        "二者是不同组织层面，建立哈希索引不等于强制按该哈希方式组织原表。"
+      ]
+    },
+    {
+      "id": "DB-20260916-045",
+      "question": "一个很小的表已有索引，另一个大表查询会命中绝大多数记录。为什么优化器在这两种情况下仍可能选择全表扫描？教材的10%阈值是否应当作为所有数据库的固定规则？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_5e5cc890_text_0000_2c62015a8ba5",
+        "v1_tb_0f3d67ab0c_ch_17e96047_sec_83338072_text_0000_8b04f2ef92e7"
+      ],
+      "reference_answer": "小表直接扫描通常很便宜；大表若绝大多数记录都需读取，通过索引逐条访问可能增加开销。教材给出的10%属于启发式选择率参考，实际优化还需依据统计信息和代价模型，不能视为跨数据库的固定规则。",
+      "answer_points": [
+        "小表扫描代价小，有索引也未必更合算。",
+        "大表命中比例高时，大量索引访问和取记录可能不如顺序扫描。",
+        "10%是教材启发式示例，实际决策还需代价估算，不能当所有实现的固定阈值。"
+      ]
+    },
+    {
+      "id": "DB-20260916-046",
+      "question": "查询先连接Student与Enroll，再筛选Student.dept='CS'，只返回姓名和课程号。选择下推与投影下推分别能减少什么？投影时应保留哪些额外字段？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_523db3a2_text_0000_51fce9e54e90"
+      ],
+      "reference_answer": "可先筛选CS学生再连接，以减少中间行数；同时投影去掉不需要的列以减小元组宽度。但连接键、筛选字段和最终输出字段不能过早丢弃，否则会改变查询语义或无法执行。",
+      "answer_points": [
+        "将只依赖Student的筛选提前，可减少参与连接的学生元组。",
+        "提前去掉无关列，可减少中间结果宽度。",
+        "仍应保留连接键以及后续条件、输出所需的列。"
+      ]
+    },
+    {
+      "id": "DB-20260916-047",
+      "question": "两张大表已按同一个等值连接键排序。排序-合并连接如何利用这一条件？若输入未排序，应在成本中额外考虑什么？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_25663346_text_0000_42c84d3c0b1f"
+      ],
+      "reference_answer": "排序-合并连接沿双方有序连接键推进并匹配等值项，已有顺序可直接利用。若原表无序，需要先排序，总执行成本包含排序与合并扫描，不能只计算最后的扫描部分。",
+      "answer_points": [
+        "沿有序键扫描两表，连接键相等的元组。",
+        "已排序输入可省去前置排序成本。",
+        "若未排序需先排序，估算总成本时必须计入排序开销。"
+      ]
+    },
+    {
+      "id": "DB-20260916-048",
+      "question": "两表做等值哈希连接，较小表可放入内存。为什么通常先用小表建哈希表，再扫描大表？两阶段哈希函数有什么要求？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_e9495556_sec_553c8a6c_text_0000_59e9a9500c57"
+      ],
+      "reference_answer": "先用小表构建内存哈希表可降低内存需求，再扫描大表并探测相应桶。双方必须对连接键使用相同哈希函数；桶内还要核对键值是否真正相等，不能把哈希冲突误当成连接匹配。",
+      "answer_points": [
+        "构建阶段把较小表按连接键散列进内存桶。",
+        "探测阶段扫描大表，在相应桶查找并核对相等键。",
+        "两阶段使用同一个哈希函数；哈希值相同仍须比较连接键。"
+      ]
+    },
+    {
+      "id": "DB-20260916-049",
+      "question": "销售分析按时间、地区、商品类别观察销售额。在多维数据模型中，哪些是维，哪个是度量？这一结构如何支持从不同角度分析？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_b411f3ef_text_0000_04fbb1dd5dd6"
+      ],
+      "reference_answer": "时间、地区、商品类别是维，销售额是度量。多维模型把度量放在这些维的组合位置，使分析人员能按地区、时期或商品等不同角度观察销售情况。",
+      "answer_points": [
+        "时间、地区、商品类别是三个维。",
+        "销售额是度量值。",
+        "各维给出观察和组织数据的角度，可按不同维组合查看分析结果。"
+      ]
+    },
+    {
+      "id": "DB-20260916-050",
+      "question": "业务既要频繁处理订单事务，又要分析同一份数据。HTAP希望解决什么问题？为什么行列混合存储可能比单一行存更适合这种负载？",
+      "category": "reasoning",
+      "gold_chunk_ids": [
+        "v1_tb_0f3d67ab0c_ch_4280ae7c_sec_f80758a1_text_0000_4576ff014ea5"
+      ],
+      "reference_answer": "HTAP在同一份数据上同时支持交易与分析，避免两者只能完全分离处理。事务常适于行存访问，分析常适于列存扫描；行列混合可让不同负载利用更合适的数据布局，但不是保证所有操作都更快。",
+      "answer_points": [
+        "HTAP希望同一系统、同一接口、同一份数据支持事务与分析负载。",
+        "行存适于事务访问，单一行存处理大量分析查询可能低效。",
+        "混合行列存储为不同访问模式提供相应布局，改善两类负载的处理效率。"
+      ]
+    }
+  ]
+}

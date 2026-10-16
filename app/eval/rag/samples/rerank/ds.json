@@ -1,0 +1,568 @@
+{
+  "schema": 1,
+  "dataset": "ds",
+  "collection": "tb_af7e609490056b9d",
+  "config": "rerank",
+  "top_k": 5,
+  "generation": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "temperature": 0.1,
+    "prompt": "answer.prompt@409463638ea5",
+    "rerank_fusion_alpha": 0.6,
+    "candidate_pool": 20,
+    "generated_at": "2026-10-16T12:20:05+08:00"
+  },
+  "samples": [
+    {
+      "id": "DS2-001",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0001_7e810ad167d4",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_3501ac29_text_0000_b9c173022d7d",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1471c71f_text_0000_e6ebe0a48604",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0000_8e1de33754dc",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ed08c143_text_0000_c29758bb14a8"
+      ],
+      "response": "应选用堆栈（Stack）。堆栈的插入和删除操作都作用在一个称为栈顶（Top）的端点位置，数据插入称为压入栈（Push），数据删除叫做弹出栈（Pop）。正是由于这一特性，最后入栈的数据将被最先弹出，所以堆栈也被称为后入先出（Last In First Out，LIFO）表。"
+    },
+    {
+      "id": "DS2-002",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_3501ac29_text_0000_b9c173022d7d",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ed08c143_text_0000_c29758bb14a8",
+        "v1_tb_72e2eb2b4a_ch_767d6845_sec_3b0a957e_text_0000_ed7fd4237db1",
+        "v1_tb_72e2eb2b4a_ch_767d6845_sec_93b1e6fd_text_0000_911f7c30a8c9",
+        "v1_tb_72e2eb2b4a_ch_15ea8ae1_sec_93b1e6fd_text_0000_b7be4f5f5cd5"
+      ],
+      "response": "对应“队列”（Queue）。\n\n基本规则是：新来者排在队伍末尾，排在队伍前面的人先得到服务，期间不允许插队。队列只能在一端插入，而在另一端删除；先插入的将被率先删除，因此队列通常又被称为“先进先出”表（FIFO）。"
+    },
+    {
+      "id": "DS2-003",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ed08c143_text_0000_c29758bb14a8",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_277e5d05_text_0000_f5ae35e85cc5",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0000_61829cb6fcc7",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_3501ac29_text_0000_b9c173022d7d",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0001_7e810ad167d4"
+      ],
+      "response": "栈和队列的主要区别在于插入和删除操作的位置以及元素的出栈/出队顺序。\n\n队列的插入和删除操作分别在线性表的两个不同端点进行：只能在一端插入，而在另一端删除。先插入的将被率先删除，因此队列通常又被称为“先进先出”表（FIFO）。\n\n堆栈的数据插入称为压入栈（Push），数据删除叫做弹出栈（Pop）。最后入栈的数据将被最先弹出，所以堆栈也被称为后入先出（LIFO）表。"
+    },
+    {
+      "id": "DS2-004",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1471c71f_text_0000_e6ebe0a48604",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ae9d2fbf_text_0000_fcf782a25d54",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_c6fbfaa3_text_0000_d7f9e6c27fdc",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1471c71f_code_0000_01409e05e3db",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0000_61829cb6fcc7"
+      ],
+      "response": "顺序栈用一维数组存储元素，栈底放在数组下标小的那端，栈顶位置用一个整型变量 Top 记录当前栈顶元素的下标值。当 Top 指向 -1 时，表示空栈；当 Top 指向 MaxSize-1 时，表示满栈。\n\n入栈时，首先判别栈是否满；若不满，Top 加 1，并将新元素放入 Data 数组的 Top 位置中。出栈时，首先判别栈是否空；若不空，返回 Data[Top]，同时将 Top 减 1；否则返回一个 ElementType 类型的特殊错误标志 ERROR。"
+    },
+    {
+      "id": "DS2-005",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0000_bad59cf7179d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ee79b4b2_text_0000_423f7a069679",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_761a7505_text_0000_fae710066ec5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0001_6c797dbd731d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0002_e690568c6aba"
+      ],
+      "response": "中序遍历的访问根结点是在遍历完其左子树后进行的，即先中序遍历左子树，再访问根结点，最后中序遍历右子树。先序遍历的访问根结点是在其左、右子树遍历之前进行的，即先访问根结点，再先序遍历左子树，最后先序遍历右子树。\n\n先序也叫前序，是因为对结点的访问是在其左、右子树遍历之前进行的。"
+    },
+    {
+      "id": "DS2-006",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_544ed0b3_text_0000_eed1e7744612",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_de6f241b_text_0000_b8450518e14e",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0001_f5823eac371f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_59955b29_text_0000_d14760b4645c",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_692ea6e4_text_0000_4e429a79c19f"
+      ],
+      "response": "二叉搜索树能快速查找，是因为它具有有序特性：非空左子树的所有键值小于其根结点的键值，非空右子树的所有键值大于其根结点的键值，左、右子树都是二叉搜索树。查找时依据结点关键字与要查找值的比较结果，将查找范围限定在左或右子树，这是动态二分查找思想的实现。对它进行中序遍历，将得到一个从小到大的输出序列。"
+    },
+    {
+      "id": "DS2-007",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_6975362b_text_0000_3b577207e882",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0001_f5823eac371f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_c61e57c9_text_0000_4fba85564ae5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_544ed0b3_text_0000_eed1e7744612",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_1f57ba6d_text_0001_e090a2e718c7"
+      ],
+      "response": "AVL 树比普通二叉搜索树多的硬约束是：任一结点的左、右子树高度差的绝对值不超过 1，即任一结点的平衡因子只能在集合 {-1, 0, 1} 中取值。\n\n普通二叉搜索树的查找复杂度取决于树的深度，最好情况是 O(log N)，但可能退化成单枝树，查找复杂度变为线性的 O(N)。AVL 树通过上述约束保持平衡，其插入、删除、查找操作均可在 O(log N) 时间内完成。"
+    },
+    {
+      "id": "DS2-008",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_0cc835d4_text_0000_087f557deafe",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_277e5d05_text_0000_000872d718f6",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_05d8bc51_text_0002_254e338d1432",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_fb450a6b_text_0000_49f4e6a99d52"
+      ],
+      "response": "“占别人的空位子”叫开放地址法（开放定址法），“把同义词串成一串”叫分离链接法（链地址法）。\n\n根本区别在于：开放地址法一旦产生冲突，就去寻找另一个空的散列地址，散列表是一个数组，散列函数求得的地址对应数组下标；分离链接法是把所有关键词为同义词的数据对象通过结点链接存储在同一个单链表中，以每个散列地址作为一个指针，指向一个链。"
+    },
+    {
+      "id": "DS2-009",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_05d8bc51_text_0000_811afb152958",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ebb6a0d4_text_0000_b797a8b413f1",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ebb6a0d4_text_0003_acdefcd73751",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_684daf92_text_0000_2888f4019c24"
+      ],
+      "response": "二分查找比顺序查找快，是因为它利用线性表中数据元素按大小排列存放这一特性，每次取出中间元素关键字与要查找的关键字比较，根据比较结果把查找范围缩小到上一次的一半，因此具有对数的时间复杂度 O(log n)；而顺序查找是从线性表的一端开始逐个比较，时间复杂度为 O(n)。\n\n二分查找必须满足的前提条件：数据元素已经按照关键字排序，并且存储在连续的地址空间中，不能有频繁的元素变化（经常性的插入和删除），即要求是“静态查找”。"
+    },
+    {
+      "id": "DS2-010",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_2bb9961f_text_0000_b0479afeebbf",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_2bb9961f_text_0002_8d07784d361c",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_56208133_text_0000_3b424bfa2cd0",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_06367055_text_0000_7c0f0f9bd2cc",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_277e5d05_text_0000_b858c70a49f7"
+      ],
+      "response": "快速排序也是交换排序的一种，但和冒泡排序不同的是，冒泡排序只比较相邻两个记录的顺序，而快速排序的原理是：将未排序元素根据一个作为基准的“主元”（Pivot）分为两个子序列，其中一个子序列的记录均大于主元，而另一个子序列均小于主元，然后递归地对这两个子序列用类似的方法进行排序。本质上，快速排序使用分治法，将问题的规模减小，然后再分别进行处理。"
+    },
+    {
+      "id": "DS2-011",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ce844ab8_text_0000_531ff6d25f6f",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ed08c143_text_0000_c29758bb14a8",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_0aab49e7_text_0000_ca0abb695fbf",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_c6fbfaa3_text_0000_d7f9e6c27fdc",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1605bd47_text_0002_604b6d342c29"
+      ],
+      "response": "线性表是由同一类型的数据元素构成的有序序列的线性结构。这里的“有序”指元素之间存在次序关系：线性表是 \\(n(n \\geqslant 0)\\) 个元素构成的有序序列 \\((a_1, a_2, \\cdots, a_n)\\)，其中 \\(a_1\\) 是表头，\\(a_n\\) 是表尾；\\(a_{i+1}\\) 称为 \\(a_i\\) 的直接后继，\\(a_{i-1}\\) 为 \\(a_i\\) 的直接前驱；直接前驱和直接后继反映了元素之间一对一的邻接逻辑关系。"
+    },
+    {
+      "id": "DS2-012",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_ede3116f_text_0000_392dae3e1b9c",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_fc26e3eb_text_0000_10fa30fc4ff6",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_726272ff_text_0000_adb47769138b",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_6da15471_text_0000_04bf7a9e187a",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_dd0a99b8_text_0000_ad1feef6de75"
+      ],
+      "response": "单向链表结点通常用结构的递归定义：结构类型 Node 中的 Next 分量又是该结构类型的指针，即每个结点包含数据部分和指向下一个结点的指针。除 Next 分量外还有其他表示结点信息的分量（如 Data）。\n\n表头变量 head 用来存放链表首结点的地址。通常说“给定一个单链表”，就是给定一个指向该链表头结点的指针；“单链表类型”List 可以定义为链表结点结构的指针。"
+    },
+    {
+      "id": "DS2-013",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_726272ff_text_0000_adb47769138b",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_4183e16a_text_0000_d30698f9a27b",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_25c92c2c_text_0000_6ab530f2df62",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1605bd47_text_0002_604b6d342c29",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_c6fbfaa3_text_0000_d7f9e6c27fdc"
+      ],
+      "response": "顺序存储用地址连续的存储空间顺序存放线性表各元素，实现方式简单，对元素访问随机，但动态性不够，是实现静态线性数据管理的理想方式；插入、删除时需要通过移动数据元素来实现，影响运行效率。\n\n链式存储不需要用地址连续的存储单元来实现，不要求逻辑上相邻的两个数据元素物理上也相邻，通过“链”建立起数据元素之间的逻辑关系；对线性表的插入、删除不需要移动数据元素，只需要修改“链”，对频繁增删结点且表长有较大变化的应用来说更加适合。"
+    },
+    {
+      "id": "DS2-014",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_a7ef9257_text_0000_40a8fb00b44a",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_295bb768_text_0000_6c84cbd59b56",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_726272ff_text_0000_adb47769138b",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b2007c32_text_0000_efed239bd2cb",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_c6fbfaa3_text_0000_d7f9e6c27fdc"
+      ],
+      "response": "顺序表用地址连续的一块存储空间顺序存放线性表的各元素，逻辑上相邻的数据元素物理上也相邻。在中间位置插入时，必须把第 i 位及以后的元素顺序向后移动，为新元素让出位置，否则无法保持这种物理上的相邻关系。\n\n链表不要求逻辑上相邻的数据元素物理上也相邻，它是通过“链”建立起数据元素之间的逻辑关系，因此对线性表的插入、删除不需要移动数据元素，只需要修改“链”。\n\n两者的差别在于：顺序表靠物理上的相邻实现逻辑上的相邻，所以插入、删除需要通过移动数据元素来实现，影响了运行效率；链表靠指针链实现逻辑关系，插入时只需找到位序为 i-1 的结点，申请一个新结点并填入 X，然后将新结点插入到该结点之后即可。"
+    },
+    {
+      "id": "DS2-015",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_dd0a99b8_text_0000_ad1feef6de75",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_6f6b50bf_text_0000_7f65b3bdcdb0",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_6da15471_text_0000_04bf7a9e187a",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_dd0a99b8_code_0000_cd0ebea40cf9",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_726272ff_text_0000_adb47769138b"
+      ],
+      "response": "在单链表上删除一个结点，必须知道其前驱结点。删除的基本过程是：首先找到被删除结点的前面一个结点 p，然后删除 p 之后的那个结点。删除一个结点后必须释放该结点的空间，因此先将待删除结点保留在 t 中，再释放 t。\n\n只拿到目标结点本身不能删。因为单链表不具有按序号随机访问的特点，只能从头指针开始一个个顺序进行；每个结点只能很容易找到其后继结点，要找到其前驱结点，必须从链表头开始查找。"
+    },
+    {
+      "id": "DS2-016",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1471c71f_text_0000_e6ebe0a48604",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ae9d2fbf_text_0000_fcf782a25d54",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0001_7e810ad167d4",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1471c71f_code_0000_f00363995384",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_277e5d05_text_0000_f5ae35e85cc5"
+      ],
+      "response": "执行入栈操作时，首先判别栈是否满；若不满，Top 加 1，并将新元素放入 Data 数组的 Top 位置中。若栈已满，返回 false。\n\n因此，栈顶 Top 是“先加再放”：先执行 Top 加 1，再将新元素存入 Data[Top]。"
+    },
+    {
+      "id": "DS2-017",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_e882daa5_text_0000_caf59731984b",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_ede3116f_text_0000_392dae3e1b9c",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_6da15471_text_0000_04bf7a9e187a",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_726272ff_text_0000_adb47769138b",
+        "v1_tb_72e2eb2b4a_ch_54a7b60a_sec_fc26e3eb_text_0000_10fa30fc4ff6"
+      ],
+      "response": "链栈与单链表类似，但其操作受限制，插入和删除操作只能在链栈的栈顶进行。栈顶指针 Top 就是链表的头指针。"
+    },
+    {
+      "id": "DS2-018",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_9c44d270_text_0000_c85d3c5c5c24",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0000_8e1de33754dc",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0001_7e810ad167d4",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0002_e690568c6aba",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_9c44d270_text_0001_a75aa8500728"
+      ],
+      "response": "在计算后缀表达式的过程中，需要暂存还不能马上参与运算的运算数，对这些运算数的管理方法基本是先入后出的原则，即需要使用一个堆栈对这些暂存的运算数在求值过程中进行管理。\n\n当读入的是一个运算数时，把它压入栈中；当读入的是一个运算符时，就从堆栈中弹出适当数量的运算数，对该运算进行计算，计算结果再压回到栈中；处理完整个后缀表达式之后，堆栈顶上的元素就是表达式的结果值。\n\n正是由于堆栈后入先出的特性，最后入栈的数据将被最先弹出，所以弹出的是最近暂存的运算数，正好与后缀表达式中运算符紧跟在其两个运算数之后的顺序相对应。"
+    },
+    {
+      "id": "DS2-019",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0000_61829cb6fcc7",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0001_160f32efd5cd",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_277e5d05_text_0000_f5ae35e85cc5",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1dbfd7a3_text_0000_8398be8079d3",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_a7ef9257_text_0000_40a8fb00b44a"
+      ],
+      "response": "顺序队列用数组存储时，随着入队、出队的进行，整个队列会整体向后移动。队尾指针移到最后时，再有元素入队就会出现溢出，而事实上此时队中并未真的“满员”，这种现象称为“假溢出”。\n\n循环队列将数组头尾相接，想象成环状。当插入和删除操作的作用单元达到数组的末端后，用公式“Rear（或 Front）% 数组长度”取余运算就可以实现折返到起始单元，从而解决队尾溢出而实际上数组仍然有空余空间的问题。"
+    },
+    {
+      "id": "DS2-020",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1dbfd7a3_text_0000_8398be8079d3",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0000_61829cb6fcc7",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_483b6a77_text_0001_160f32efd5cd",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1dbfd7a3_code_0000_0e9d5d72abd8",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_e882daa5_text_0000_caf59731984b"
+      ],
+      "response": "链式队列中，队列的头（Front）必须指向链表的头结点，队列的尾（Rear）指向链表的尾结点。\n\n栈只记一头，是因为栈的操作受限制，插入和删除操作只能在链栈的栈顶进行，栈顶指针 Top 就是链表的头指针。而队列的入队和出队操作分别发生在链表的尾部和头部，即“在一个链表的尾部插入结点或者在头部删除结点”，所以需要同时记录队头和队尾。"
+    },
+    {
+      "id": "DS2-021",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_c61e57c9_text_0001_698734fa9508",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_c61e57c9_text_0000_4fba85564ae5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0000_ded288d70812",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_f8e4d5f8_text_0000_869a9a7d2188",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2a10715c_text_0000_2fcec8ef5b3f"
+      ],
+      "response": "除根结点外，每个结点有且仅有一个父结点。因为子树是不相交的，树中每条边将某个结点与其父结点连起来，所以除根结点外，每个结点只能有一个父结点。\n\n父结点：具有子树的结点是其子树的根结点的父结点。\n子结点：与父结点相反，对于某一个结点来讲，其子树的根结点是它的子结点。\n叶结点：是度为0的结点，也可称为端结点；结点的度是其子树的个数。"
+    },
+    {
+      "id": "DS2-022",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_8a7148d8_text_0000_19404594ecef",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_63c6d166_text_0000_b121fec92fda",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_de6f241b_text_0000_b8450518e14e",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_c61e57c9_text_0000_4fba85564ae5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_59955b29_text_0000_d14760b4645c"
+      ],
+      "response": "“空”对递归定义二叉树特别重要，因为定义中明确：二叉树是一个有穷的结点集合，这个集合可以为空；若不为空，则由根结点和称为其左子树和右子树的两个不相交的二叉树组成。\n\n递归定义要能终止，就必须允许某棵子树本身是空二叉树。否则，当结点没有左子树或没有右子树时，就无法用“二叉树”来交代这棵子树，递归会一直进行下去。\n\n同时，正因为允许左、右子树分别为空，二叉树才出现5种基本形态：空二叉树；只有根结点；只有根结点和左子树；只有根结点和右子树；具有根结点、左子树和右子树。也正因为左右子树有顺序之分，图4.6中一个右子树为空、一个左子树为空的两个树，按一般树定义是同一个树，而对二叉树来讲是不同的两个树。"
+    },
+    {
+      "id": "DS2-023",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2a10715c_text_0000_2fcec8ef5b3f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0001_f5823eac371f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_25c92c2c_text_0000_6ab530f2df62",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2eae6f56_text_0000_8fbe26b5ae0c",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_59955b29_text_0000_d14760b4645c"
+      ],
+      "response": "斜二叉树的深度达到最大 N，完美二叉树的深度为 $\\lfloor \\log_2 N \\rfloor + 1$，两者高度差约为 $N - \\log_2 N$。\n\n斜二叉树结构最差，它已退化为线性表；完美二叉树结构最好，因为它是从根到叶的各条路径长都相同的，称为完全平衡。"
+    },
+    {
+      "id": "DS2-024",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0000_bad59cf7179d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ee79b4b2_text_0000_423f7a069679",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0001_6c797dbd731d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_761a7505_text_0000_fae710066ec5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0002_e690568c6aba"
+      ],
+      "response": "先序遍历是指对结点的访问在其左、右子树遍历之前进行，遍历从根结点开始，遇到每个结点时的过程为：① 访问根结点；② 先序遍历其左子树；③ 先序遍历其右子树。因此顺序是“根—左—右”。\n\n层序遍历是按树的层次，从第1层的根结点开始向下逐层访问每个结点，对某一层中的结点按从左到右的顺序访问。它先遇到的结点先访问，与队列的操作过程吻合。\n\n两者结果不一定一样。以图4.16中的二叉树为例，先序遍历结果为 A B D F E C G H I，而层序遍历得到的输出序列为 (A, B, C, D, F, G, I, E, H)，二者不同。"
+    },
+    {
+      "id": "DS2-025",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0000_bad59cf7179d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_692ea6e4_text_0000_4e429a79c19f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_761a7505_text_0000_fae710066ec5",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_544ed0b3_text_0000_eed1e7744612",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0001_6c797dbd731d"
+      ],
+      "response": "这是二叉搜索树上的查找操作 Find。查找从树的根结点开始，若树为空返回 NULL；否则将根结点关键字与 X 比较：根结点关键字小于 X 则在右子树中继续搜索，大于 X 则在左子树中继续搜索，相等则搜索完成，返回指向此结点的指针。"
+    },
+    {
+      "id": "DS2-026",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0000_ded288d70812",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_7f652f59_text_0001_f5823eac371f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_544ed0b3_text_0000_eed1e7744612",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_692ea6e4_text_0000_4e429a79c19f",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_59955b29_text_0000_d14760b4645c"
+      ],
+      "response": "要删除的结点有左、右两棵子树时，基本原则是要保持二叉搜索树的有序性。一种选择是取其右子树中的最小元素；另一个是取其左子树的最大元素。无论哪种选择，被选择的结点都必定最多只有一个孩子，于是可以调用情况2的解决方案删除这个被选择的结点。当待删除结点左右都不空时，采用右子树最小元素的删除替代策略。"
+    },
+    {
+      "id": "DS2-027",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_3501ac29_text_0000_b9c173022d7d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2eae6f56_text_0000_8fbe26b5ae0c",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_ed08c143_text_0000_c29758bb14a8",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_30774476_text_0000_c0563ae87876",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_b9b5fc50_text_0001_7e810ad167d4"
+      ],
+      "response": "堆是特殊的队列，从堆中取出元素是依照元素的优先级大小，而不是元素进入队列的先后顺序。普通队列的基本特征是“先进先出”或者“先来先服务”，前面的元素未处理完，后面的只能等待；而堆考虑了适合于特权需求，通常被称作为“优先队列”。"
+    },
+    {
+      "id": "DS2-028",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_eff686cb_text_0000_0dc8271939ee",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_30774476_text_0000_c0563ae87876",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2eae6f56_text_0000_8fbe26b5ae0c",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_5fc1785f_text_0000_a2af874612a6",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_eff686cb_text_0001_b6d74d9cc490"
+      ],
+      "response": "向最大堆插入一个新元素后，新增结点既要保证最大堆仍是完全二叉树，结点之间元素值的大小也要满足最大堆的性质，因此一般情况下要移动元素。按完全二叉树的性质，增加结点的位置是最后一个结点，所以先放到数组末尾。\n\n调整过程：从完全二叉树的新增结点开始，顺着其父结点到根结点的路径，将路径上各结点依次与新元素值进行比较，当一结点的值小于新元素的值，就下移这个结点的元素，直到有结点的值大于新元素的值或根结点也下移为止，空出的结点位置就是新元素插入点。也可描述为：从新增的最后一个结点的父结点开始，用要插入的元素向下过滤上层结点。\n\n由于堆元素之间的部分有序性，最大堆从根结点到任何叶结点的路径都是递降的有序序列，插入过程的调整就是继续保证这个序列的有序性。"
+    },
+    {
+      "id": "DS2-029",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_27799a54_text_0000_077c3d1f1333",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_5fc1785f_code_0000_31757f991cc4",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_27799a54_code_0000_e2c9b2b55afe",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_eff686cb_text_0000_0dc8271939ee",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_30774476_text_0000_c0563ae87876"
+      ],
+      "response": "最大堆的删除要取出根结点的最大值元素，同时删除堆的一个结点。删除后，最大堆仍要是完全二叉树，结点元素值的大小仍要满足最大堆的性质，因此删除的结点应该是数组的最后一个单元。取走根结点的元素后，堆的最后一个结点必须重新放置，确定最后一个结点的元素放到哪个结点中去是删除操作的关键所在。\n\n将删除结点（数组中最后一个元素单元）的元素作为假设的根结点，依次与其下层的子结点进行比较，如果小于子结点的元素值，从两个子结点中选择值大的元素上移一层，直到在某一点上，比较结果是大于两个子结点的值，此时的空结点就是要放置删除结点元素的正确位置。删除过程也可以简单描述为：从根结点开始，用最大堆中的最后一个元素向上过滤下层结点。"
+    },
+    {
+      "id": "DS2-030",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_76de6d4b_text_0000_d7a3fe7244ee",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_53ae3ee2_text_0000_15cd5fa56a3e",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_277e5d05_text_0000_196e1e56216c",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_53ae3ee2_text_0001_f374d9fee374",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_53ae3ee2_code_0000_13054f363f61"
+      ],
+      "response": "带权路径长度（WPL）的计算方法是：设一棵树有 n 个叶结点，每个叶结点带有权值 \\(W_k\\)，从根结点到每个叶结点的长度为 \\(l_k\\)，则\n\n\\[\nWPL=\\sum_{k=1}^{n}W_k l_k\n\\]\n\n其中，结点的带权路径长度是从根结点到该结点之间的路径长度与该结点上所带权值的乘积。\n\n哈夫曼树是最优二叉树，是因为：假设有 n 个权值 \\(\\{W_1,W_2,\\cdots,W_n\\}\\)，构造有 n 个叶子的二叉树，每个叶子的权值是 n 个权值之一，这样的二叉树可以构造很多个，其中必有一个是带权路径长度最小的，这棵二叉树就称为最优二叉树或哈夫曼树。"
+    },
+    {
+      "id": "DS2-031",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_45937d98_text_0001_1d40f6c62dfb",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_45937d98_text_0000_462aa990bddb",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_53ae3ee2_text_0000_15cd5fa56a3e",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_53ae3ee2_text_0001_f374d9fee374",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_76de6d4b_text_0000_d7a3fe7244ee"
+      ],
+      "response": "哈夫曼编码不产生二义性，是因为它满足：任何一个字符的编码都不能是另一个字符的编码的前缀，因此哈夫曼编码也称为“前缀编码”。\n\n保证这一点的是前缀编码树的特点：每个字符必是叶结点，且树中没有度为 1 的结点。字符的编码通过组合从根结点到该字符结点（叶结点）的路径上所标注的 0、1 得到，所以编码建在叶结点的位置上。"
+    },
+    {
+      "id": "DS2-032",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_435a1c31_text_0000_bd49e855b182",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_e44b7d73_text_0000_0e3d187c246e",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_277e5d05_text_0001_4fc3e18b2036",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_8126c578_text_0000_80955b24883c",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_c61e57c9_text_0000_4fba85564ae5"
+      ],
+      "response": "沿着该元素的父结点指针向上查，当发现一个元素的指针域值为负数时，该元素就是所属集合的树根结点。"
+    },
+    {
+      "id": "DS2-033",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_684daf92_text_0000_2888f4019c24",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_684daf92_code_0000_6814fa2304b2",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_eff686cb_text_0001_b6d74d9cc490",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ebb6a0d4_text_0000_b797a8b413f1",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_4fb017d8_text_0000_d26fb1c14d81"
+      ],
+      "response": "顺序查找从线性表的一端开始，向另一端逐个取出数据元素的关键字，并与要找的关键字 K 进行比较。以数组存储为例，数据元素从下标为1的数组单元到下标为 Last 的单元存放。为了简化算法，使得从后向前查找失败时，不必判断表是否检查完毕，可以在查找开始前，作为哨兵将要查找的关键字 K 存入下标为0的数组单元。这样，即使原表1~Last单元中没有关键字为 K 的记录，算法再多一次查找下标为0的单元，也会找到元素而终止，而此时用返回数组下标值0表明查找失败。\n\n哨兵省掉的是每次循环中判断表是否检查完毕（是否越界）的判断。"
+    },
+    {
+      "id": "DS2-034",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_05d8bc51_text_0002_254e338d1432",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_22095e93_text_0000_f0c34ba3978e",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_65b63a00_text_0000_58107f837c78",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_9f5ade1e_text_0001_c6c8c4ead028"
+      ],
+      "response": "散列方法依据关键字直接计算得到其对应数据对象的位置，要求关键字与数据元素间存在一定对应关系，通过这个关系，能很快地由关键字得到对应的数据对象位置。散列方法查找关键字的第一步是通过“散列函数”的计算，求出关键字所在的存储位置；散列函数“计算”的是关键词的“准确位置”。散列查找法能够通过计算来快速定位要找的关键词，一个基本的前提是在存放的时候也要通过同样的“计算方法”来定位存储的位置。假如某一次查找没有发生冲突，那么只需要一次就完成了查找，而不管面对的是多大的查找集。它把一个关键字变成地址靠的是散列函数。"
+    },
+    {
+      "id": "DS2-035",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_65b63a00_text_0000_58107f837c78",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_dc15f349_text_0000_9d2f3dc0af57",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_05d8bc51_text_0002_254e338d1432",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_22095e93_text_0000_f0c34ba3978e"
+      ],
+      "response": "一个“好”的散列函数一般应考虑两个因素：\n\n(1) 计算简单，以便提高转换速度；\n\n(2) 关键词对应的地址空间分布均匀，以尽量减少冲突。即对于关键词集合中的任何一个关键字，经散列函数映射到地址集合中任何一个地址的概率是基本相等的。实际应用中，严格的均匀分布也是不可能的，只是不要过于“聚集”就行了。\n\n构造散列函数的原则是“计算简单”和“分布均匀”。"
+    },
+    {
+      "id": "DS2-036",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_13005d40_text_0000_72ca84d631af",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_8f2c5444_text_0000_0930c4c61860",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_a39ced7a_text_0000_0ef30215ab3e",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_9f5ade1e_text_0001_c6c8c4ead028"
+      ],
+      "response": "选取合适的 p 很重要，一般选取 p 为小于或等于散列表表长 TableSize 的某个最大素数比较好。用素数求得的余数作为散列地址，比较均匀分布在整个地址空间上的可能性较大。\n\n如果 p < TableSize，则意味着地址 p ~ TableSize-1 是不能通过散列函数直接映射到的；不过这些空间不会浪费，在冲突发生时就可能会用到它们。\n\n选得不好会发生什么：一般来说不够随机的位不适合参与散列计算，否则映射出来的地址可能会产生某种“聚集”效应。构造散列函数的原则是“计算简单”和“分布均匀”。"
+    },
+    {
+      "id": "DS2-037",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_3aa81f58_text_0000_139a1f13ae84",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_5c9f919a_text_0000_1593f479dbe5",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_a2ba72d2_text_0000_628f7f27a4f8",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_a2ba72d2_text_0001_bfdf2165b5da",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_3aa81f58_text_0001_833f611c0953"
+      ],
+      "response": "平方探测法以增量序列 $1^{2}, -1^{2}, 2^{2}, -2^{2}, \\cdots, q^{2}, -q^{2}$ 循环试探下一个存储地址，它在一定程度上减轻了“聚集”效应，从而提高了散列表的查找性能，排除了一次聚集。\n\n线性探测法可能使第 i 个散列地址的同义词存入第 $i+1$ 个散列地址，因此可能出现很多元素在相邻的散列地址上“堆积”起来的现象，会大大降低查找效率，这种现象叫做一次聚集。为减轻这种一次聚集效应，可采用平方探测法，或双散列探测法。\n\n不过，平方探测法虽然排除了一次聚集，但散列到同一地址的那些数据对象将探测相同的备选单元，这叫做二次聚集。"
+    },
+    {
+      "id": "DS2-038",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_fb450a6b_text_0000_49f4e6a99d52",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_59955b29_text_0000_2c72f4a9c1d3",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_277e5d05_text_0000_000872d718f6",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_05d8bc51_text_0002_254e338d1432",
+        "v1_tb_72e2eb2b4a_ch_0d0aeb41_sec_0cc835d4_text_0000_087f557deafe"
+      ],
+      "response": "分离链接法（Separate Chaining）。"
+    },
+    {
+      "id": "DS2-039",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_59955b29_text_0000_77413dec605a",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ce24b986_text_0002_5b2c6e07ac4b",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_1ce85724_text_0001_ae335710e058",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ce24b986_text_0001_91d4b696850c",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_cba926e7_text_0001_5e2c100b3add"
+      ],
+      "response": "对于稠密图，邻接矩阵是首选；对于稀疏图，邻接表比较省空间。\n\n原因：邻接矩阵属于顺序存储，需要 Θ(|V|²) 的存储空间；邻接表属于顺序存储和链式存储的结合，需要 Θ(|V| + |E|) 的存储空间。对于稠密图来说，两者差别不大，由于邻接矩阵结构简单，所以是首选；对于稀疏图来说，邻接表比较省空间，当 |V| 比较大时，节省的空间相当可观。"
+    },
+    {
+      "id": "DS2-040",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_88b93634_text_0000_10914e3d885d",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_ea645d35_text_0000_bad59cf7179d",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ddfa760d_text_0001_5b96b6306166",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_59955b29_text_0000_77413dec605a",
+        "v1_tb_72e2eb2b4a_ch_e63ad920_sec_1605bd47_text_0002_604b6d342c29"
+      ],
+      "response": "DFS 从某个顶点出发，访问此顶点，然后依次从它的未被访问的邻接点出发递归地进行同样的深度优先搜索，直至所有和该顶点有路径相通的顶点都被访问到；当无路可走时，就回退到上一个结点，再尝试其他未访问的邻接点，所以表现为“一条路走到黑再回头”。迷宫探索中，线绳的作用就是在没有新的通道可以探索时顺利退回到上次过来的交叉点，回退次序是“后来先退”，符合栈的特点。\n\nDFS 类似于树的先序遍历，是树的先序遍历的推广。先序遍历的过程是：访问根结点，先序遍历其左子树，先序遍历其右子树，即“根—左—右”；DFS 则是访问顶点后，递归访问其未访问的邻接点，二者都是“先访问当前结点，再递归深入”的逻辑。"
+    },
+    {
+      "id": "DS2-041",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_cba926e7_text_0000_0d7b9b7a4e70",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_59955b29_text_0000_77413dec605a",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_88b93634_code_0000_b29bc72782d3",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_80d9a31b_text_0001_8770d2ba86f6",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_cba926e7_text_0001_5e2c100b3add"
+      ],
+      "response": "广度优先搜索以起始点为中心，由近至远，依次访问和起始点有路径相通且路径长度为1,2,……的顶点，因此表现为“一圈一圈往外扩”。\n\n它依靠队列实现“先被访问的顶点的邻接点先于后被访问的顶点的邻接点被访问”。需要一个队列把访问过的顶点依次保存下来，以便下次依次访问它们的邻接点；利用队列先进先出的特性，可以保持访问的次序。队列为空的时候表明一个连通分量遍历完成。"
+    },
+    {
+      "id": "DS2-042",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_7e3da600_text_0000_727dbf3eb8fb",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_7e3da600_text_0002_693f26129bfa",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_7e3da600_code_0000_a637b02fffe5",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_7e3da600_text_0001_693f7bbad51f",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_d67f78d0_text_0000_950564f3c12b"
+      ],
+      "response": "Prim 算法从任何一个顶点出发，构建过程从初始只有这个顶点的“当前树”开始，不断加入边和相关顶点到当前树中，使得当前树不断“生长”，最终成为最小生成树。\n\n每一步选边的标准：从所有 $u \\in V_T, v \\in V - V_T$ 的边中，选取具有最小权值的边 $(u, v)$，将顶点 $v$ 加入集合 $V_T$ 中，将边 $(u, v)$ 加入集合 $E_T$ 中，如此不断重复，直到 $V_T = V$ 时，最小生成树构造完毕。"
+    },
+    {
+      "id": "DS2-043",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_bb7d12fe_text_0000_8be7f667e35b",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_bb7d12fe_text_0001_b635af31e709",
+        "v1_tb_72e2eb2b4a_ch_767d6845_sec_e3b2809f_text_0000_8cab0f2a383f",
+        "v1_tb_72e2eb2b4a_ch_15ea8ae1_sec_e3b2809f_text_0000_7d299657c20e",
+        "v1_tb_72e2eb2b4a_ch_15ea8ae1_sec_e3b2809f_text_0001_7b240b905f22"
+      ],
+      "response": "Kruskal 算法按照网图中边的权值递增的顺序，每次选取权值最小的边作为候选边，若候选边的两个顶点属于两个不同的连通分量，则加入；否则舍去，以免构成回路。它是把初始仅包含 |V| 个孤立顶点的森林逐步合成一棵生成树。\n\nPrim 算法则是从根结点长出一棵树。\n\n两者的本质差别在于：Kruskal 方法是从边出发，在全局所有边中按权值从小到大选边，逐步合并森林；Prim 算法是从一个顶点出发，向外扩展长出一棵树。"
+    },
+    {
+      "id": "DS2-044",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_1ce85724_code_0000_89a42cda72d5",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_6e3cb7b5_text_0001_9f9d576bc50a",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_6e3cb7b5_text_0000_3d8addf2cad9",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_1ce85724_text_0001_ae335710e058",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_1ce85724_text_0000_089158447206"
+      ],
+      "response": "这是 Dijkstra 算法。"
+    },
+    {
+      "id": "DS2-045",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ab6cab87_text_0000_3896088a7226",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ab6cab87_text_0001_923fa7aa69cc",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_ab6cab87_text_0002_7edde8ae5bad",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_3656acb6_text_0000_5ec86d57d5ad",
+        "v1_tb_72e2eb2b4a_ch_1fdbc2e7_sec_277e5d05_text_0000_cde98c4382e1"
+      ],
+      "response": "拓扑排序是指用有向无环图中各顶点构成有序序列。设图中一顶点 $v_{i}$ 到另一顶点 $v_{j}$ 存在一条路径，那么 $v_{j}$ 在此图的拓扑排序序列中位于 $v_{i}$ 之后。\n\n如果不是无环图，拓扑排序将不存在。因为如果有环路的话，那么对于环路上的两个顶点 v 和 w，既可以认为 v 在 w 之前，也可以认为 w 是在 v 之前，它们之间的先后顺序是不确定的。"
+    },
+    {
+      "id": "DS2-046",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_30774476_text_0000_c0563ae87876",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_ded1d508_text_0001_5a06512de926",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_277e5d05_text_0000_b858c70a49f7",
+        "v1_tb_72e2eb2b4a_ch_5dbf224c_sec_2eae6f56_text_0000_8fbe26b5ae0c",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_b43c708b_text_0000_c7bf03f7f28a"
+      ],
+      "response": "堆排序只用 $O(1)$ 的额外空间，是因为它不需要额外开辟辅助数组，而是直接在原数组上操作：将堆顶元素与堆的最后一个元素对换位置，然后排除已归位的元素，对剩余元素依次自上而下进行过滤，重新生成最大堆，如此循环直到堆中只剩 1 个元素。\n\n它靠堆的两个性质把排序、选择结合起来：一是堆的结构特性，即用数组表示完全二叉树；二是堆的部分有序性，即最大堆中任一结点的值大于或等于其子结点的值，因此根结点元素的值在整个堆中是最大的。这样每次堆顶元素就是当前剩余元素中的最大值，可以像选择排序一样逐一选出，同时通过下滤调整维持堆性质。"
+    },
+    {
+      "id": "DS2-047",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_922633e5_text_0001_f86ede90c511",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_06367055_text_0000_7c0f0f9bd2cc",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_922633e5_text_0000_093e66f52e8a",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_b43c708b_text_0000_c7bf03f7f28a",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_00ab2ca7_text_0000_a2893f768e45"
+      ],
+      "response": "对应简单插入排序。其核心思想是：将待排序的一组序列分为已排好序的和未排序的两个部分；初始状态时，已排序序列仅包含第一个元素，未排序序列中的元素为除去第一个以外 N-1 个元素；此后将未排序序列中的元素逐一插入到已排序的序列中。经过 N-1 次插入后，未排序序列中元素个数为 0，则排序完成。\n\n说它简单，是因为实现时不需要每次做 3 步赋值实现交换，而是将未排序序列中的第一个元素先取出来，依次与已排序序列中元素比较，将需要交换的元素右移，最后把未排序序列中的第一个元素放进合适的位置即可。\n\n平均时间复杂度为 O(N²) 的原因是：函数中有 2 个嵌套的循环，每个循环进行 O(N) 次比较和交换，因此整个简单插入排序的平均时间复杂度为 O(N²)。"
+    },
+    {
+      "id": "DS2-048",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_56208133_text_0000_3b424bfa2cd0",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_922633e5_text_0000_093e66f52e8a",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_922633e5_text_0001_f86ede90c511",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_56208133_text_0001_1b8e6f90721e",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_277e5d05_text_0000_b858c70a49f7"
+      ],
+      "response": "简单插入排序效率不高的一个重要原因是每次只交换相邻的两个元素，这样只能消去一对错位的元素。希尔排序对插入排序进行改进，试图通过每次交换相隔一定距离的元素，达到排序效率上的提升。\n\n希尔排序的基本原理是，将待排序的一组元素按一定间隔分为若干个序列，分别进行插入排序。开始时设置的“间隔”较大，在每轮排序中将间隔逐步减小，直到“间隔”为1，也就是最后一步是进行简单插入排序。\n\n希尔排序将“间隔”定义为一组增量序列，用来分割待排序列，即将位置之差等于当前增量的元素归属于同一个子序列，并分别进行插入排序；排好后再选取下一个增量，划分子序列再次排序，直到最后一个增量（一般为1）。"
+    },
+    {
+      "id": "DS2-049",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_ded1d508_text_0000_5aaf7d633948",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_ded1d508_text_0001_5a06512de926",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_30774476_text_0000_c0563ae87876",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_21c13a1e_text_0000_949ab882eedf",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_922633e5_text_0001_f86ede90c511"
+      ],
+      "response": "归并操作过程中需要额外的空间用于保存已排序的子序列，因此如果实现方法正确，整个归并排序的空间复杂度为 O(N)。\n\n归并排序将大小为 N 的序列看成 N 个长度为 1 的子序列，接下来将相邻子序列两两进行归并操作，形成 N/2(+1) 个长度为 2（或 1）的有序子序列；然后再继续进行相邻子序列两两归并操作，如此一直循环，直到剩下 1 个长度为 N 的序列，则该序列为原序列完成排序后的结果。"
+    },
+    {
+      "id": "DS2-050",
+      "retrieved_chunk_ids": [
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_b43c708b_text_0000_c7bf03f7f28a",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_b43c708b_text_0001_c775bcf007ad",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_3656acb6_text_0000_5ec86d57d5ad",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_0cce60fb_text_0000_f75209832a07",
+        "v1_tb_72e2eb2b4a_ch_d92349f4_sec_06367055_text_0000_7c0f0f9bd2cc"
+      ],
+      "response": "选排序算法主要比较时间复杂度、空间复杂度和稳定性。不存在绝对意义上最佳的排序方法，8种排序方法分别适用于不同的条件下。\n\n稳定性是指：在一组待排序记录中，如果存在任意两个相等的记录R和S，且在待排序记录中R在S前，如果在排序后R依然在S前，即它们的前后位置在排序前后不发生改变，则称该排序算法为稳定的。"
+    }
+  ]
+}

@@ -1,0 +1,568 @@
+{
+  "schema": 1,
+  "dataset": "net",
+  "collection": "tb_f69128ae335ab8b9",
+  "config": "rerank",
+  "top_k": 5,
+  "generation": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "temperature": 0.1,
+    "prompt": "answer.prompt@409463638ea5",
+    "rerank_fusion_alpha": 0.6,
+    "candidate_pool": 20,
+    "generated_at": "2026-10-16T12:20:44+08:00"
+  },
+  "samples": [
+    {
+      "id": "NET-20260916-001",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_47feccf6_text_0000_acea6fe8ad0f",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_321cfdb8_text_0000_35a15289e745",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_47feccf6_text_0001_98a3dd5c96b6",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_321cfdb8_text_0002_afdae103b16c",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_bb32b678_text_0000_0efdf4f512e2"
+      ],
+      "response": "IPv6 取消首部长度字段，因为它的首部长度是固定的（40字节）。取消检验和字段，是为了加快路由器处理数据报的速度；网络层的差错检测可以精简掉，因为在数据链路层对检测出有差错的帧就丢弃，在运输层使用 UDP 时若检测出有差错的用户数据报就丢弃，使用 TCP 时对检测出有差错的报文段就重传，直到正确传送到目的进程为止。\n\n可选功能放在扩展首部中，即取消了选项字段，而用扩展首部来实现选项功能。所有扩展首部并不属于 IPv6 数据报的基本首部，它们算在有效载荷之内。\n\n基本首部固定为 40 字节。"
+    },
+    {
+      "id": "NET-20260916-002",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0001_cae1964e5c1d",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_277e5d05_text_0001_f5c0bfbbd9d5",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0000_fbf4c4cfda52",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_bf9911c2_text_0000_a2dc87563516",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_093e39eb_text_0000_4e3ab2585266"
+      ],
+      "response": "发送时延 = 数据帧长度(bit) / 发送速率(bit/s) = 1000 × 8 ÷ (100 × 10^6) = 8 × 10^-5 s = 0.08 ms。\n\n传播时延 = 信道长度(m) / 电磁波在信道上的传播速率(m/s) = 2000 × 10^3 ÷ (2 × 10^8) = 0.01 s = 10 ms。\n\n总时延 = 发送时延 + 传播时延 + 处理时延 + 排队时延。不计排队与处理，则总时延 = 0.08 ms + 10 ms = 10.08 ms。"
+    },
+    {
+      "id": "NET-20260916-003",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0001_cae1964e5c1d",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0000_fbf4c4cfda52",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_bf9911c2_text_0000_a2dc87563516",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_093e39eb_text_0000_4e3ab2585266",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_277e5d05_text_0000_1efb6f829446"
+      ],
+      "response": "带宽由 10 Mbit/s 提高到 100 Mbit/s 后：\n\n- 发送时延：与发送速率成反比，因此发送时延减小到原来的 1/10。\n- 传播时延：与信号的发送速率无关，只取决于信道长度和电磁波在信道上的传播速率；链路长度与介质不变，所以传播时延不变。\n\n不能把两种时延都除以 10，是因为二者本质不同：发送时延发生在机器内部的发送器中，与传输信道长度无关；传播时延发生在机器外部的传输信道媒体上，与信号发送速率无关。提高数据发送速率只是减小了数据的发送时延，而不是比特在链路上的传播速率。"
+    },
+    {
+      "id": "NET-20260916-004",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_093e39eb_text_0000_4e3ab2585266",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0001_cae1964e5c1d",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_277e5d05_text_0001_f5c0bfbbd9d5",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_b7baa9ed_text_0000_5af85238152e",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0000_fbf4c4cfda52"
+      ],
+      "response": "按本教材定义，时延带宽积 = 传播时延 × 带宽，所以：\n\n50 Mbit/s × 8 ms = 50×10⁶ × 8×10⁻³ = 4×10⁵ bit = 400000 bit。\n\n即链路可容纳 400000 个在途比特。\n\n不应直接用往返时延代替，是因为本教材的时延带宽积定义用的是传播时延，表示链路可容纳多少个比特，即“以比特为单位的链路长度”。教材还指出，有的文献把带宽时延积定义为带宽与 RTT 的乘积，这样定义的数值就比前面(1-4)式定义的数值大了一倍。"
+    },
+    {
+      "id": "NET-20260916-005",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_61536237_text_0000_425ac2ec4cae",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_af81615a_text_0000_188df4ec08df",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_cdecc3fd_text_0000_1fe2565390ec",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1da39579_text_0000_fbf4c4cfda52",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_bf9911c2_text_0000_a2dc87563516"
+      ],
+      "response": "利用率 U=0.5 时：D = 2/(1−0.5) = 4 ms。利用率 U=0.9 时：D = 2/(1−0.9) = 20 ms。\n\n当网络利用率达到其容量的 1/2 时，时延就要加倍；当网络利用率接近最大值 1 时，网络产生的时延就趋于无穷大。因此信道利用率或网络利用率过高就会产生非常大的时延，不宜一味追求满负荷。一些拥有较大主干网的 ISP 通常控制信道利用率不超过 50%，如果超过了就要准备扩容，增大线路的带宽。"
+    },
+    {
+      "id": "NET-20260916-006",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_a85c30b2_text_0000_84ce396b14cb",
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_277e5d05_text_0000_3396516ff483",
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_8f4cff6f_text_0000_e4d90430c6b0",
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_409efdb8_text_0000_7b197f4956d7",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_4600cca9_text_0000_586e6d707b77"
+      ],
+      "response": "信道带宽 W = 3 kHz，信噪比 30 dB。由信噪比公式 30 = 10 log₁₀(S/N)，得 S/N = 1000。代入香农公式 C = W log₂(1 + S/N) = 3000 × log₂(1001) ≈ 3000 × 9.97 ≈ 29910 bit/s，约为 30 kbit/s。\n\n不能把 30 直接代入 S/N，是因为 30 dB 是信噪比的分贝表示，而香农公式中的 S/N 是信号平均功率与噪声平均功率之比，不是分贝值。分贝值需先按 信噪比(dB) = 10 log₁₀(S/N) 换算成比值，30 dB 对应的 S/N 是 1000，而不是 30。"
+    },
+    {
+      "id": "NET-20260916-007",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_f70b667a_text_0001_8d21d2893947",
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_f70b667a_text_0000_2cbf0a08182c",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_7f77b69a_text_0000_9e67e531c4ff",
+        "v1_tb_a4b63da2e9_ch_dbb044be_sec_f70b667a_text_0002_7d5b2b6faeab",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b80d7aed_text_0000_ab27a53671cb"
+      ],
+      "response": "统计时分复用按需动态地分配时隙：集中器按顺序依次扫描输入缓存，把缓存中的输入数据放入 STDM 帧中，对没有数据的缓存就跳过去；当一个帧的数据放满了，就发送出去。因此，当四个用户突发发送数据、固定 TDM 中三个用户暂时空闲时，固定 TDM 中分配给这三个用户的时隙只能处于空闲状态，其他用户即使一直有数据要发送也不能使用这些空闲时隙，导致复用后的信道利用率不高；而 STDM 帧不是固定分配时隙，而是按需动态地分配时隙，所以能明显地提高信道的利用率。\n\n需要标明时隙归属，是因为 STDM 帧中的时隙并不是固定地分配给某个用户的，因此在每个时隙中还必须有用户的地址信息，这是统计时分复用必须有的和不可避免的一些开销。"
+    },
+    {
+      "id": "NET-20260916-008",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_04a22619_text_0000_6d28f3ba03fd",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_abc5b189_text_0000_1e6fd6b6c49a",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ed1d130f_text_0000_29d69a7f45f0",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_4e504764_text_0001_4ceb3726e29e",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_4e504764_text_0000_5a467dbd9cdb"
+      ],
+      "response": "二进制文件中恰好出现与帧结束标记相同的字节时，接收端会错误地“找到帧的边界”，把部分帧收下（误认为是个完整的帧），而把剩下的那部分数据丢弃。数据中的“EOT”将被接收端错误地解释为“传输结束”的控制字符，而在其后面的数据因找不到“SOH”被接收端当作无效帧而丢弃。\n\n采用转义字符时，如果转义字符也出现在数据当中，解决方法仍然是在转义字符的前面插入一个转义字符。因此，当接收端收到连续的两个转义字符时，就删除其中前面的一个。"
+    },
+    {
+      "id": "NET-20260916-009",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_91f3f09d_text_0000_1808bb6452d7",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_abc5b189_text_0000_1e6fd6b6c49a",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_d30a5368_text_0000_f8bf30177a06",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_277e5d05_text_0000_3a4deac083ba",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ac661544_text_0000_9ff04bbaf1cd"
+      ],
+      "response": "对信息位串 01111110 做零比特填充：扫描到 5 个连续 1 后立即填入一个 0，得到 011111010。\n\n接收方恢复：先找到标志字段 F 确定帧边界，再扫描比特流，每当发现 5 个连续 1，就把这 5 个连续 1 后的一个 0 删除，还原成原来的信息比特流。\n\n避免混淆的原因：零比特填充后，可保证在信息字段中不会出现 6 个连续 1；而标志字段 F 为 0x7E，即 01111110，包含 6 个连续 1，因此不会与标志字段混淆，从而实现透明传输。"
+    },
+    {
+      "id": "NET-20260916-010",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_396b8606_text_0001_7684087de7d4",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_396b8606_text_0000_92451e9e07ef",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_277e5d05_text_0000_3a4deac083ba",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_fd973ce4_text_0000_0fa29b9b0083",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ebe86c85_text_0000_ba1f576b31ac"
+      ],
+      "response": "不能。CRC检验通过只能说明该帧在传输过程中没有产生比特差错，即做到对帧的无差错接受，也就是“凡是接收端数据链路层接受的帧均无差错”。但“无比特差错”与“无传输差错”并不是同样的概念。传输差错还包括帧丢失、帧重复和帧失序，这些情况下收到的帧并没有出现比特差错，但都属于“出现传输差错”。因此，在数据链路层使用CRC检验，能够实现无比特差错的传输，但这还不是可靠传输。所谓“可靠传输”就是：数据链路层的发送端发送什么，在接收端就收到什么。CRC本身只解决最基本的比特差错的检测，不解决帧丢失、帧重复、帧失序问题，也不提供确认和重传机制。"
+    },
+    {
+      "id": "NET-20260916-011",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_1ca51383_text_0000_859dd26740ca",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_93d3d650_text_0001_8c1825c655a8",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_138e38b1_text_0000_1d7aac1a9566",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_4efe62e6_text_0000_1ea5bf468708",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0001_9d1d73e5de6d"
+      ],
+      "response": "交换机收到 A 从端口 1 发来的帧时，交换表为空，表中没有 B 的地址，于是把源地址 A 和端口 1 写入交换表，并向除端口 1 以外的所有端口广播这个帧。B 收到后，C、D 因目的地址不匹配将帧丢弃。\n\nB 从端口 2 向 A 回复时，交换机查找交换表，发现表中有 A，表明发给 A 的帧应从端口 1 转发，于是直接把帧从端口 1 转发给 A，不再广播；同时用源地址 B 写入一个项目 (B, 2)。\n\n两次转发的不同：第一次因表中无目的地址而广播，并学习源地址 A 与端口 1 的映射；第二次因表中已有目的地址 A 而直接转发，不广播，并学习源地址 B 与端口 2 的映射。"
+    },
+    {
+      "id": "NET-20260916-012",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ebe86c85_text_0002_a2d8fe805e39",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_7f77b69a_text_0001_e463ab073a13",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ebe86c85_text_0003_84ea0b5397d8",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_7f77b69a_text_0000_9e67e531c4ff",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ebe86c85_text_0001_562bc3aa60e9"
+      ],
+      "response": "站点发送前虽已监听到信道空闲，仍可能碰撞，是因为电磁波在总线上总是以有限的速率传播的。B若在A发送的数据到达B之前发送自己的帧（因为这时B的载波监听检测不到A所发送的信息），则必然要在某个时间和A发送的帧发生碰撞。\n\n争用期2τ的物理意义：以太网的端到端往返时间2τ称为争用期，又称为碰撞窗口。最先发送数据帧的站，在发送数据帧后至多经过时间2τ就可知道所发送的数据帧是否遭受了碰撞。一个站在发送完数据后，只有通过争用期的“考验”，即经过争用期这段时间还没有检测到碰撞，才能肯定这次发送不会发生碰撞。"
+    },
+    {
+      "id": "NET-20260916-013",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_93d3d650_text_0001_8c1825c655a8",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_93d3d650_text_0000_63c4896bf3e5",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_3847a3bb_text_0000_ae4feb75cbbb",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_e4e75867_text_0000_41fac707f1a7",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_49e73875_text_0001_b3a31606fb35"
+      ],
+      "response": "财务发送的二层广播不应泛洪到研发VLAN。原文指出，划分虚拟局域网后“有了两个较小的广播域”，每个VLAN各自是一个广播域；不同VLAN（如VLAN-10和VLAN-20）之间的通信属于不同网络之间的通信，已超过数据链路层范围，要由网络层中的路由器来解决。\n\nVLAN划分主要改变的是广播域的范围：把一个较大的局域网分割成为一些较小的局域网，而每一个局域网是一个较小的广播域。"
+    },
+    {
+      "id": "NET-20260916-014",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_757f29a9_text_0000_bf36df9e54ba",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0001_06daf8cc7e1b",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0001_57514fde6fb2",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0003_d16e1c73af38",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_e5d75e5a_text_0001_a242895c91ca"
+      ],
+      "response": "掩码：255.255.255.192（即 /26，26 个连续的 1 和接着的 6 个连续的 0）。\n\n网络地址：把二进制 IP 地址的前 26 位保留不变，剩下的 6 位全写为 0，得出 192.168.10.128。\n\n广播地址：原文未给出广播地址的计算方法，无法依据原文回答。\n\n常规可分配主机地址数：原文未给出“常规可分配主机地址数”的计算规则，无法依据原文回答。"
+    },
+    {
+      "id": "NET-20260916-015",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0002_9d6067fc0423",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a21c98aa_text_0001_6c06fc967745",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0000_cc565e425689",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0002_e5fff1e253e6",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0003_28dfc103392b"
+      ],
+      "response": "目的地址 10.1.2.9 与 10.1.2.0/24 匹配，按最长前缀匹配准则，应走接口 C。\n\n若删除 /24 项，则与 10.1.0.0/16 匹配，应走接口 B。"
+    },
+    {
+      "id": "NET-20260916-016",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0001_9d1d73e5de6d",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_4b68e9c9_text_0001_76c946f22672",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0000_1f3a99f0344c",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_8583902c_text_0001_29a982fd99ce",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_4b68e9c9_text_0002_48ebdeb40bab"
+      ],
+      "response": "主机A要向另一子网的主机B发送IPv4数据报时，A无法解析出另一个局域网上主机B的MAC地址，实际上A也不需要知道远程主机B的MAC地址。A必须知道本局域网上的路由器（默认网关）的IP地址，并使用ARP把该路由器的IP地址解析为MAC地址。\n\n第一跳以太网目的地址是该路由器的MAC地址；IP目的地址仍是主机B的IP地址。"
+    },
+    {
+      "id": "NET-20260916-017",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0001_9d1d73e5de6d",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0000_1f3a99f0344c",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0004_d38ffc0b3cb2",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0000_cc565e425689",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a264a639_text_0001_638acf5c1eda"
+      ],
+      "response": "源/目的IP地址一路不变，源/目的MAC地址逐跳改变。\n\nIP数据报首部中的源地址和目的地址始终分别是IP₁和IP₂，中间经过的路由器IP地址并不出现在IP数据报首部中。路由器只根据目的站的IP地址进行转发。\n\nMAC帧在不同网络上传送时，其首部中的源地址和目的地址要发生变化：H₁到R₁时为MAC₁→MAC₃；R₁转发时重新添加MAC帧首部，变为MAC₄→MAC₅；R₂收到后再次更换，变为MAC₆→MAC₂。MAC帧首部的这种变化，在IP层上是看不见的。"
+    },
+    {
+      "id": "NET-20260916-018",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_321cfdb8_text_0001_53b1b97d18da",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_321cfdb8_text_0000_35a15289e745",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0001_57514fde6fb2",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_af891423_text_0000_8c5542123b14",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0000_dc9734996b7f"
+      ],
+      "response": "数据部分长度 = 4000 − 20 = 3980 字节。每个分片数据部分不能超过 1500 − 20 = 1480 字节。除最后一片外，每片数据长度须为 8 字节的整数倍，1480 是 8 的整数倍。\n\n分为 3 片：\n\n- 片1：数据长度 1480 字节，总长度 1500 字节，片偏移 0，MF = 1\n- 片2：数据长度 1480 字节，总长度 1500 字节，片偏移 1480 ÷ 8 = 185，MF = 1\n- 片3：数据长度 3980 − 1480 − 1480 = 1020 字节，总长度 1040 字节，片偏移 2960 ÷ 8 = 370，MF = 0"
+    },
+    {
+      "id": "NET-20260916-019",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_321cfdb8_text_0002_afdae103b16c",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0000_cc565e425689",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_205f6355_text_0001_9d1d73e5de6d",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0000_c7c8f6ed20ce",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_47feccf6_text_0000_acea6fe8ad0f"
+      ],
+      "response": "不能发现。首部检验和只检验数据报的首部，但不包括数据部分。\n\n正常路由转发还常需更新首部检验和，是因为数据报每经过一个路由器，路由器都要重新计算一下首部检验和（一些字段，如生存时间、标志、片偏移等都可能发生变化）。"
+    },
+    {
+      "id": "NET-20260916-020",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_fd973ce4_text_0001_aff3054623fa",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_63ba0933_text_0000_9a21290a4064",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_fd973ce4_text_0000_e8340d84ce91",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_94aa4062_text_0000_be93686bd9ce",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_e6caeb5e_text_0001_a6e597ec8321"
+      ],
+      "response": "不能由此证明IP层完全不可达。PING使用ICMP回送请求与回送回答报文，是应用层直接使用网络层ICMP的一个例子，没有通过运输层的TCP或UDP。有的主机为了防止恶意攻击就不理睬外界发送过来的这种报文，因此会出现能访问网站但ping该主机不返回的现象。"
+    },
+    {
+      "id": "NET-20260916-021",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_8a4dfae8_text_0000_1968f4a9b025",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_8a4dfae8_text_0001_7008248a78df",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_ae9d524a_text_0002_2c018b26a6ac",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_c8034191_text_0002_9d6067fc0423",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_dbf3cb12_text_0000_c14ee62607eb"
+      ],
+      "response": "应记录为 6 跳（距离为 6，下一跳为 X）。\n\n因为原来的路由表中已有目的网络 N，且下一跳路由器地址是 X，所以要把收到的项目替换原路由表中的项目。原文解释 3 指出：这是最新的消息，要以最新的消息为准；到目的网络的距离有可能增大或减小，但也可能没有改变。例如，不管原来路由表中的项目是“Net2, 3, X”还是“Net2, 5, X”，都要更新为现在的“Net2, 4, X”。"
+    },
+    {
+      "id": "NET-20260916-022",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_22417b30_text_0000_2398b2ae097b",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_fd973ce4_text_0001_aff3054623fa",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_078e731e_text_0001_d78a4fa3d01d",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_277e5d05_text_0002_e5fff1e253e6",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_22417b30_text_0001_0d9acb2c3a22"
+      ],
+      "response": "RIP 仅向自己相邻的几个路由器发送信息，发送的信息是“到所有网络的距离和下一跳路由器”。\n\nOSPF 向本自治系统中所有路由器发送信息，使用洪泛法；发送的信息是与本路由器相邻的所有路由器的链路状态，即本路由器都和哪些路由器相邻以及该链路的“度量”。\n\n由于各路由器之间频繁地交换链路状态信息，所有路由器最终都能建立一个链路状态数据库，这个数据库实际上就是全网的拓扑结构图，且在全网范围内一致。每一个路由器使用链路状态数据库中的数据，构造出自己的路由表，例如使用 Dijkstra 的最短路径路由算法。"
+    },
+    {
+      "id": "NET-20260916-023",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a264a639_text_0001_638acf5c1eda",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a91fda46_text_0000_29b8767f0de4",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a264a639_text_0000_cd38134d604d",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_fd973ce4_text_0000_e8340d84ce91",
+        "v1_tb_a4b63da2e9_ch_e1a5d0b5_sec_a91fda46_text_0001_8fc0eb083702"
+      ],
+      "response": "能共享一个公网IP。NAPT把专用网内不同的源IP地址都转换为同样的全球IP地址，但对源主机所采用的TCP端口号（不管相同或不同），则转换为不同的新的端口号。例如192.168.0.3:30000转换为172.38.1.5:40001，192.168.0.4:30000转换为172.38.1.5:40002。\n\nNAPT靠运输层的端口号区分返回流量：当NAPT路由器收到从互联网发来的应答时，从IP数据报的数据部分找出运输层的端口号，然后根据不同的目的端口号，从NAPT转换表中找到正确的目的主机。"
+    },
+    {
+      "id": "NET-20260916-024",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_8a59d4cd_text_0000_f381c1002a50",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0000_dc9734996b7f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_43350b8d_text_0000_52fd772cb7ca",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_33f1823c_text_0000_740e395edd9d",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22"
+      ],
+      "response": "UDP 是面向报文的，发送方对应用层交下来的报文既不合并也不拆分，而是保留这些报文的边界，一次发送一个报文；接收方去除首部后原封不动地交付上层，一次交付一个完整的报文。因此 UDP 接收应用能确定原先的两个报文边界。\n\nTCP 是面向字节流的，TCP 把应用程序交下来的数据仅仅看成是一连串的无结构的字节流，TCP 并不保证接收方应用程序所收到的数据块和发送方应用程序所发出的数据块具有对应大小的关系。因此 TCP 接收应用不能仅凭一次读取就确定原先的两个报文边界，但接收方应用程序收到的字节流必须和发送方应用程序发出的字节流完全一样。"
+    },
+    {
+      "id": "NET-20260916-025",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_21c9981d_text_0000_aebb2864cf13",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_366bc0f9_text_0000_2d0e05ce310b",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0002_83ab68832149",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_0b81539b_text_0000_92d5c13ddb7d",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0000_dc9734996b7f"
+      ],
+      "response": "接收方应采取两个行动：第一，丢弃这个重复的分组 M₁，不向上层重复交付；第二，向 A 发送确认。\n\n不能再次交付，是因为该分组是重复的分组，向上层重复交付会造成重复。\n\n不能认为已经发送过确认就不再发送，因为 A 之所以重传 M₁，就表示 A 没有收到对 M₁ 的确认。"
+    },
+    {
+      "id": "NET-20260916-026",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b80d7aed_text_0000_ab27a53671cb",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_cdecc3fd_text_0000_1fe2565390ec",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_61536237_text_0000_425ac2ec4cae",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_366bc0f9_text_0000_2d0e05ce310b",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_b7baa9ed_text_0000_5af85238152e"
+      ],
+      "response": "信道利用率 U = T_D / (T_D + RTT + T_A)。\n\nT_D = 分组长度 / 数据率 = 1000 × 8 bit / 1 Mbit/s = 8 ms。\n\n忽略确认发送时间 T_A、处理时间，且无差错，则：\n\nU = 8 / (8 + 40) ≈ 16.7%。\n\n所以信道利用率约为 16.7%。"
+    },
+    {
+      "id": "NET-20260916-027",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_fd6920a3_text_0000_97a63671fbe3",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_21c9981d_text_0000_aebb2864cf13",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0001_c078608d488f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61"
+      ],
+      "response": "该确认表示：到第3个分组为止的所有分组都已正确收到了。\n\n累积确认的局限是：不能向发送方及时反映接收方已经正确收到所有分组的信息。若4丢失而5到达，接收方只能对按序到达的最后一个分组发送确认，发送方无法知道后面分组的下落，只好把后面的分组都再重传一次，即 Go-back-N（回退 N）。"
+    },
+    {
+      "id": "NET-20260916-028",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0001_c078608d488f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_ffcb5987_text_0001_82450eeab43b",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0003_7b52af3747be"
+      ],
+      "response": "接收方此前已连续收到999为止，该段seq=1000、携带200字节，完整到达后，接收方应确认的确认号是1200。\n\n若下一个seq=1400的段先到，累计确认不能越过缺口。因为TCP要求接收方必须有累积确认的功能，确认号表示下一个期望收到的字节号；在1000～1399尚未收到时，不能确认到1400。"
+    },
+    {
+      "id": "NET-20260916-029",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0000_a93888ffb3ec",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0001_c078608d488f",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0001_05fcc1a6c9a2",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61"
+      ],
+      "response": "还能新发送 400 字节，序号为 1600～1999。\n\n发送窗口为序号 1000～1999，共 1000 字节；其中 1000～1599 已发送但尚未收到确认，属于“已发送但尚未收到确认的字节数”。允许发送但当前尚未发送的部分是 1600～1999，共 400 字节，即可用窗口。"
+    },
+    {
+      "id": "NET-20260916-030",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0001_1ef3de8635d1",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0000_a0ecb63221a7",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0002_0c027017dfaf",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_98019fb2_text_0000_142ee142aa18",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0002_7f91b27928a8"
+      ],
+      "response": "如果把超时重传时间设置得太短，就会引起很多报文段的不必要的重传，使网络负荷增大。但若把超时重传时间设置得过长，则又使网络的空闲时间增大，降低了传输效率。\n\nTCP 采用了一种自适应算法，它记录一个报文段发出的时间，以及收到相应的确认的时间。这两个时间之差就是报文段的往返时间 RTT。TCP 保留了 RTT 的一个加权平均往返时间 RTTs。超时计时器设置的超时重传时间 RTO 应略大于上面得出的加权平均往返时间 RTTs。RFC 6298 建议使用下式计算 RTO：RTO = RTTs + 4 × RTTD。而 RTTD 是 RTT 的偏差的加权平均值，它与 RTTs 和新的 RTT 样本之差有关。"
+    },
+    {
+      "id": "NET-20260916-031",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0001_1ef3de8635d1",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0000_a0ecb63221a7",
+        "v1_tb_a4b63da2e9_ch_b37a1c48_sec_ebe86c85_text_0002_a2d8fe805e39",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_b7baa9ed_text_0000_5af85238152e",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0002_83ab68832149"
+      ],
+      "response": "重传的报文段和原来的报文段完全一样，源主机收到确认后无法判断此确认是对先发送的报文段的确认，还是对后来重传的报文段的确认。若判断错误，算出的 RTTs 和 RTO 会偏大或偏小：偏大会使 RTO 越来越长，偏小会导致报文段过多地重传，使 RTO 越来越短。因此 Karn 算法规定：在计算加权平均 RTTs 时，只要报文段重传了，就不采用其往返时间样本。\n\n但这样又引起新问题：若报文段时延突然增大很多，按原重传时间不会收到确认而重传，而 Karn 算法又不考虑重传报文段的往返时间样本，超时重传时间就无法更新。修正方法是：报文段每重传一次，就把超时重传时间 RTO 增大一些；典型做法是取新的重传时间为旧的重传时间的 2 倍。当不再发生报文段的重传时，才根据式(5-5)计算超时重传时间。"
+    },
+    {
+      "id": "NET-20260916-032",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0001_e2d153b7b2a7",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0001_c078608d488f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_ffcb5987_text_0001_82450eeab43b"
+      ],
+      "response": "累计确认的确认号字段用法仍然不变，接收方给出确认号 1001，表示下一个期望收到的字节是 1001。\n\nSACK 用于报告收到的不连续的字节块边界，使发送方不要再重复发送这些已收到的数据。该字节块左边界指出字节块的第一个字节的序号，右边界减 1 才是字节块的最后一个序号。因此 1501 至 2000 号字节块应表示为左边界 L = 1501，右边界 R = 2001。"
+    },
+    {
+      "id": "NET-20260916-033",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_8bdcad04_text_0001_f562ec93acfc",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0003_434d83de9856",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_fd973ce4_text_0001_557f65dd78a9",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_8bdcad04_text_0002_1a12a80fef4f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_8bdcad04_text_0000_1afa045ffc4f"
+      ],
+      "response": "流量控制是点对点通信量的控制，是个端到端的问题，由接收端控制发送端，抑制发送端发送数据的速率，以便接收端来得及接收。拥塞控制是防止过多的数据注入到网络中，使网络中的路由器或链路不至于过载，是全局性的过程，涉及所有的主机、所有的路由器，以及与降低网络传输性能有关的所有因素。\n\n接收方缓存充足并不意味着发送方可以无限提高发送速率。发送方窗口的上限值 = Min [rwnd, cwnd]。当 cwnd < rwnd 时，是网络的拥塞程度限制发送方窗口的最大值。"
+    },
+    {
+      "id": "NET-20260916-034",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0001_918affed8a77",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0000_3bff64cd286d",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0002_83ab68832149",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0003_434d83de9856",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0002_0c027017dfaf"
+      ],
+      "response": "连续3个RTT后 cwnd = 8。\n\n一开始设置 cwnd = 1，发送第一个报文段；经过一个RTT后，cwnd = 2；再经过一个RTT后，cwnd = 4；再经过一个RTT后，cwnd = 8。\n\n慢开始的“慢”并不是指 cwnd 的增长速率慢，而是指在 TCP 开始发送报文段时，只发送一个报文段，即设置 cwnd = 1，目的是试探一下网络的拥塞情况，然后视情况再逐渐增大 cwnd。这比一开始设置大的 cwnd 值，一下子把许多报文段迅速注入到网络要“慢得多”。\n\n在慢开始算法阶段，每经过一个往返时间 RTT，拥塞窗口 cwnd 就加倍，因此呈指数增长。"
+    },
+    {
+      "id": "NET-20260916-035",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0001_918affed8a77",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0000_3bff64cd286d",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0003_434d83de9856",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0002_83ab68832149",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0002_7f91b27928a8"
+      ],
+      "response": "按教材的简化拥塞避免模型，拥塞避免阶段每经过一个往返时间 RTT，发送方的拥塞窗口 cwnd 的大小就加 1，即按线性规律缓慢增长。\n\n当前 cwnd = 12 MSS，接下来 3 轮没有丢包且接收窗口不限制，则：\n\n- 第 1 轮后：cwnd = 13 MSS\n- 第 2 轮后：cwnd = 14 MSS\n- 第 3 轮后：cwnd = 15 MSS\n\n所以三轮后窗口是 15 MSS。\n\n与慢开始的区别：慢开始阶段每经过一个往返时间 RTT，拥塞窗口 cwnd 就加倍，呈指数级增长；而拥塞避免阶段是每经过一个 RTT 加 1，按线性规律缓慢增长，比慢开始算法的拥塞窗口增长速率缓慢得多。"
+    },
+    {
+      "id": "NET-20260916-036",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_f2a443d4_text_0002_83ab68832149",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_21c9981d_text_0000_aebb2864cf13",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0001_1ef3de8635d1",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_366bc0f9_text_0000_2d0e05ce310b",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_6c6f86d3_text_0000_a0ecb63221a7"
+      ],
+      "response": "接收方收到 M1、M2 后都分别及时发出了确认。未收到 M3 却收到 M4 时，接收方必须立即发送对 M2 的重复确认。接着收到 M5、M6 后，也仍要再次分别发出对 M2 的重复确认。这样发送方共收到 4 个对 M2 的确认，其中后 3 个都是重复确认。\n\n快重传算法规定，发送方只要一连收到 3 个重复确认，就可知道现在并未出现网络拥塞，而只是接收方少收到一个报文段 M3，因而立即进行重传 M3（即“快重传”）。\n\n因此，发送方在收到 3 个重复确认时立即重传，不必等 RTO 到期。"
+    },
+    {
+      "id": "NET-20260916-037",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_4dac085f_text_0000_b39c594f45df",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0001_e2d153b7b2a7",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0003_7b52af3747be",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_ffcb5987_text_0001_82450eeab43b"
+      ],
+      "response": "第一个段：SYN = 1，seq = 100。\n\n第二个段：SYN = 1，ACK = 1，seq = 500，ack = 101。\n\n第三个段：ACK = 1，seq = 101，ack = 501。"
+    },
+    {
+      "id": "NET-20260916-038",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_4dac085f_text_0000_b39c594f45df",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0001_c4b870b90bc4",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_12cc37cc_text_0003_9ca8617a7077",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_277e5d05_text_0003_7b52af3747be",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_21c9981d_text_0000_aebb2864cf13"
+      ],
+      "response": "旧的连接请求报文段没有丢失，而是在某些网络节点长时间滞留，延误到连接释放以后的某个时间才到达 B。B 收到此失效的连接请求报文段后，就误认为是 A 又发出一次新的连接请求，于是向 A 发出确认报文段，同意建立连接。假定不采用三报文握手，那么只要 B 发出确认，新的连接就建立了。由于 A 并没有发出建立连接的请求，因此不会理睬 B 的确认，也不会向 B 发送数据，但 B 却以为新的运输连接已经建立，并一直等待 A 发来数据，B 的许多资源就这样白白浪费了。\n\n采用三报文握手的办法，可以防止上述现象的发生。在异常情况下，A 不会向 B 的确认发出确认。B 由于收不到确认，就知道 A 并没有要求建立连接。第三次握手增加的验证是：A 对 B 的确认再给出确认，使 B 只有收到该确认后才进入 ESTABLISHED 状态。"
+    },
+    {
+      "id": "NET-20260916-039",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0000_84c49bbf59a6",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0001_44ef7ac2cd8a",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0001_c4b870b90bc4",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0001_e2d153b7b2a7",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61"
+      ],
+      "response": "B 还能向 A 发送数据。A 收到 B 的确认后进入 FIN-WAIT-2 状态，此时 TCP 连接处于半关闭状态，即 A 已经没有数据要发送了，但 B 若发送数据，A 仍要接收；从 B 到 A 这个方向的连接并未关闭。\n\nFIN 消耗序号。TCP 规定，FIN 报文段即使不携带数据，它也消耗掉一个序号。"
+    },
+    {
+      "id": "NET-20260916-040",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0001_c4b870b90bc4",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0000_84c49bbf59a6",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0001_e2d153b7b2a7",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_22f7600d_text_0000_d012d2f7fe22",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_ffcb5987_text_0001_82450eeab43b"
+      ],
+      "response": "A 在 TIME-WAIT 状态必须等待 2MSL 有两个理由。\n\n第一，为了保证 A 发送的最后一个 ACK 报文段能够到达 B。这个 ACK 报文段有可能丢失，因而使处在 LAST-ACK 状态的 B 收不到对已发送的 FIN + ACK 报文段的确认。B 会超时重传这个 FIN + ACK 报文段，而 A 就能在 2MSL 时间内收到这个重传的 FIN + ACK 报文段。接着 A 重传一次确认，重新启动 2MSL 计时器。最后，A 和 B 都正常进入到 CLOSED 状态。如果 A 在 TIME-WAIT 状态不等待一段时间，而是在发送完 ACK 报文段后立即释放连接，那么就无法收到 B 重传的 FIN + ACK 报文段，因而也不会再发送一次确认报文段。这样，B 就无法按照正常步骤进入 CLOSED 状态。\n\n第二，防止“已失效的连接请求报文段”出现在本连接中。A 在发送完最后一个 ACK 报文段后，再经过时间 2MSL，就可以使本连接持续的时间内所产生的所有报文段都从网络中消失。这样就可以使下一个新的连接中不会出现这种旧的连接请求报文段。"
+    },
+    {
+      "id": "NET-20260916-041",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0002_727aaf3eac72",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0001_9c63385c2f0b",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0000_b42004ff2146",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_277e5d05_text_0000_82f3bd8fc07e",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_a4e96739_text_0000_f24469b751d8"
+      ],
+      "response": "本地域名服务器采用迭代查询时，通常先向一个根域名服务器查询；根域名服务器告诉本地域名服务器下一次应查询的顶级域名服务器；本地域名服务器再向顶级域名服务器查询；顶级域名服务器告诉本地域名服务器下一次应查询的权限域名服务器；本地域名服务器再向权限域名服务器查询，得到所查询主机的 IP 地址。\n\n递归查询：如果本地域名服务器不知道被查询域名的 IP 地址，就以 DNS 客户的身份，向其他根域名服务器继续发出查询请求报文，即替该主机继续查询，而不是让该主机自己进行下一步查询。返回结果或者是所要查询的 IP 地址，或者是报错。\n\n迭代查询：根域名服务器收到本地域名服务器发出的迭代查询请求报文时，要么给出所要查询的 IP 地址，要么告诉本地域名服务器下一步应当向哪一个域名服务器进行查询，然后让本地域名服务器进行后续查询，而不是替本地域名服务器进行后续查询。"
+    },
+    {
+      "id": "NET-20260916-042",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0001_9c63385c2f0b",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0000_b42004ff2146",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0002_727aaf3eac72",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_a4e96739_text_0000_f24469b751d8",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_fd973ce4_text_0000_5826e1facc51"
+      ],
+      "response": "不是。根域名服务器并不直接把待查询的域名转换成 IP 地址，根域名服务器也没有存放这种信息。\n\n它帮助本地域名服务器的方式是：告诉本地域名服务器下一步应当找哪一个顶级域名服务器进行查询。根域名服务器通常把自己知道的顶级域名服务器的 IP 地址告诉本地域名服务器，让本地域名服务器再向顶级域名服务器查询。"
+    },
+    {
+      "id": "NET-20260916-043",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0001_96c0b7952197",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0000_c9a04ac66e9b",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0003_f473b1472879",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_277e5d05_text_0001_f5c0bfbbd9d5",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_f0787b09_text_0001_05fcc1a6c9a2"
+      ],
+      "response": "一次获取约 65 ms：两倍 RTT（2 × 30 ms = 60 ms）加上对象传输时间 5 ms。\n\nHTTP/1.1 持续连接可节省建立 TCP 连接所需的一个 RTT 时间，即不必每请求一个文档都重新建立 TCP 连接。"
+    },
+    {
+      "id": "NET-20260916-044",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_eee8cbc0_text_0000_157db90bbda7",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0000_c9a04ac66e9b",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0001_96c0b7952197",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0002_4554b07a177c",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_12cc37cc_text_0001_7fa5d4401acf"
+      ],
+      "response": "HTTP本身是无状态，但万维网站点可以使用Cookie来跟踪用户。当用户A浏览某个使用Cookie的网站时，该网站的服务器就为A产生一个唯一的识别码，并以此作为索引在服务器的后端数据库中产生一个项目。接着在给A的HTTP响应报文中添加一个叫作Set-cookie的首部行，其值就是赋予该用户的识别码。A收到响应后，浏览器就在它管理的特定Cookie文件中添加一行，其中包括这个服务器的主机名和Set-cookie后面给出的识别码。当A继续浏览这个网站时，每发送一个HTTP请求报文，其浏览器就会从其Cookie文件中取出这个网站的识别码，并放到HTTP请求报文的Cookie首部行中。于是，这个网站就能够跟踪用户在该网站的活动。如果A是在网上购物，那么这个服务器可以为A维护一个所购物品的列表，使A在结束这次购物时可以一起付费。"
+    },
+    {
+      "id": "NET-20260916-045",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1cd11e4c_text_0002_4554b07a177c",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_8bdcad04_text_0000_1afa045ffc4f",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0002_79b6c364df61",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_b9a34472_text_0003_83045df17638",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_b0ced64a_text_0001_44ef7ac2cd8a"
+      ],
+      "response": "命中时：代理服务器发现新请求与暂存的请求相同，就返回暂存的响应，不需要按URL的地址再次去互联网访问该资源。\n\n未命中时：代理服务器代表发出请求的用户浏览器，与互联网上的源点服务器建立TCP连接并发送HTTP请求报文；源点服务器把所请求的对象放在HTTP响应报文中返回给代理服务器；代理服务器收到后先复制在自己的本地存储器中留待以后用，再把这个对象放在HTTP响应报文中，通过已建立的TCP连接返回给请求该对象的浏览器。\n\n减轻出口压力的原因：有相当大一部分通信量局限在校园网内部，因此2 Mbit/s专线链路上的通信量大大减少，因而减小了访问互联网的时延。"
+    },
+    {
+      "id": "NET-20260916-046",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_7160f96b_text_0000_e6a64181c867",
+        "v1_tb_a4b63da2e9_ch_a63a2e70_sec_1f48f94f_text_0000_3f5ff7109477",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_1543bbf8_text_0000_5baf9b3cae8c",
+        "v1_tb_a4b63da2e9_ch_aa407c7f_sec_08983340_text_0000_244b9aea62f9",
+        "v1_tb_a4b63da2e9_ch_9d804613_sec_d3163599_text_0000_84c49bbf59a6"
+      ],
+      "response": "FTP 使用两个并行的 TCP 连接：“控制连接”和“数据连接”。控制连接在整个会话期间一直保持打开，客户发出的传送请求通过控制连接发送给服务器端的控制进程，但控制连接并不用来传送文件；实际用于传输文件的是“数据连接”。服务器端的控制进程在接收到文件传输请求后创建“数据传送进程”和“数据连接”，数据传送进程实际完成文件的传送，在传送完毕后关闭“数据传送连接”并结束运行。由于 FTP 使用了一个分离的控制连接，因此 FTP 的控制信息是带外传送的。使用两个独立连接的主要好处是使协议更加简单和更容易实现，同时在传输文件时还可以利用控制连接对文件的传输进行控制。\n\n传完一个文件后，关闭的是“数据传送连接”，而不是整个控制会话。控制连接在整个会话期间一直保持打开。"
+    },
+    {
+      "id": "NET-20260916-047",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_da3c8f76_text_0001_e7f5716d42f8",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_da3c8f76_text_0000_0a6629eb9bf7",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_8defa4a1_text_0000_40c5251b23c7",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_ec3c729c_text_0000_d3cd5cd3d035",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_c5002965_text_0000_f64528e82ef9"
+      ],
+      "response": "发送者把明文和其公开散列值一起发送时，入侵者可以创建伪造的报文 M，用同样方法计算其散列 H(M)，并冒充 A 把拼接有散列的扩展报文发送给 B。B 验证后发现一切正常，就会误认为伪造报文是 A 发送的。因此仅靠公开散列值无法确认消息出自声称的发送者。\n\n引入共享秘密的鉴别码后，A 把双方共享的密钥 K 拼接到报文 X 后进行散列运算，得出报文鉴别码 MAC，拼接在报文 X 后面发送给 B，而共享密钥 K 并没有出现在网上传送的扩展报文中。B 收到后用同样的密钥 K 与报文 X 拼接进行散列运算，与分离出的 MAC 比较，如相等就可确认报文 X 的确是 A 发送的。只要入侵者不掌握密钥 K，就无法伪造 A 的报文鉴别码 MAC，因而无法伪造 A 发送的报文。"
+    },
+    {
+      "id": "NET-20260916-048",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_626e7ee0_text_0000_f430727a976f",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_ec3c729c_text_0000_d3cd5cd3d035",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_626e7ee0_text_0001_9058c579e7b6",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_51aa7865_text_0001_5f9d26bc6ef4",
+        "v1_tb_a4b63da2e9_ch_04378a2f_sec_c5002965_text_0000_f64528e82ef9"
+      ],
+      "response": "不能确认真实身份。捣乱者可以给 A 发送邮件，声称自己是 B，并附上“B 的公钥”（其实是捣乱者的公钥），最后用捣乱者的私钥对邮件进行签名；A 用邮件中给出的捣乱者的公钥对签名进行鉴别，就会误认为 B 真的是要购买设备。捣乱者甚至还可伪造一个冒充 B 的网站，上面有“B 的公钥”（其实是捣乱者的公钥）。\n\n数字证书解决的问题是：找一个可信任的第三方机构，给拥有公钥的实体发一个具有数字签名的数字证书，对公钥与其对应的实体进行绑定。证书中写有公钥及其拥有者的标识信息，更重要的是有 CA 使用自己私钥的数字签名，这样的证书无法伪造。任何用户都可从可信任的地方获得认证中心 CA 的公钥，以验证证书的真伪。公司 A 拿到 B 的数字证书后，用数字证书上给出的 CA 的公钥对 CA 的数字签名进行 E 运算得出一个数值，再对 B 的数字证书（把 CA 的数字签名除外的部分）进行散列运算又得出一个数值，比较这两个数值，若一致，则数字证书是真的。"
+    },
+    {
+      "id": "NET-20260916-049",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_858de614_sec_54e3e5e6_text_0000_dd33a97aeb0a",
+        "v1_tb_a4b63da2e9_ch_858de614_sec_fd973ce4_text_0000_f884c10b354b",
+        "v1_tb_a4b63da2e9_ch_858de614_sec_277e5d05_text_0000_2dba7f0f4d6f",
+        "v1_tb_a4b63da2e9_ch_858de614_sec_04403aea_text_0001_2716b4690099",
+        "v1_tb_a4b63da2e9_ch_858de614_sec_6cf993e1_text_0000_99cb6a317a93"
+      ],
+      "response": "RTP 为实时应用提供端到端的运输，但不提供任何服务质量的保证。RTP 分组只包含 RTP 数据，控制由配套使用的 RTCP 协议提供。\n\nRTCP 协议的主要功能是：服务质量的监视与反馈、媒体间的同步，以及多播组中成员的标志。RTCP 分组周期性地在网上传送，带有发送端和接收端对服务质量的统计信息报告，例如已发送的分组数和字节数、分组丢失率、分组到达时间间隔的抖动等。\n\n使用 RTP 和 RTCP 不等于网络保证带宽和时延。RTP 不提供任何服务质量的保证；RTCP 只是进行服务质量的监视与反馈，并自适应调整 RTCP 分组的发送速率，使 RTCP 分组的通信量不超过网络中数据分组的通信量的 5%。"
+    },
+    {
+      "id": "NET-20260916-050",
+      "retrieved_chunk_ids": [
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_98019fb2_text_0000_142ee142aa18",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_d4135eff_text_0000_c7a9637d996d",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_7f77b69a_text_0000_9e67e531c4ff",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_7f77b69a_text_0001_e463ab073a13",
+        "v1_tb_a4b63da2e9_ch_def6c318_sec_ea9c7343_text_0000_113ca8efd1ae"
+      ],
+      "response": "A 和 C 相距较远，彼此都检测不到对方发送的信号，因此当 A 和 C 检测到信道空闲时，就都向接入点发送数据，结果发生了碰撞，并且无法检测出这种碰撞。这就是隐蔽站问题：它发送的信号检测不到，但却能产生碰撞。\n\n802.11 允许要发送数据的站对信道进行预约。A 站向 AP 发送数据帧之前，先发送请求发送 RTS 帧，告诉所有能收到 RTS 帧的站它将占用信道一段时间。AP 正确收到 RTS 帧后，经过 SIFS 向 A 站发送允许发送 CTS 帧，告诉所有能收到 CTS 帧的站：A 站和 AP 通信要占用信道一段时间。AP 发送的 CTS 帧，A 站、B 站以及 C 站都能够收到，C 站据此设置其 NAV，从而在 A 站通信期间不发送数据。这样，发生碰撞的概率大大降低，特别是减少了隐蔽站的干扰问题。"
+    }
+  ]
+}

@@ -1,0 +1,424 @@
+{
+  "dataset": "ds",
+  "config": "rerank",
+  "n": 50,
+  "judge_provider": "deepseek",
+  "judge_model": "deepseek-flash",
+  "generation_model": "deepseek-flash",
+  "sample_generated_at": "2026-10-16T12:20:05+08:00",
+  "evaluated_at": "2026-10-16T14:49:14+08:00",
+  "summary": {
+    "context_precision": 0.8961666666333152,
+    "context_recall": 0.9133333333333333,
+    "faithfulness": 0.9583304473304473,
+    "answer_relevancy": 0.777984151044628,
+    "nan_counts": {
+      "context_precision": 0,
+      "context_recall": 0,
+      "faithfulness": 0,
+      "answer_relevancy": 0
+    }
+  },
+  "per_question": [
+    {
+      "id": "DS2-046",
+      "category": "multi_hop",
+      "context_precision": 0.6999999999766667,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.89003721126504
+    },
+    {
+      "id": "DS2-017",
+      "category": "confusable",
+      "context_precision": 0.99999999995,
+      "context_recall": 0.6666666666666666,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8090271616295232
+    },
+    {
+      "id": "DS2-048",
+      "category": "confusable",
+      "context_precision": 0.8333333332916666,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6718803081081121
+    },
+    {
+      "id": "DS2-043",
+      "category": "confusable",
+      "context_precision": 0.9166666666361111,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7648284689966159
+    },
+    {
+      "id": "DS2-022",
+      "category": "lexical",
+      "context_precision": 0.999999999975,
+      "context_recall": 0.5,
+      "faithfulness": 0.8181818181818182,
+      "answer_relevancy": 0.9189789252657801
+    },
+    {
+      "id": "DS2-011",
+      "category": "lexical",
+      "context_precision": 0.8874999999778125,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8045082707384731
+    },
+    {
+      "id": "DS2-044",
+      "category": "lexical",
+      "context_precision": 0.6999999999766667,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6522339221317697
+    },
+    {
+      "id": "DS2-050",
+      "category": "confusable",
+      "context_precision": 0.9999999999666667,
+      "context_recall": 0.6666666666666666,
+      "faithfulness": 0.5,
+      "answer_relevancy": 0.7006389153031334
+    },
+    {
+      "id": "DS2-002",
+      "category": "lexical",
+      "context_precision": 0.99999999995,
+      "context_recall": 0.5,
+      "faithfulness": 0.7777777777777778,
+      "answer_relevancy": 0.655686818733898
+    },
+    {
+      "id": "DS2-045",
+      "category": "multi_hop",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7270844566210303
+    },
+    {
+      "id": "DS2-012",
+      "category": "multi_hop",
+      "context_precision": 0.8333333332916666,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.786643564559013
+    },
+    {
+      "id": "DS2-037",
+      "category": "confusable",
+      "context_precision": 0.8041666666465626,
+      "context_recall": 0.75,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6073767447763455
+    },
+    {
+      "id": "DS2-016",
+      "category": "confusable",
+      "context_precision": 0.9166666666361111,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7456568911322489
+    },
+    {
+      "id": "DS2-047",
+      "category": "lexical",
+      "context_precision": 0.8055555555287036,
+      "context_recall": 1.0,
+      "faithfulness": 0.8666666666666667,
+      "answer_relevancy": 0.5925551936856444
+    },
+    {
+      "id": "DS2-014",
+      "category": "multi_hop",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8534195218364617
+    },
+    {
+      "id": "DS2-049",
+      "category": "multi_hop",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.724136986575937
+    },
+    {
+      "id": "DS2-039",
+      "category": "multi_hop",
+      "context_precision": 0.8874999999778125,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.879345189750636
+    },
+    {
+      "id": "DS2-018",
+      "category": "multi_hop",
+      "context_precision": 0.94999999997625,
+      "context_recall": 1.0,
+      "faithfulness": 0.8181818181818182,
+      "answer_relevancy": 0.7637788073151331
+    },
+    {
+      "id": "DS2-026",
+      "category": "multi_hop",
+      "context_precision": 0.999999999975,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7873495279381199
+    },
+    {
+      "id": "DS2-010",
+      "category": "multi_hop",
+      "context_precision": 0.99999999995,
+      "context_recall": 0.5,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7228871545342819
+    },
+    {
+      "id": "DS2-028",
+      "category": "lexical",
+      "context_precision": 0.7555555555303703,
+      "context_recall": 1.0,
+      "faithfulness": 0.9285714285714286,
+      "answer_relevancy": 0.7786219664258831
+    },
+    {
+      "id": "DS2-041",
+      "category": "reasoning",
+      "context_precision": 0.8874999999778125,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5843832149310699
+    },
+    {
+      "id": "DS2-006",
+      "category": "confusable",
+      "context_precision": 0.8874999999778125,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8701353710299431
+    },
+    {
+      "id": "DS2-029",
+      "category": "lexical",
+      "context_precision": 0.94999999997625,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8151520948497936
+    },
+    {
+      "id": "DS2-038",
+      "category": "lexical",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5683237530541049
+    },
+    {
+      "id": "DS2-007",
+      "category": "confusable",
+      "context_precision": 0.9999999999,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8912779198629183
+    },
+    {
+      "id": "DS2-013",
+      "category": "multi_hop",
+      "context_precision": 0.7499999999625,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8827182978456959
+    },
+    {
+      "id": "DS2-040",
+      "category": "lexical",
+      "context_precision": 0.99999999998,
+      "context_recall": 0.6666666666666666,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6964093850737743
+    },
+    {
+      "id": "DS2-019",
+      "category": "multi_hop",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.82443800043774
+    },
+    {
+      "id": "DS2-020",
+      "category": "confusable",
+      "context_precision": 0.9999999999,
+      "context_recall": 1.0,
+      "faithfulness": 0.9,
+      "answer_relevancy": 0.8986979273424199
+    },
+    {
+      "id": "DS2-027",
+      "category": "confusable",
+      "context_precision": 0.9166666666361111,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7803704446550146
+    },
+    {
+      "id": "DS2-035",
+      "category": "lexical",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8281984276912064
+    },
+    {
+      "id": "DS2-042",
+      "category": "lexical",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6961743604974334
+    },
+    {
+      "id": "DS2-024",
+      "category": "confusable",
+      "context_precision": 0.8333333332916666,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8383939179693339
+    },
+    {
+      "id": "DS2-021",
+      "category": "lexical",
+      "context_precision": 0.8874999999778125,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8184373632395157
+    },
+    {
+      "id": "DS2-034",
+      "category": "lexical",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6925485171345839
+    },
+    {
+      "id": "DS2-025",
+      "category": "lexical",
+      "context_precision": 0.499999999975,
+      "context_recall": 0.5,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6398104741113037
+    },
+    {
+      "id": "DS2-009",
+      "category": "multi_hop",
+      "context_precision": 0.9999999999666667,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.9885618581895157
+    },
+    {
+      "id": "DS2-015",
+      "category": "lexical",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8603473384814619
+    },
+    {
+      "id": "DS2-008",
+      "category": "multi_hop",
+      "context_precision": 0.6999999999766667,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5579681665829852
+    },
+    {
+      "id": "DS2-036",
+      "category": "confusable",
+      "context_precision": 0.8333333332916666,
+      "context_recall": 0.5,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.6984436163162049
+    },
+    {
+      "id": "DS2-032",
+      "category": "reasoning",
+      "context_precision": 0.99999999998,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7473575434932447
+    },
+    {
+      "id": "DS2-023",
+      "category": "confusable",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 0.75,
+      "answer_relevancy": 0.8433076249433199
+    },
+    {
+      "id": "DS2-033",
+      "category": "multi_hop",
+      "context_precision": 0.9999999999666667,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.7981557993617057
+    },
+    {
+      "id": "DS2-004",
+      "category": "reasoning",
+      "context_precision": 0.999999999975,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8008335129469314
+    },
+    {
+      "id": "DS2-005",
+      "category": "confusable",
+      "context_precision": 0.9166666666361111,
+      "context_recall": 0.6666666666666666,
+      "faithfulness": 0.8,
+      "answer_relevancy": 0.9504977213843518
+    },
+    {
+      "id": "DS2-001",
+      "category": "lexical",
+      "context_precision": 0.8055555555287036,
+      "context_recall": 1.0,
+      "faithfulness": 0.8571428571428571,
+      "answer_relevancy": 0.7578419251828264
+    },
+    {
+      "id": "DS2-003",
+      "category": "multi_hop",
+      "context_precision": 0.0,
+      "context_recall": 1.0,
+      "faithfulness": 0.9,
+      "answer_relevancy": 0.9999987910251112
+    },
+    {
+      "id": "DS2-030",
+      "category": "multi_hop",
+      "context_precision": 0.94999999997625,
+      "context_recall": 0.75,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8726892874367783
+    },
+    {
+      "id": "DS2-031",
+      "category": "confusable",
+      "context_precision": 0.99999999995,
+      "context_recall": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.8610588898380366
+    }
+  ]
+}

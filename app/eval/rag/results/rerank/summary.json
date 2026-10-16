@@ -1,0 +1,134 @@
+[
+  {
+    "dataset": "c",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:18:13+08:00",
+    "evaluated_at": "2026-10-16T12:30:37+08:00",
+    "summary": {
+      "context_precision": 0.9240833332993202,
+      "context_recall": 0.88,
+      "faithfulness": 0.936489512551432,
+      "answer_relevancy": 0.7734783651890473,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  },
+  {
+    "dataset": "co",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:18:51+08:00",
+    "evaluated_at": "2026-10-16T12:39:52+08:00",
+    "summary": {
+      "context_precision": 0.8678055555255614,
+      "context_recall": 0.8966666666666667,
+      "faithfulness": 0.9757303030303031,
+      "answer_relevancy": 0.7763576526240731,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  },
+  {
+    "dataset": "db",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:19:28+08:00",
+    "evaluated_at": "2026-10-16T14:40:31+08:00",
+    "summary": {
+      "context_precision": 0.8613055555204183,
+      "context_recall": 0.9,
+      "faithfulness": 0.6929246586746587,
+      "answer_relevancy": 0.7191394962546955,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  },
+  {
+    "dataset": "ds",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:20:05+08:00",
+    "evaluated_at": "2026-10-16T14:49:14+08:00",
+    "summary": {
+      "context_precision": 0.8961666666333152,
+      "context_recall": 0.9133333333333333,
+      "faithfulness": 0.9583304473304473,
+      "answer_relevancy": 0.777984151044628,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  },
+  {
+    "dataset": "net",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:20:44+08:00",
+    "evaluated_at": "2026-10-16T14:58:25+08:00",
+    "summary": {
+      "context_precision": 0.8935555555120065,
+      "context_recall": 0.9516666666666667,
+      "faithfulness": 0.8215527528027528,
+      "answer_relevancy": 0.7549626703981822,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  },
+  {
+    "dataset": "os",
+    "config": "rerank",
+    "n": 50,
+    "judge_provider": "deepseek",
+    "judge_model": "deepseek-flash",
+    "generation_model": "deepseek-flash",
+    "sample_generated_at": "2026-10-16T12:21:21+08:00",
+    "evaluated_at": "2026-10-16T15:07:26+08:00",
+    "summary": {
+      "context_precision": 0.8962499999681494,
+      "context_recall": 0.8966666666666667,
+      "faithfulness": 0.9496507936507936,
+      "answer_relevancy": 0.8238114086619674,
+      "nan_counts": {
+        "context_precision": 0,
+        "context_recall": 0,
+        "faithfulness": 0,
+        "answer_relevancy": 0
+      }
+    }
+  }
+]

@@ -1,0 +1,566 @@
+{
+  "schema": 1,
+  "dataset": "c",
+  "collection": "tb_80c17509e60e4f29",
+  "config": "hyb_50",
+  "top_k": 5,
+  "generation": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "temperature": 0.1,
+    "prompt": "answer.prompt@409463638ea5",
+    "generated_at": "2026-10-16T10:40:42+08:00"
+  },
+  "samples": [
+    {
+      "id": "C2-001",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_5b34e420_code_0002_4f38d6b0d89a",
+        "v1_tb_124ffe327d_ch_344219c2_sec_d0fdf376_code_0000_4dd2c8aa9bcf",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_277e5d05_code_0000_7828a65cb23f",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_5b34e420_code_0001_37da9218dd33",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5b34e420_code_0004_bd0b14d9ca2d"
+      ],
+      "response": "教材原文中没有“从键盘读入两个整数再算它们的和”的完整写法。原文只给出了读入两个浮点数并调用 add 求和的代码：\n\n```c\nfloat add(float x, float y);\nfloat a, b, c;\nprintf(\"Please enter a and b:\");\nscanf(\"%f, %f\", &a, &b);\nc = add(a, b);\nprintf(\"sum is %f\\n\", c);\n```\n\n其中读入语句为 `scanf(\"%f, %f\", &a, &b);`，求和结果用 `printf(\"sum is %f\\n\", c);` 输出。原文未给出读入两个整数并求和的代码。"
+    },
+    {
+      "id": "C2-002",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_f23a6bd2_text_0000_c8e32605ef32",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_2586d8ff_text_0000_90f43c33f7c3",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_dbe0cc16_text_0000_89f107ed7dfc",
+        "v1_tb_124ffe327d_ch_344219c2_sec_b5533c30_text_0001_900d22f6d777",
+        "v1_tb_124ffe327d_ch_f7791409_sec_198d2350_text_0000_e76ff2e2cadd"
+      ],
+      "response": "C语言规定标识符只能由字母、数字和下画线3种字符组成，且第1个字符必须为字母或下画线。\n\n合法的标识符如：sum、average、_total、Class、day、month、Student_name、lotus_1_2_3、BASIC、li_ling。\n\n不合法的如：M.D.John、¥123、#33、3D64、a>b。\n\n注意：编译系统认为大写字母和小写字母是两个不同的字符，因此sum和SUM是两个不同的变量名，Class和class也是两个不同的变量名。一般而言，变量名用小写字母表示，与人们日常习惯一致，以提高可读性。"
+    },
+    {
+      "id": "C2-003",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_50352cfc_sec_d7abc230_text_0000_3a50cc342011",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_7067a6ea_text_0000_4f56648f3105",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_5b34e420_text_0001_ceb3d5efad45",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_39e7ebcc_text_0000_ea8a0ca10fa4",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_016d54f4_text_0000_cddc6647b258"
+      ],
+      "response": "可能是循环体中缺少使循环趋于结束的语句。在 while 循环中，只在 while 后面的括号内指定循环条件，因此为了使循环能正常结束，应在循环体中包含使循环趋于结束的语句（如 i++，或 i=i+1 等）。"
+    },
+    {
+      "id": "C2-004",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b09fd2c4_text_0000_38eb0733eff6",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b09fd2c4_text_0002_92df9b849fa5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b09fd2c4_text_0001_737df56e1fee",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b91e2029_text_0000_2cab044a3390",
+        "v1_tb_124ffe327d_ch_344219c2_sec_a2c8f893_text_0002_9bfc24e41943"
+      ],
+      "response": "因为 C 语言中实参变量和形参变量之间的数据传递是单向的“值传递”方式。在函数调用时，实参的值传送给形参，形参只是实参的副本。执行完 swap 函数后，形参 x 和 y 的值是互换了，但并未影响到 a 和 b 的值。函数结束时，变量 x 和 y 释放了，main 函数中的 a 和 b 并未互换。也就是说，由于“单向传送”的“值传递”方式，形参值的改变不能使实参的值随之改变。\n\n应该用指针变量作为函数参数，在函数执行过程中使指针变量所指向的变量值发生变化，函数调用结束后，这些变量值的变化依然保留下来。"
+    },
+    {
+      "id": "C2-005",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0000_858a6f37368c",
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0001_e0905d725ed0",
+        "v1_tb_124ffe327d_ch_f7791409_sec_fc127350_text_0001_50a6814fabbb",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_712931ae_text_0002_cb966cb73e5b",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_712931ae_text_0003_0e2c5fb4c51b"
+      ],
+      "response": "输出字符串时遇到结束符'\\0'就停止输出，所以如果字符数组中没有'\\0'，就会把后面内存中的内容也当作字符串的一部分继续输出，出现“垃圾字符”。\n\n原文说明：字符数组并不要求它的最后一个字符为'\\0'，甚至可以不包含'\\0'。如果不用'\\0'结束，新字符串和老字符串会连成一片，无法区分开，输出时就会连续输出。例如把\"Hello\"赋给前面5个元素而不加'\\0'，输出会变成\"Hellogram.\"。\n\n因此，在字符数组中常常人为地加上一个'\\0'，便于引用字符数组中的字符串。'\\0'是字符串结束标志，输出字符数组中的字符串时，遇'\\0'就停止输出。"
+    },
+    {
+      "id": "C2-006",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a2093ed1_text_0000_5a10be1fcf58",
+        "v1_tb_124ffe327d_ch_344219c2_sec_ded716ef_text_0000_b8ce7bed00d8",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a2093ed1_code_0000_f62579604e59",
+        "v1_tb_124ffe327d_ch_e3f4a116_sec_a6c2edcf_code_0000_f62579604e59",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a2093ed1_code_0000_f0b4487fd93d"
+      ],
+      "response": "main 函数可以写成带参数的形式：\n\n```c\nint main(int argc, char *argv[])\n```\n\n其中 argc 和 argv 是 main 函数的形参，它们是程序的“命令行参数”。argc 是参数个数，argv 是一个 *char 指针数组，数组中每一个元素（其值为指针）指向命令行中的一个字符串的首字符。\n\n注意：如果用带参数的 main 函数，其第一个形参必须是 int 型，用来接收形参个数，第二个形参必须是字符指针数组，用来接收从操作系统命令行传来的字符串中首字符的地址。\n\nmain 函数的形参值不可能在程序中得到，main 函数是操作系统调用的，实参只能由操作系统给出。在操作命令状态下，实参是和执行文件的命令一起给出的，命令行的一般形式为：\n\n命令名 参数1 参数2…参数n\n\n命令名和各参数之间用空格分隔。命令名是可执行文件名，文件名也作为一个参数。"
+    },
+    {
+      "id": "C2-007",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0000_d8ae8623bda4",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0003_f808b0218dd9",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0002_aa76d91e2d9c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_0a4c64ed_text_0000_592f385da313",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b09fd2c4_text_0000_38eb0733eff6"
+      ],
+      "response": "形参写成数组名或指针变量是一回事。C编译都是将形参数组名作为指针变量来处理的，形参写成数组名或指针变量两种写法等价。\n\n底层传递的是实参数组首元素的地址。实参数组名代表该数组首元素的地址，形参是用来接收从实参传递过来的数组首元素地址的，因此形参应该是一个指针变量（只有指针变量才能存放地址）。\n\n系统会在函数中建立一个指针变量，用来存放从主调函数传递过来的实参数组首元素的地址。如果在函数中用sizeof测定该形参所占字节数，其值为4（用Visual C++时），这证明系统是把形参数组名作为指针变量来处理的。\n\nC语言调用函数时虚实结合的方法都是采用“值传递”方式：用变量名作函数参数时传递的是变量的值；用数组名作函数参数时，由于数组名代表的是数组首元素地址，因此传递的值是地址，所以要求形参为指针变量。"
+    },
+    {
+      "id": "C2-008",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0000_d8ae8623bda4",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0003_f808b0218dd9",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0002_aa76d91e2d9c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5b34e420_text_0004_b6947e8d7c40",
+        "v1_tb_124ffe327d_ch_344219c2_sec_1f573e75_text_0000_c96e5aa6731e"
+      ],
+      "response": "因为用数组名作函数参数时，实参数组名代表该数组首元素的地址，形参接收的是这个地址。C编译都是将形参数组名作为指针变量来处理的。这样，形参数组与实参数组共用同一段内存单元，score[n] 和 array[n] 指的是同一单元。所以在函数中改变形参数组元素的值，实参数组元素的值随之变化。"
+    },
+    {
+      "id": "C2-009",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_f0d3357a_text_0000_52ebe254def8",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a862aca4_text_0000_7be43745240f",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b9ffc425_text_0002_f0cf13d747f6",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_text_0000_b18aa4d52ae5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_f0d3357a_text_0001_545661baa473"
+      ],
+      "response": "p+1 不是指向 a[0][1]，而是指向 a[1]。p 的增值以一维数组的长度为单位。"
+    },
+    {
+      "id": "C2-010",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_35ad196a_text_0000_d9d7f526afd7",
+        "v1_tb_124ffe327d_ch_344219c2_sec_297de7b4_text_0000_b394f9d9e5ae",
+        "v1_tb_124ffe327d_ch_344219c2_sec_b5533c30_text_0000_29d53a20037a",
+        "v1_tb_124ffe327d_ch_344219c2_sec_5a8378a7_text_0000_6e377b128723",
+        "v1_tb_124ffe327d_ch_344219c2_sec_297de7b4_text_0001_9b7bce1f9469"
+      ],
+      "response": "全局变量（外部变量）在函数之外定义，其有效范围为从定义变量的位置开始到本源文件结束。在定义点之前的函数不能引用该外部变量；若需引用，应在引用之前用 extern 对该变量作“外部变量声明”，把作用域扩展到此位置。\n\n存储上，全局变量都是存放在静态存储区中的，因此它们的生存期是固定的，存在于程序的整个运行过程。"
+    },
+    {
+      "id": "C2-011",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_f0d3357a_code_0000_679def3c74f1",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_3c4e16fb_code_0000_a9cd9db32d82",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_code_0000_781673be47dc",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_code_0000_bbfe2696195a",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4d1cdc61_code_0000_35e506e96070"
+      ],
+      "response": "int *p[4] 表示 p 是一个数组，有 4 个元素，每个元素为指向整型数据的指针变量。\n\nint (*p)[4] 表示 p 是一个指针变量，它指向包含 4 个元素的一维整型数组。"
+    },
+    {
+      "id": "C2-012",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_c0d57b95_text_0000_58f0bd8db8ab",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5b34e420_text_0004_b6947e8d7c40",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a61dff22_text_0000_2cd4d1f0d89c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5b34e420_text_0002_f135fc19c698",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5b34e420_text_0001_9c09a4dd261d"
+      ],
+      "response": "字符数组由若干个元素组成，每个元素中放一个字符；字符指针变量中存放的是地址（字符串第1个字符的地址），绝不是将字符串放到字符指针变量中。\n\n赋值方式不同：可以对字符指针变量赋值，但不能对数组名赋值。数组可以在定义时对各元素赋初值，但不能用赋值语句对字符数组中全部元素整体赋值。\n\n初始化含义不同：对字符指针变量赋初值，是把字符串首字符的地址赋给它；对数组的初始化，是把字符串字面量逐一存入数组元素。\n\n存储单元不同：编译时为字符数组分配若干存储单元，以存放各元素的值；对字符指针变量，只分配一个存储单元。\n\n指针变量的值是可以改变的，而字符数组名代表一个固定的值（数组首元素的地址），不能改变。\n\n字符数组中各元素的值是可以改变的，但字符指针变量指向的字符串常量中的内容是不可以被取代的。"
+    },
+    {
+      "id": "C2-013",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_50352cfc_sec_9df2c893_text_0001_7881d2c4ebb6",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_9df2c893_text_0000_4ba502819a25",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_50c448bd_text_0000_c82d626168f8",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_74464c2d_text_0000_75bfce774e44",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_0c42bf3c_text_0000_4904ac379194"
+      ],
+      "response": "break 语句是结束整个循环过程，不再判断执行循环的条件是否成立；continue 语句只结束本次循环，而不是终止整个循环的执行。\n\n如果是双重循环，在内循环体内有一个 break 语句，则提前终止内循环，流程跳转到内循环体之外，执行内循环体下面的语句。\n\ncontinue 语句的作用是结束本次循环，即跳过循环体中下面尚未执行的语句，转到循环体结束点之前，接着执行 for 语句中的“表达式 3”，然后进行下一次是否执行循环的判定。"
+    },
+    {
+      "id": "C2-014",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_77e92f52_text_0000_626779cadab3",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b73ff59c_text_0001_98b753d9681c",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_0c42bf3c_text_0000_29c5ac49f353",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0003_f808b0218dd9",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b09fd2c4_text_0000_38eb0733eff6"
+      ],
+      "response": "用结构体变量作实参时，采取的是“值传递”方式，将结构体变量所占的内存单元的内容全部按顺序传递给形参，形参也必须是同类型的结构体变量。在函数调用期间形参也要占用内存单元。这种传递方式在空间和时间上开销较大，如果结构体的规模很大时，开销是很可观的。此外，由于采用值传递方式，如果在执行被调用函数期间改变了形参（也是结构体变量）的值，该值不能返回主调函数，这往往造成使用上的不便。因此一般较少用这种方法。\n\n用指向结构体变量(或数组元素)的指针作实参，是将结构体变量(或数组元素)的地址传给形参。"
+    },
+    {
+      "id": "C2-015",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_text_0000_b18aa4d52ae5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_3c4e16fb_text_0000_771e2a39c676",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_328a815d_text_0000_0c5e3b010c17",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_text_0000_8408c6ab74d1",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_text_0001_b055b9586485"
+      ],
+      "response": "指向函数的指针变量用于存放某一函数的起始地址，即指向该函数；定义形式为“类型名（*指针变量名）（函数参数表列）”，如“int(*p)(int, int)；”，这里的“类型名”是指函数返回值的类型。它只能指向在定义时指定的类型的函数，不能进行算术运算。\n\n指向数据的指针变量存放的是数据的地址，其类型包含指针类型和基类型，只有与指针变量的基类型相同的数据的地址才能存放在相应的指针变量中。\n\n函数名代表函数的起始地址，函数名就是函数的指针。"
+    },
+    {
+      "id": "C2-016",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a2093ed1_text_0000_5a10be1fcf58",
+        "v1_tb_124ffe327d_ch_e3f4a116_sec_31106eb8_code_0000_fe238240a360",
+        "v1_tb_124ffe327d_ch_e3f4a116_sec_cf1b1327_code_0000_641f612b5e8e",
+        "v1_tb_124ffe327d_ch_e3f4a116_sec_cf1b1327_code_0000_650305394ae7",
+        "v1_tb_124ffe327d_ch_344219c2_sec_b3ab4201_text_0001_5ca051d03b76"
+      ],
+      "response": "程序从 main 函数开始执行，但 main 函数不一定要写在文件最后一行。教材中给出的示例都是把 main 函数写在最前面，例如：\n\n```c\n#include <stdio.h>\nint main()\n{\n    printf(\"This is a C program.\\n\");\n    return 0;\n}\n```\n\n以及：\n\n```c\n#include<stdio.h>\n//主函数\nint main()\n{\n    int max(int x, int y);\n    int a, b, c;\n    scanf(\"%d, %d\", &a, &b);\n    c = max(a, b);\n    printf(\"max=%d\\n\", c);\n    return 0;\n}\n```\n\n这些例子中 main 函数都放在文件开头。教材还说明，通常 main 函数和其他函数组成一个文件模块，有一个文件名；对这个文件进行编译和连接，得到可执行文件，用户执行这个可执行文件，操作系统就调用 main 函数，然后由 main 函数调用其他函数，从而完成程序的功能。\n\n因此，main 函数写在文件的什么位置并不影响程序从它开始执行；国内教材里一般把 main 函数放在前面。"
+    },
+    {
+      "id": "C2-017",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_712931ae_text_0003_0e2c5fb4c51b",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_712931ae_text_0000_c2e3697299d6",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_712931ae_text_0002_cb966cb73e5b",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_5b34e420_code_0001_3b55e6d99502",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_801ccb84_text_0000_cee804f26591"
+      ],
+      "response": "%d 以带符号的十进制形式输出整数（正数不输出符号）；%f 以小数形式输出单、双精度数，隐含输出 6 位小数；%s 输出字符串。\n\nprintf 函数输出时，务必注意输出对象的类型应与格式说明匹配，否则将会出现错误。"
+    },
+    {
+      "id": "C2-018",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_83060c1d_text_0000_0d808b6ba2f6",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_1f573e75_text_0000_e1804d408788",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_9513dae8_code_0000_8dd02a7b8c9d",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_9c047277_text_0000_c5ab13493bb6",
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0001_e0905d725ed0"
+      ],
+      "response": "scanf 函数中的格式控制后面应当是变量地址，而不是变量名。例如若 a、b、c 为整型变量，写成 `scanf(\"%f%f%f\", a, b, c);` 是不对的，应将“a,b,c”改为“&a,&b,&c”。许多初学者常犯此错误。\n\n用 scanf 函数输入结构体变量时，必须分别输入它们的成员的值，不能在 scanf 函数中使用结构体变量名一揽子输入全部成员的值。在 scanf 函数中，成员 student1.num 和 student1.score 的前面都有地址符 &，而 student1.name 前面没有 &，这是因为 name 是数组名，本身就代表地址，故不能画蛇添足地再加一个 &。\n\nscanf 函数中的输入项如果是字符数组名，不要再加地址符 &，因为在 C 语言中数组名代表该数组第一个元素的地址（或者说数组的起始地址）。下面写法不正确：`scanf(\"%s\", &str);` // str 前面不应加 &。"
+    },
+    {
+      "id": "C2-019",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_a2c8f893_text_0001_09563f863592",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_code_0000_c201986c409f",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_code_0000_7f7a872044c3",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_a2c8f893_code_0001_f08f81d3e07e",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_code_0000_966e019f054e"
+      ],
+      "response": "++i 是先执行 i=i+1，再使用 i 的值；i++ 是先使用 i 的值，再执行 i=i+1。\n\n例如 i 的原值等于 3 时：\n- j=++i：i 的值先变成 4，再赋给 j，j 的值为 4。\n- j=i++：先将 i 的值 3 赋给 j，j 的值为 3，然后 i 变为 4。\n\n又例如 printf(\"%d\",++i) 输出 4；若改为 printf(\"%d\",i++) 则输出 3。"
+    },
+    {
+      "id": "C2-020",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_4e62a92e_text_0000_2860a91455b0",
+        "v1_tb_124ffe327d_ch_344219c2_sec_d0fdf376_code_0000_df8429421908",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_5b34e420_text_0001_ceb3d5efad45",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_eb9bb578_code_0000_dff48d63f9af",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_5b34e420_code_0001_d71e7a3fab66"
+      ],
+      "response": "先把 int 型数据转换为 double 型，然后进行运算，结果是 double 型。"
+    },
+    {
+      "id": "C2-021",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_d8d74230_code_0000_556f08154c14",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_bc66f1b0_text_0000_b7ed6f93f279",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_461c024e_code_0000_4ca6ae8a6cec",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_f4cbb071_code_0000_2039bc48d162",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_2586d8ff_code_0000_86194c9b5e8b"
+      ],
+      "response": "教材原文中没有“定义 float 变量时赋值 3.14159，它其实是按 double 处理”这一说法。\n\n原文只说明：如果赋值运算符两侧的类型不一致，但都是基本类型时，在赋值时要进行类型转换，类型转换由系统自动进行。其中提到，将一个 double 型数据赋给 float 变量时，先将双精度数转换为单精度，即只取 6～7 位有效数字，存储到 float 型变量的 4 个字节中；并应注意双精度数值的大小不能超出 float 型变量的数值范围。"
+    },
+    {
+      "id": "C2-022",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_bb257f5b_text_0000_6ba890dfc25e",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_bc66f1b0_text_0000_b7ed6f93f279",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_3b2aa3fb_text_0000_0a04ab91e554",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_bb257f5b_text_0001_2b37b8b88102",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_a2c8f893_text_0000_50f94308e17b"
+      ],
+      "response": "字符 'A' 在内存里存的是它的 ASCII 代码 65。教材原文指出：“字符型数据赋给整型变量时，将字符的 ASCII 代码赋给整型变量。”例如执行 `i='A';`，由于 'A' 字符的 ASCII 代码为 65，因此赋值后 i 的值为 65。\n\n字符变量实质上是一个字节的整型变量，由于它常用来存放字符，所以称为字符变量。字符类型也属于整型，也可以用 signed 和 unsigned 修饰符。"
+    },
+    {
+      "id": "C2-023",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_3659dd2b_text_0000_cdcd0613e992",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_d3661c1f_text_0000_7a50b52cda77",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_3659dd2b_code_0000_d74589dbca8d",
+        "v1_tb_124ffe327d_ch_717e5842_sec_a2c8f893_text_0001_81728fba511a",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_42b435d5_text_0000_784c969790c8"
+      ],
+      "response": "关系运算符中，前4种（<、<=、>、>=）优先级别相同，后2种（==、!=）也相同；前4种高于后2种。例如，“>”优先于“==”，“>”与“<”优先级相同。\n\n关系运算符的优先级低于算术运算符，高于赋值运算符。例如：c>a+b 等效于 c>(a+b)；a>b==c 等效于 (a>b)==c；a==b<c 等效于 a==(b<c)；a=b>c 等效于 a=(b>c)。\n\n逻辑运算符中，“&&”和“||”低于关系运算符，“!”高于算术运算符。"
+    },
+    {
+      "id": "C2-024",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_a036a0da_text_0000_bd6a79ae6036",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_a275471a_text_0000_eca5310ed88c",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_a036a0da_text_0001_0484aeace8f4",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_a5905aae_text_0001_6aeeba32ef44",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_b16d1f4a_text_0000_5c397162f9db"
+      ],
+      "response": "有区别。\n\n`if(x=1)` 中是赋值表达式，不是判断相等。按教材说明，赋值表达式的作用是将一个表达式的值赋给一个变量，表达式的值等于赋值后左侧变量的值。因此 `x=1` 会先把 1 赋给 x，整个表达式的值为 1，即非 0，条件为真。\n\n`if(x==1)` 是判断 x 是否等于 1，只有 x 的值确实为 1 时条件才为真。\n\n教材还指出，在 if 的条件中可以包含赋值表达式，但不能包含赋值语句；赋值表达式的末尾没有分号，而赋值语句的末尾必须有分号。若写成 `if((a=b;)>0)` 就错了。\n\n因此，`if(x=1)` 会先赋值再判断，通常不是本意；`if(x==1)` 才是判断相等。"
+    },
+    {
+      "id": "C2-025",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_0e34e7aa_text_0000_16dba4728f79",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_0e34e7aa_text_0001_9c92fce320d2",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_0f171e53_text_0000_65a4213a320a",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_a5905aae_text_0000_22ad9e5d5457",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_0c42bf3c_text_0001_99a51108e3d2"
+      ],
+      "response": "分支较多时，用嵌套的 if 语句处理会使嵌套层数多，程序冗长而且可读性降低；switch 语句直接处理多分支选择，进行一次检查即可得到结果，比嵌套 if 更简洁。\n\n如果问题有一定规律，能找出折扣与距离这类关系，就适合用 switch 处理；如果的确没有什么规律，就不能以这种方式使用 switch 语句处理，可以用嵌套的 if 语句（if…else if…else if…else 形式）处理。"
+    },
+    {
+      "id": "C2-026",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_50352cfc_sec_5b34e420_text_0001_ceb3d5efad45",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_39e7ebcc_text_0000_ea8a0ca10fa4",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_7067a6ea_text_0000_4f56648f3105",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_d7abc230_text_0000_3a50cc342011",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_016d54f4_text_0000_cddc6647b258"
+      ],
+      "response": "while 循环的特点是先判断条件表达式，后执行循环体语句；do…while 语句的特点是先无条件地执行循环体，然后判断循环条件是否成立。\n\n在一般情况下，用 while 语句和用 do…while 语句处理同一问题时，若二者的循环体部分是一样的，那么结果也一样。但是如果 while 后面的表达式一开始就为假（0 值）时，两种循环的结果是不同的：对 while 循环来说，一次也不执行循环体；而对 do…while 循环语句来说则至少要执行一次循环体。\n\n可以得到结论：当 while 后面的表达式的第 1 次的值为“真”时，两种循环得到的结果相同；否则，二者结果不相同（指二者具有相同的循环体的情况）。"
+    },
+    {
+      "id": "C2-027",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_text_0002_1e478ffce058",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_text_0001_a3a8c86fa254",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_text_0000_d181dcca19e5",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_24e391e7_text_0003_e8490a441b1b",
+        "v1_tb_124ffe327d_ch_0bd75aad_sec_0cf21d77_text_0001_32974c0ee381"
+      ],
+      "response": "表达式 1 在开始时执行一次，用来设置初始条件；表达式 3 在执行完循环体后才执行，作为循环的调整，例如使循环变量增值。\n\n表达式 2 省略后，不设置和检查循环条件，循环无终止地进行，i 的值不断加大，sum 的值也不断累加。"
+    },
+    {
+      "id": "C2-028",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_50352cfc_sec_50352cfc_text_0000_1a44c4eb6e38",
+        "v1_tb_124ffe327d_ch_18704fab_sec_46e4309c_text_0000_68905bea9ce1",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_d7abc230_text_0000_3a50cc342011",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_a2932ca2_code_0000_6d957fbfcebf",
+        "v1_tb_124ffe327d_ch_50352cfc_sec_277e5d05_text_0000_c25743fef820"
+      ],
+      "response": "用一个 while 语句即可实现循环结构，避免重复编写相同代码。例如处理 50 个学生成绩时，while 循环重复执行 50 次：每次输入一个学生的 5 门成绩，计算并输出平均分，通过变量 i 递增控制循环次数。\n\nwhile 语句的执行过程是：开始时变量 i 的值为 1，while 语句首先检查变量 i 的值是否小于或等于 50，如果是，则执行 while 后面的语句（称为循环体）。在循环体中先输入第 1 个学生 5 门课的成绩，然后求出该学生的平均成绩 aver，并输出此平均成绩。最后一行“i++；”使 i 的值加 1，i 的原值为 1，现在变成 2 了。然后流程返回到 while 语句的开头，再检查 i 的值是否小于或等于 50，由于 i 的值 2 小于 50，因此又执行循环体，输入第 2 个学生 5 门课的成绩，然后求出第 2 个学生的平均成绩并输出此平均成绩。i++ 又使变量 i 的值变为 3，处理第 3 个学生的数据……直到处理完第 50 个学生的数据后，i 的值变为 51。由于它大于 50，因此不再执行循环体。"
+    },
+    {
+      "id": "C2-029",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_198d2350_text_0000_e76ff2e2cadd",
+        "v1_tb_124ffe327d_ch_344219c2_sec_1f573e75_text_0000_c96e5aa6731e",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_dbe0cc16_text_0000_89f107ed7dfc",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_148422a9_text_0000_b11a81d1634c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a61dff22_text_0000_2cd4d1f0d89c"
+      ],
+      "response": "C语言不允许对数组的大小作动态定义，即数组的大小不依赖于程序运行过程中变量的值。定义数组时，方括号中的常量表达式用来表示元素的个数，即数组长度；常量表达式中可以包括常量和符号常量，但不能包含变量。因此 `int a[n];` 是不合法的，数组大小必须是常量表达式，需预先指定固定长度。"
+    },
+    {
+      "id": "C2-030",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e0c5f86f_text_0000_54c7a5ea0200",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e0c5f86f_text_0002_fb4cabb477c3",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e0c5f86f_text_0001_7e4c4fe1420f",
+        "v1_tb_124ffe327d_ch_f7791409_sec_a1bb5635_text_0000_2dfccde1a92c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_cfc01faf_text_0000_1c1cfef77b88"
+      ],
+      "response": "二维数组在内存中是按行顺序存放的，即先顺序存放第 1 行的元素，接着再存放第 2 行的元素。各元素是连续存放的，不是二维的，是线性的。\n\na[2][3] 和 a[1][4] 是否指向同一位置，教材原文没有直接给出这个例子的结论，因此无法仅依据原文回答。"
+    },
+    {
+      "id": "C2-031",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_f361468e_code_0000_a5890cae34f4",
+        "v1_tb_124ffe327d_ch_f7791409_sec_2b39b01d_code_0000_1be68ea113e8",
+        "v1_tb_124ffe327d_ch_f7791409_sec_6f60e067_code_0000_505bcde7244d",
+        "v1_tb_124ffe327d_ch_f7791409_sec_2b39b01d_code_0000_1f658f7bb871",
+        "v1_tb_124ffe327d_ch_f7791409_sec_55137fc9_code_0000_9cfa554437e5"
+      ],
+      "response": "其余 9 个元素的值为 0。"
+    },
+    {
+      "id": "C2-032",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_9b241b2c_text_0000_7c02329459bf",
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0000_858a6f37368c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_c0d57b95_code_0000_a4b5d388d5b8",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_c0d57b95_code_0000_ea6be25336a8",
+        "v1_tb_124ffe327d_ch_f7791409_sec_684a7830_code_0000_8453f87ad774"
+      ],
+      "response": "数组存了 `C`、`h`、`i`、`n`、`a`、`\\0`，共 6 个字符；`\\0` 是字符串结束符。\n\n`strlen` 测的是字符串的实际长度，不包括 `'\\0'` 在内，所以 `strlen(s)` 为 5。`sizeof` 不是字符串的真实长度，它得到的是数组所占字节数，即 20。"
+    },
+    {
+      "id": "C2-033",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_551c18c3_text_0000_9b6d7f0c3e8b",
+        "v1_tb_124ffe327d_ch_f7791409_sec_2ad193f0_text_0000_935fcdd623dc",
+        "v1_tb_124ffe327d_ch_f7791409_sec_684a7830_text_0002_5df4e9afc0d8",
+        "v1_tb_124ffe327d_ch_f7791409_sec_551c18c3_code_0000_1587280dea09",
+        "v1_tb_124ffe327d_ch_f7791409_sec_551c18c3_code_0000_35dc8a04e00a"
+      ],
+      "response": "strcmp 比较的是字符，按 ASCII 码值大小逐个字符比较，直到出现不同字符或遇到 '\\0' 为止。\n\n大小写对结果有影响：小写字母比大写字母“大”，所以 \"DOG\" < \"cat\"。"
+    },
+    {
+      "id": "C2-034",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0000_858a6f37368c",
+        "v1_tb_124ffe327d_ch_f7791409_sec_d5b30619_text_0001_e0905d725ed0",
+        "v1_tb_124ffe327d_ch_f7791409_sec_f63c1bea_text_0000_a931b0db8892",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_9c047277_text_0000_c5ab13493bb6",
+        "v1_tb_124ffe327d_ch_f7791409_sec_198d2350_code_0000_a6206d869c75"
+      ],
+      "response": "输入带空格的字符串时该用 gets。\n\nscanf 函数中的 %s 格式符：输入字符串时以非空白字符开始，以第一个空白字符结束。由于系统把空格字符作为输入的字符串之间的分隔符，因此只将空格前的字符送到字符数组中。\n\ngets 函数的作用是从终端输入一个字符串到字符数组，其一般形式为 gets(字符数组)。"
+    },
+    {
+      "id": "C2-035",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_a2c8f893_text_0001_25cb3a312abf",
+        "v1_tb_124ffe327d_ch_344219c2_sec_ded716ef_text_0000_b8ce7bed00d8",
+        "v1_tb_124ffe327d_ch_344219c2_sec_4d5c6010_text_0000_14a8f88084a1",
+        "v1_tb_124ffe327d_ch_344219c2_sec_d0fdf376_text_0001_a756cc3e8bb0",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b73ff59c_text_0001_98b753d9681c"
+      ],
+      "response": "实参可以是常量、变量或表达式，但要求它们有确定的值。实参与形参的类型应相同或赋值兼容；如果类型不同，则按不同类型数值的赋值规则进行转换。字符型与int型可以互相通用。\n\n在调用函数过程中，系统会把实参的值传递给被调用函数的形参，或者说形参从实参得到一个值。实参向形参的数据传递是“值传递”，单向传递，只能由实参传给形参，而不能由形参传给实参。"
+    },
+    {
+      "id": "C2-036",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_e56b6d37_text_0000_c5098d673884",
+        "v1_tb_124ffe327d_ch_344219c2_sec_e56b6d37_text_0001_d34b4e8508a8",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_632c0f1c_text_0000_0de28da0e32a",
+        "v1_tb_124ffe327d_ch_344219c2_sec_d8a2c5e6_text_0000_960cd6d886a3",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_d8d74230_code_0000_556f08154c14"
+      ],
+      "response": "函数可以没有返回值。对于不带回值的函数，应当用定义函数为“void类型”（或称“空类型”）。这样，系统就保证不使函数带回任何值，即禁止在调用函数中使用被调用函数的返回值。此时在函数体中不得出现 return 语句。\n\n函数的返回值是通过函数中的 return 语句获得的。return 语句将被调用函数中的一个确定值带回到主调函数中去。如果需要从被调用函数带回一个函数值（供主调函数使用），被调用函数中必须包含 return 语句。如果不需要从被调用函数带回函数值可以不要 return 语句。一个函数中可以有一个以上的 return 语句，执行到哪一个 return 语句，哪一个 return 语句就起作用。return 语句后面的括号可以不要，如“return z;”与“return(z);”等价。return 后面的值可以是一个表达式。\n\n一个函数可以返回一个整型值、字符值、实型值等，也可以返回指针型的数据，即地址。其概念与以前类似，只是返回的值的类型是指针类型而已。"
+    },
+    {
+      "id": "C2-037",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_a2c8f893_text_0003_8965f5dce990",
+        "v1_tb_124ffe327d_ch_344219c2_sec_297de7b4_text_0000_b394f9d9e5ae",
+        "v1_tb_124ffe327d_ch_344219c2_sec_4f1edef0_text_0000_487585f47776",
+        "v1_tb_124ffe327d_ch_344219c2_sec_563732a7_text_0000_ec1797067de7",
+        "v1_tb_124ffe327d_ch_344219c2_sec_b60687c4_text_0000_c4aa62294fe9"
+      ],
+      "response": "局部变量分两种：\n\n**自动变量（动态局部变量）**：属于动态存储类别，分配在动态存储区空间而不在静态存储区空间，函数调用结束后即释放。每次调用函数时重新分配存储单元，所分配的单元中的内容是不可知的。\n\n**静态局部变量**：属于静态存储类别，在静态存储区内分配存储单元，在程序整个运行期间都不释放。函数调用结束后仍然存在，但其他函数不能引用它，因为它是局部变量，只能被本函数引用。"
+    },
+    {
+      "id": "C2-038",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_b60687c4_text_0000_c4aa62294fe9",
+        "v1_tb_124ffe327d_ch_344219c2_sec_297de7b4_text_0001_9b7bce1f9469",
+        "v1_tb_124ffe327d_ch_344219c2_sec_a2c8f893_text_0003_8965f5dce990",
+        "v1_tb_124ffe327d_ch_344219c2_sec_297de7b4_code_0000_a1bffd05a927",
+        "v1_tb_124ffe327d_ch_344219c2_sec_b60687c4_code_0000_2bcadfa7631a"
+      ],
+      "response": "static 局部变量属于静态存储类别，在静态存储区内分配存储单元，在程序整个运行期间都不释放；自动变量（即动态局部变量）属于动态存储类别，分配在动态存储区空间，函数调用结束后即释放。\n\n对静态局部变量是在编译时赋初值的，即只赋初值一次，在程序运行时它已有初值，以后每次调用函数时不再重新赋初值而只是保留上次函数调用结束时的值。对自动变量赋初值不是在编译时进行的，而是在函数调用时进行的，每调用一次函数重新给一次初值。\n\n如果在定义局部变量时不赋初值，静态局部变量在编译时自动赋初值0（对数值型变量）或空字符'\\0'（对字符变量）；自动变量的值是一个不确定的值。\n\n静态局部变量在函数调用结束后仍然存在，但其他函数不能引用它，因为它是局部变量，只能被本函数引用。"
+    },
+    {
+      "id": "C2-039",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_344219c2_sec_4be88a64_text_0000_56cf5b49f528",
+        "v1_tb_124ffe327d_ch_344219c2_sec_4be88a64_text_0001_51d05b455fc1",
+        "v1_tb_124ffe327d_ch_344219c2_sec_4be88a64_text_0002_55d8a92a678c",
+        "v1_tb_124ffe327d_ch_344219c2_sec_d0fdf376_text_0000_28da8c35e564",
+        "v1_tb_124ffe327d_ch_344219c2_sec_022759bc_text_0000_d1e26505c570"
+      ],
+      "response": "函数能自己调用自己。在调用一个函数的过程中又出现直接或间接地调用该函数本身，称为函数的递归调用。C语言允许函数的递归调用。\n\n递归调用必须具有一个结束递归过程的条件，否则就是无终止的自身调用。程序中不应出现这种无终止的递归调用，而只应出现有限次数的、有终止的递归调用，这可以用 if 语句来控制，只有在某一条件成立时才继续执行递归调用，否则就不再继续。例如 age(1)=10，就是使递归结束的条件。"
+    },
+    {
+      "id": "C2-040",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_text_0001_b055b9586485",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_a61dff22_text_0000_2cd4d1f0d89c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_text_0000_8408c6ab74d1",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_text_0000_b18aa4d52ae5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_9513dae8_text_0000_996306e69294"
+      ],
+      "response": "`int *p` 里的 `int` 是指针的基类型，表示 `p` 指向的是整型数据。地址不是纯地址，还包含它指向的数据的类型信息。只有与指针变量的基类型相同的数据的地址，才能存放在相应的指针变量中。例如 `int` 型指针 `p` 只能存放 `int` 型变量 `a` 的地址，不能存放 `float` 型变量 `b` 的地址，否则类型不匹配。\n\n指针不能定义成“通吃”的指针，是因为不同类型数据在内存中分配的存储单元大小和存储方式不同。如果只指定地址，无法确定从几个字节取信息，也无法确定按何种存储方式存取数据。因此，为了有效地存取一个数据，除了位置信息外，还需要该数据的类型信息。\n\n`void *` 指针是一种特殊的指针，不指向任何类型的数据。如果需要用此地址指向某类型的数据，应先对地址进行类型转换。可以在程序中进行显式的类型转换，也可以由编译系统自动进行隐式转换。"
+    },
+    {
+      "id": "C2-041",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4d1cdc61_code_0000_35e506e96070",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_23b34a55_code_0000_54c5ef890797",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_23b34a55_code_0000_51f0038854bf",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_e5038936_code_0000_2f7546950d93",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4d1cdc61_code_0000_8948875d6b2f"
+      ],
+      "response": "p 是指针变量，用来存放地址；*p 表示 p 所指向的存储单元中的内容；&a 表示变量 a 的地址。"
+    },
+    {
+      "id": "C2-042",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_code_0000_781673be47dc",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_5a5e68f3_code_0000_15736e4753cf",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4d1cdc61_code_0000_8e3ef482d683",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_cfc01faf_code_0000_f939e31f8ad7",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_code_0000_5cb66a5febfc"
+      ],
+      "response": "p 是指向 int 型数据的指针变量，p=a 使 p 指向 a 数组的首元素，即 p 与 &a[0] 等价。p+1 指向下一个元素，即 a[1]。\n\n若为 float 型，p+1 仍指向下一个元素，但地址增量按 float 类型所占字节数计算。"
+    },
+    {
+      "id": "C2-043",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b9ffc425_code_0000_b2c60657bbb5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b9ffc425_code_0000_fa72cae1957c",
+        "v1_tb_124ffe327d_ch_9f7e0eef_sec_a2c8f893_text_0001_09563f863592",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b9ffc425_text_0002_f0cf13d747f6",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_4c956186_text_0000_4dbfdcae033d"
+      ],
+      "response": "`*p++` 等价于 `*(p++)`：先引用 p 的值，实现 `*p` 的运算，然后再使 p 自增 1。\n\n`(*p)++` 与它们不同：`++(*p)` 表示 p 所指向的元素值加 1，是元素的值加 1，而不是指针 p 的值加 1。\n\n`*(p++)` 与 `*(++p)` 也不相同：前者先取 `*p` 值，然后使 p 加 1；后者先使 p 加 1，再取 `*p`。"
+    },
+    {
+      "id": "C2-044",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0002_aa76d91e2d9c",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0000_d8ae8623bda4",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_91ccf97a_text_0001_98e3ca0dcdc2",
+        "v1_tb_124ffe327d_ch_344219c2_sec_4d5c6010_text_0000_14a8f88084a1",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_b91e2029_code_0000_4d96cc91c938"
+      ],
+      "response": "效果相同。C 编译都是将形参数组名作为指针变量来处理的，`int a[10]` 相当于 `int *a`。函数被调用时，系统会在函数中建立一个指针变量，用来存放从主调函数传递过来的实参数组首元素的地址。\n\n底层发生的是“值传递”：实参数组名代表该数组首元素的地址，传递的值是地址，形参接收这个地址后指向实参数组首元素。因此形参数组与实参数组共用同一段内存单元，在函数执行期间改变形参数组的值，也就是改变了实参数组的值。\n\n注意：实参数组名代表一个固定的地址，或者说是指针常量；但形参数组名并不是一个固定的地址，而是按指针变量处理，在函数执行期间它可以再被赋值。"
+    },
+    {
+      "id": "C2-045",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_ba632615_text_0000_629e13a33797",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4dd0e144_text_0000_e11bee3d775e",
+        "v1_tb_124ffe327d_ch_717e5842_sec_feff7bdf_text_0000_391567967ee5",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_4dd0e144_text_0001_664c851199b3",
+        "v1_tb_124ffe327d_ch_01ef67c6_sec_328a815d_text_0000_0c5e3b010c17"
+      ],
+      "response": "malloc 返回的是 void * 指针，它不指向任何类型的数据，只提供一个纯地址。这种指针不能企图通过它存取数据，在程序中只是过渡性的，只有转换为有指向的地址，才能存取数据。因此要把 void 指针转换成所需的类型，如 `pt=(int*)malloc(100);`，这样 pt 就指向存储区的首字节，可以通过 pt 对该动态存储区进行存取操作。有的编译系统会自动进行类型转换，但有的程序员仍习惯显式强制转换。\n\n使用完动态分配区后，要用 free 函数释放动态分配区。"
+    },
+    {
+      "id": "C2-046",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_dbe0cc16_text_0000_89f107ed7dfc",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_6738f47b_text_0000_7d455d61a179",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_dbe0cc16_code_0000_a6071d05b760",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_0c42bf3c_text_0001_fe48effd903f",
+        "v1_tb_124ffe327d_ch_f7791409_sec_f7791409_text_0000_4b449a87ef07"
+      ],
+      "response": "C 语言允许用户自己建立由不同类型数据组成的组合型的数据结构，它称为结构体。声明一个结构体类型的一般形式为：\n\n```c\nstruct Student\n{\n    int num; // 学号为整型\n    char name[20]; // 姓名为字符串\n    float score; // 成绩为实型\n};\n```\n\n其中 struct 是声明结构体类型时必须使用的关键字，不能省略。经过上面的指定，struct Student 就是一个在本程序中可以使用的合法类型名，它向编译系统声明：这是一个“结构体类型”，它包括 num、name、score 等不同类型的成员。它和系统提供的标准类型具有相似的作用，都可以用来定义变量，只不过 int 等类型是系统已声明的，而结构体类型是由用户根据需要在程序中指定的。"
+    },
+    {
+      "id": "C2-047",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_4c956186_text_0000_4dbfdcae033d",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_a2070476_text_0000_3f9bd6d37fcc",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_a2070476_code_0000_63cf61cd8a37",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_d38f0ab1_text_0000_53d86ed18481",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_2182cb89_code_0002_8d70c3ce4cdf"
+      ],
+      "response": "是一回事。原文指出，如果 p 指向一个结构体变量 stu，以下 3 种用法等价：① stu.成员名（如 stu.num）；② (*p).成员名（如 (*p).num）；③ p->成员名（如 p->num）。因此 stu.score 和 p->score 等价。\n\np.score 不能写。原文说明，为了使用方便和直观，C 语言允许把 (*p).num 用 p->num 代替，“->”称为指向运算符；并强调 (*p) 两侧的括号不可省，因为成员运算符“.”优先于“*”运算符，*p.num 就等价于 *(p.num) 了。"
+    },
+    {
+      "id": "C2-048",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_79f615c0_text_0000_7d961c99bb0a",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_0c42bf3c_code_0001_41c8d03706eb",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_0c42bf3c_code_0001_66e758eb4087",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_a7d62d8c_text_0000_ce9a75d1d68a",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_1f573e75_text_0000_e1804d408788"
+      ],
+      "response": "结构体变量所占内存长度是各成员占的内存长度之和，每个成员分别占有其自己的内存单元。共用体变量所占的内存长度等于最长的成员的长度。例如，上面定义的“共用体”变量 a, b, c 各占 4 个字节（因为一个 float 型变量占 4 个字节），而不是各占 4 + 1 + 4 = 9 个字节。"
+    },
+    {
+      "id": "C2-049",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_65ecf964_sec_d8d74230_text_0001_5aaa5262281b",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_0ada6530_text_0000_956936acdae6",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_d8d74230_text_0000_6fdab51306ad",
+        "v1_tb_124ffe327d_ch_65ecf964_sec_adc47cad_code_0000_0a23305a0d35",
+        "v1_tb_124ffe327d_ch_717e5842_sec_68eba1ae_code_0000_86ab731f1072"
+      ],
+      "response": "有区别。typedef 是在编译阶段处理的，并不是作简单的字符串替换；#define 是在预编译时处理的，只能作简单的字符串替换。\n\n例如 `typedef int Num[10];` 并不是用“Num[10]”去代替“int”，而是采用如同定义变量的方法那样先生成一个类型名，然后用它去定义变量。"
+    },
+    {
+      "id": "C2-050",
+      "retrieved_chunk_ids": [
+        "v1_tb_124ffe327d_ch_717e5842_sec_192cc13f_text_0000_4a6774b2e20c",
+        "v1_tb_124ffe327d_ch_717e5842_sec_dcb5a060_text_0000_56f3bc50ff10",
+        "v1_tb_124ffe327d_ch_717e5842_sec_dcb5a060_text_0001_b78e14803467",
+        "v1_tb_124ffe327d_ch_717e5842_sec_5b34e420_text_0000_e665b184e1cf",
+        "v1_tb_124ffe327d_ch_717e5842_sec_1f573e75_text_0000_730f91a8eb21"
+      ],
+      "response": "会丢失数据。因为向文件写数据时，是先将数据输出到缓冲区，待缓冲区充满后才正式输出给文件。如果当数据未充满缓冲区时程序结束运行，就有可能使缓冲区中的数据丢失。用 fclose 函数关闭文件时，先把缓冲区中的数据输出到磁盘文件，然后才撤销文件信息区。有的编译系统在程序结束前会自动先将缓冲区中的数据写到文件，从而避免了这个问题，但还是应当养成在程序终止之前关闭所有文件的习惯。"
+    }
+  ]
+}
