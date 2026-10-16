@@ -1,13 +1,20 @@
-"""十轮连续对话探针：对已启动的服务跑一轮真机多轮对话，再把 steps 时间线打成人读摘要。
+"""多会话对话探针：按问题集跑若干段真机多轮对话，把每段的落盘记录汇总成可读数据。
 
-比 cache_probe 简单得多——不问「命中涨没涨」，只干两件事：发一轮固定对话、把本 session 的
-落盘记录按时序打出来（LLM 步与工具步穿插），用来肉眼检查观测实体在真实链路上的形状。
-问题集按默认教材（计算机组成原理·Cache 主题）写；换教材时改 QUESTIONS 或调小 --turns。
+问题集在 ``probe_questions.json``（每段一条独立线程，textbook 为教材名子串），换题只改那个文件。
+每轮发完 SSE 后从 ``logs/<日期>/metrics.log`` 切出本会话记录，最后打三张表：逐轮明细、
+会话汇总、跨会话的「第 N 轮命中率」曲线——加上压缩事件与峰值输入，够回答「上下文治理有没有效果」。
+
+想要压缩事件出现在探针里，得把服务用**小窗口**起（触发线 = 窗口 × 50%）：
+
+    DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.api.main
+
+默认 50w 窗口的触发线在 25w，十来轮的探针撞不到它；小窗口只是把同一条代码路径的触发点提前。
 
 用法（服务需已启动）::
 
-    uv run python -m app.trace.scripts.chat_probe                 # 默认 10 轮，每 3 轮一次 deep
-    uv run python -m app.trace.scripts.chat_probe --turns 4 --deep-every 2 --report out.txt
+    uv run python -m app.trace.scripts.chat_probe                  # 全部会话
+    uv run python -m app.trace.scripts.chat_probe --only 1,3 --turns 5
+    uv run python -m app.trace.scripts.chat_probe --timeline --report out.txt
 """
 
 from __future__ import annotations
@@ -15,6 +22,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -23,56 +31,114 @@ from typing import Any
 
 import httpx
 
+from app.core import logger
+
 ROOT = Path(__file__).resolve().parents[3]
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DEFAULT_QUESTIONS = _SCRIPT_DIR / "probe_questions.json"
 _DECODER = json.JSONDecoder()
 
-# 固定对话：围绕一个主题递进（追问→举例→对比→出题→整理成文件），覆盖纯问答、深度检索与写盘确认
-QUESTIONS = [
-    "你好，我想系统复习一下 Cache 这部分的考点",
-    "Cache 和主存之间的三种地址映射方式分别是什么？先给我一个整体对比",
-    "直接映射具体怎么定位主存块？用一个小例子说明",
-    "那 4 路组相联和直接映射比，优势到底在哪？",
-    "组相联里组满了要替换，常用的替换算法有哪些，各自的取舍是什么",
-    "结合上面说的，出 3 道选择题考考我",
-    "第 2 题的选项 C 为什么不对？",
-    "把这几轮关于 Cache 映射与替换的要点整理成一份复习提纲，存成文件",
-    "刚才的提纲里再补一节：写策略（写直达与写回）的区别",
-    "最后帮我用一句话总结今天复习的主线",
-]
+
+# ── 问题集 ───────────────────────────────────────────────
+
+
+def load_conversations(path: Path) -> list[dict[str, Any]]:
+    """读问题集（schema=chat_probe_questions/v1），校验每段会话至少有 1 题。
+
+    问题集里的字段缺一个都跑不起来（教材子串错只会等到 /list 匹配时才报），不如在这里一次说清。
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("schema") != "chat_probe_questions/v1":
+        raise SystemExit(f"{path} 不是 chat_probe_questions/v1（实际 {data.get('schema')!r}）")
+    conversations = data.get("conversations") or []
+    for index, conv in enumerate(conversations, 1):
+        missing = [key for key in ("name", "textbook", "questions") if not conv.get(key)]
+        if missing:
+            raise SystemExit(f"{path} 第 {index} 段会话缺字段：{missing}")
+    if not conversations:
+        raise SystemExit(f"{path} 里没有任何会话")
+    return conversations
+
+
+def select_conversations(conversations: list[dict[str, Any]], only: str | None) -> list[tuple[int, dict[str, Any]]]:
+    """按 ``--only``（1 起的序号或名字子串，逗号分隔）挑会话；缺省全跑。
+
+    Returns:
+        ``(1 起序号, 会话)`` 列表——序号进 session_id，报告里对得上问题集。
+    """
+    numbered = list(enumerate(conversations, 1))
+    if not only:
+        return numbered
+    picked: list[tuple[int, dict[str, Any]]] = []
+    for token in (part.strip() for part in only.split(",")):
+        if not token:
+            continue
+        if token.isdigit():
+            hit = [item for item in numbered if item[0] == int(token)]
+        else:
+            hit = [item for item in numbered if token in item[1]["name"]]
+        if not hit:
+            raise SystemExit(f"--only {token!r} 没匹配到任何会话（可用序号或名字子串）")
+        picked.extend(item for item in hit if item not in picked)
+    return picked
+
+
+# ── 与服务的交互（SSE）────────────────────────────────────
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="多轮连续对话跑一遍，把 steps 时间线打成人读摘要")
+    parser = argparse.ArgumentParser(description="按问题集跑多轮对话，汇总缓存命中与上下文治理读数")
     parser.add_argument("--url", default="http://127.0.0.1:8000/study/chat")
     parser.add_argument("--base", default="http://127.0.0.1:8000", help="用于 /list 解析教材全名")
     parser.add_argument("--user", default="chatprobe", help="X-User-Id（隔离用）")
-    parser.add_argument("--textbook", default="计算机组成原理", help="教材名子串（从 /list 匹配全名）")
-    parser.add_argument("--turns", type=int, default=10, help="跑前 N 轮（问题集见 QUESTIONS）")
+    parser.add_argument("--questions", type=Path, default=_DEFAULT_QUESTIONS, help="问题集 JSON 路径")
+    parser.add_argument("--only", default=None, help="只跑这几段：序号或名字子串，逗号分隔（如 1,3 或 图）")
+    parser.add_argument("--turns", type=int, default=0, help="每段只跑前 N 轮；0 表示跑满")
     parser.add_argument("--deep-every", type=int, default=3, help="每 N 轮走一次深度检索；0 表示全不 deep")
-    parser.add_argument("--session", default=None, help="复用已有会话 ID；缺省新建")
     parser.add_argument("--sleep", type=float, default=1.0, help="轮间隔秒数")
     parser.add_argument("--timeout", type=float, default=300.0, help="单轮 SSE 读流超时秒数")
     parser.add_argument("--logs-dir", type=Path, default=ROOT / "logs")
-    parser.add_argument("--report", type=Path, default=None, help="把摘要另存一份到该文件（UTF-8）")
-    args = parser.parse_args(argv)
-    args.turns = max(1, min(args.turns, len(QUESTIONS)))
-    return args
+    parser.add_argument("--timeline", action="store_true", help="额外打印每轮的 steps 时间线（很长）")
+    parser.add_argument("--report", type=Path, default=None, help="把报告另存一份到该文件（UTF-8）")
+    return parser.parse_args(argv)
+
+
+def build_client(timeout: float) -> httpx.AsyncClient:
+    """探针用的 HTTP 客户端：**不走代理**。
+
+    httpx 默认 ``trust_env=True``，在 Windows 上会读注册表里的系统代理（不是环境变量），
+    于是发往 127.0.0.1 的请求被代理截走、返回 502（真机踩过：curl 200、httpx 502，同一台服务）。
+    探针只跟本机服务说话，关掉代理信任；若哪天要探远端服务再另加参数。
+    """
+    return httpx.AsyncClient(timeout=timeout, trust_env=False)
 
 
 async def _resolve_textbook(client: httpx.AsyncClient, base: str, match: str) -> str:
-    """从 /list 里按子串找教材全名（教材名带出版社/来源后缀，手敲不现实）。"""
-    resp = await client.get(f"{base}/list", params={"page": 1, "page_size": 100})
+    """从 /list 里按子串找教材全名（教材名带出版社/来源后缀，手敲不现实）。
+
+    匹配不到抛 ``LookupError``（由调用方决定跳过还是退出）：一轮探针跑二十来分钟，
+    一段会话的教材名写错不该把其余几段的报告也带走；子串撞上多本时取 /list 的第一本并告警。
+    """
+    # 服务刚起时 Milvus 连接还没就绪，/list 会 502（真机踩过：启动日志里 Milvus 连接比
+    # "Application startup complete" 晚 1 秒）：5xx 重试几次再放弃，别让一次抢跑废掉整轮
+    for _ in range(3):
+        resp = await client.get(f"{base}/list", params={"page": 1, "page_size": 100})
+        if resp.status_code < 500:
+            break
+        await asyncio.sleep(2)
     resp.raise_for_status()
     items = resp.json().get("items", [])
-    hit = next((item["textbook_name"] for item in items if match in item["textbook_name"]), None)
-    if hit is None:
+    hits = [item["textbook_name"] for item in items if match in item["textbook_name"]]
+    if not hits:
         names = "\n".join(f"  - {item['textbook_name']}" for item in items)
-        raise SystemExit(f"教材库里没有匹配 {match!r} 的教材，现有：\n{names}")
-    return hit
+        raise LookupError(f"教材库里没有匹配 {match!r} 的教材，现有：\n{names}")
+    if len(hits) > 1:
+        logger.warning(f"教材子串 {match!r} 匹配到 {len(hits)} 本，取第一本：{hits[0]}（其余：{hits[1:]}）")
+    return hits[0]
 
 
 async def _send_turn(client: httpx.AsyncClient, args: argparse.Namespace, payload: dict[str, Any]) -> dict[str, Any]:
-    """发一轮并读完 SSE：只收摘要里要用的字段（状态、request_id、工具数、首字延迟、澄清问题）。"""
+    """发一轮并读完 SSE：只收下面要用到的字段（状态、request_id、工具数、首字延迟、澄清问题）。"""
     out: dict[str, Any] = {"status": "no_done", "request_id": None, "tools": 0, "first_token_ms": None,
                            "answer_chars": 0, "questions": [], "error": None}
     t0 = time.perf_counter()
@@ -112,12 +178,12 @@ async def _ask_with_resume(client: httpx.AsyncClient, args: argparse.Namespace, 
     out = await _send_turn(client, args, payload)
     for _ in range(2):  # 同一轮的续跑最多两跳（确认为一跳，澄清+确认两跳封顶）
         if out["status"] == "ask_confirm":
-            print("        ↳ 撞上写盘确认，自动放行续跑")
+            print("        -> 撞上写盘确认，自动放行续跑")
             out = await _send_turn(client, args, {"textbook_name": payload["textbook_name"],
                                                   "query": "", "session_id": payload["session_id"],
                                                   "decision": "approve"})
         elif out["status"] == "ask_clarify":
-            print(f"        ↳ 撞上澄清反问（{len(out['questions'])} 问），按首个建议选项作答")
+            print(f"        -> 撞上澄清反问（{len(out['questions'])} 问），按首个建议选项作答")
             answers = []
             for q in out["questions"]:
                 options = q.get("options") or []
@@ -130,7 +196,10 @@ async def _ask_with_resume(client: httpx.AsyncClient, args: argparse.Namespace, 
     return out
 
 
-def _read_records(logs_dir: Path) -> list[dict[str, Any]]:
+# ── 记录读取与统计 ────────────────────────────────────────
+
+
+def read_records(logs_dir: Path) -> list[dict[str, Any]]:
     """读回全部落盘记录：``logs/<日期>/metrics.log`` 与历史 ``logs/metrics.log``（缩进 JSON 块拼接，只能流式解）。"""
     records: list[dict[str, Any]] = []
     for path in [logs_dir / "metrics.log", *sorted(logs_dir.glob("*/metrics.log"))]:
@@ -147,6 +216,87 @@ def _read_records(logs_dir: Path) -> list[dict[str, Any]]:
             obj, index = _DECODER.raw_decode(text, index)
             records.append(obj)
     return records
+
+
+def session_records(records: list[dict[str, Any]], session_id: str, cutoff: str) -> list[dict[str, Any]]:
+    """切出某会话本轮的记录（会话 + 开跑时刻双条件），按时序返回。
+
+    不按 request_id 对：被写盘确认拦下的请求不发 done 事件（拿不到 id），而那正是要看的那条。
+    """
+    picked = [r for r in records if r.get("session_id") == session_id and str(r.get("ts", "")) >= cutoff]
+    picked.sort(key=lambda r: str(r.get("ts", "")))
+    return picked
+
+
+def _tokens(record: dict[str, Any]) -> tuple[int, int, int]:
+    """一条记录的（输入, 命中, 输出）token。"""
+    return record.get("prompt_tokens", 0), record.get("cached_tokens", 0), record.get("completion_tokens", 0)
+
+
+def _ratio(cached: int, prompt: int) -> float | None:
+    return cached / prompt if prompt else None
+
+
+def session_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """一段会话的汇总量：轮数、token、命中率（整体/首轮/稳态）、峰值输入、成本、压缩事件。
+
+    「轮」只数带问题的记录；写盘确认等续跑（query 为空）单独计，但 token 与成本**照算**——
+    钱是实打实花掉的，只把轮数口径分开。
+    """
+    question_records = [r for r in records if r.get("query")]
+    totals = {"prompt": 0, "cached": 0, "out": 0, "cost": 0.0}
+    peak = 0
+    for record in records:
+        prompt, cached, out = _tokens(record)
+        totals["prompt"] += prompt
+        totals["cached"] += cached
+        totals["out"] += out
+        totals["cost"] += record.get("turn_cost", 0.0)
+        peak = max(peak, prompt)
+    first = question_records[0] if question_records else {}
+    steady = question_records[1:]
+    first_prompt, first_cached, _ = _tokens(first) if first else (0, 0, 0)
+    steady_prompt = sum(_tokens(r)[0] for r in steady)
+    steady_cached = sum(_tokens(r)[1] for r in steady)
+    compactions = [r["compacted"] for r in records if r.get("compacted")]
+    return {
+        "turns": len(question_records),
+        "resumes": len(records) - len(question_records),
+        "records": records,
+        "total_prompt": totals["prompt"],
+        "total_cached": totals["cached"],
+        "total_out": totals["out"],
+        "cost": totals["cost"],
+        "hit": _ratio(totals["cached"], totals["prompt"]),
+        "first_hit": _ratio(first_cached, first_prompt),
+        "steady_hit": _ratio(steady_cached, steady_prompt),
+        "peak_prompt": peak,
+        "compactions": compactions,
+    }
+
+
+def turn_hit_curve(stats_by_index: dict[int, dict[str, Any]]) -> list[tuple[int, float, int]]:
+    """跨会话的「第 N 轮命中率」曲线：(轮位, 平均命中率, 参与会话数)。
+
+    按轮位而不是按时间对齐：第 1 轮永远没有跨轮缓存，第 2 轮起才是治理效果说话的地方。
+    """
+    curve: list[tuple[int, float, int]] = []
+    turns = {index: [r for r in stat["records"] if r.get("query")] for index, stat in stats_by_index.items()}
+    for position in range(1, max((len(v) for v in turns.values()), default=0) + 1):
+        ratios = []
+        for records in turns.values():
+            if len(records) < position:
+                continue
+            prompt, cached, _ = _tokens(records[position - 1])
+            ratio = _ratio(cached, prompt)
+            if ratio is not None:
+                ratios.append(ratio)
+        if ratios:
+            curve.append((position, sum(ratios) / len(ratios), len(ratios)))
+    return curve
+
+
+# ── 报告 ────────────────────────────────────────────────
 
 
 def _steps_lines(record: dict[str, Any]) -> list[str]:
@@ -184,81 +334,158 @@ def _steps_lines(record: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _print_report(records: list[dict[str, Any]], session_id: str) -> str:
-    """打两份视图：先一张跨轮总表，再逐轮的 steps 时间线全文。返回全文（供 --report 落文件）。"""
-    out: list[str] = []
-    out.append(f"=== 会话 {session_id} · {len(records)} 条记录 · 落盘于 logs/<日期>/metrics.log ===")
-    out.append("")
-    header = f"{'轮':>2}  {'LLM':>3} {'工具':>4} {'输入':>8} {'命中':>8} {'输出':>7} {'命中率':>6} {'成本':>8} {'总耗时':>7}  问题"
-    out.append(header)
-    totals = {"in": 0, "cached": 0, "out": 0, "cost": 0.0, "ms": 0.0}
+def _pct(value: float | None) -> str:
+    return f"{value:.0%}" if value is not None else "-"
+
+
+def _turn_rows(records: list[dict[str, Any]]) -> list[str]:
+    """逐轮明细表（含续跑记录，query 为空的那种标出来免得读成新问题）。"""
+    rows = []
     for i, record in enumerate(records, 1):
-        in_tok = record.get("prompt_tokens", 0)
-        cached = record.get("cached_tokens", 0)
-        out_tok = record.get("completion_tokens", 0)
+        prompt, cached, out = _tokens(record)
         llm_steps = [s for s in record.get("steps") or [] if s.get("kind") == "llm"]
         tool_steps = [s for s in record.get("steps") or [] if s.get("kind") == "tool"]
         total_ms = (record.get("stage_ms") or {}).get("total_ms") or 0.0
-        ratio = f"{cached / in_tok:.0%}" if in_tok else "-"
-        # 空 query 的记录是写盘确认/澄清的续跑请求（与上一轮同一线程），标出来免得读成新问题
-        query = (record.get("query") or "（续跑·无新问题）")[:34]
+        query = (record.get("query") or "（续跑·无新问题）")[:30]
         error = f"  [error={record['error_type']}]" if record.get("error_type") else ""
-        cost = record.get("turn_cost", 0)
-        out.append(
-            f"{i:>2}  {len(llm_steps):>3} {len(tool_steps):>4} {in_tok:>8} {cached:>8} {out_tok:>7} "
-            f"{ratio:>6} {cost:>8.0f} {total_ms:>6.0f}ms  {query}{error}"
+        compact = ""
+        if record.get("compacted"):
+            info = record["compacted"]
+            compact = f"  [压缩] {info.get('dropped_msgs')}条/{info.get('dropped_tokens')}tok({info.get('trigger_source')})"
+        rows.append(
+            f"{i:>3}  {len(llm_steps):>3} {len(tool_steps):>4} {prompt:>8} {cached:>8} {out:>7} "
+            f"{_pct(_ratio(cached, prompt)):>7} {record.get('turn_cost', 0):>8.0f} {total_ms:>7.0f}ms  {query}{error}{compact}"
         )
-        totals["in"] += in_tok
-        totals["cached"] += cached
-        totals["out"] += out_tok
-        totals["cost"] += record.get("turn_cost", 0.0)
-        totals["ms"] += total_ms
-    ratio = f"{totals['cached'] / totals['in']:.0%}" if totals["in"] else "-"
-    out.append(
-        f"{'合计':>2}      {'':>4} {totals['in']:>8} {totals['cached']:>8} {totals['out']:>7} "
-        f"{ratio:>6} {totals['cost']:>8.0f} {totals['ms']:>6.0f}ms"
-    )
-    out.append("")
-    for i, record in enumerate(records, 1):
-        out.append(f"[轮 {i}] {record.get('query')}")
-        out.extend(_steps_lines(record) or ["  （无 steps —— 观测没挂上？）"])
+    return rows
+
+
+def build_report(named_stats: list[tuple[int, str, dict[str, Any]]], timeline: bool, total: int | None = None) -> str:
+    """三张表 + 压缩事件 + 命中率曲线。
+
+    Args:
+        named_stats: ``(序号, 名字, session_stats)`` 列表，按执行顺序。
+        timeline: 是否附上每轮的 steps 时间线（很长，默认不打）。
+        total: 本轮计划的会话数；比实际完成的多时在报告开头点明缺了几段。
+    """
+    if not named_stats:
+        return "没有可汇总的会话：全部被跳过或没跑成（控制台里有各段的 [!] 原因）。"
+    out: list[str] = []
+    out.append("=" * 100)
+    if total is not None and len(named_stats) < total:
+        out.append(f"[!] 计划 {total} 段会话，实际完成 {len(named_stats)} 段（缺的段见控制台 [!] 行）")
+    header = f"{'轮':>3}  {'LLM':>3} {'工具':>4} {'输入':>8} {'命中':>8} {'输出':>7} {'命中率':>7} {'成本':>8} {'总耗时':>8}  问题"
+    for index, name, stat in named_stats:
         out.append("")
+        out.append(f"── 会话 {index:>2} · {name} ──")
+        out.append(header)
+        out.extend(_turn_rows(stat["records"]))
+
+    out.append("")
+    out.append("=" * 100)
+    out.append("会话汇总（命中率 = 命中 token / 输入 token；稳态 = 第 2 轮起）")
+    out.append(f"{'会话':>4}  {'轮':>3} {'续跑':>4} {'输入':>9} {'命中':>9} {'整体':>7} "
+               f"{'首轮':>7} {'稳态':>7} {'峰值输入':>9} {'成本':>9}  名字")
+    grand = {"prompt": 0, "cached": 0, "cost": 0.0}
+    for index, name, stat in named_stats:
+        grand["prompt"] += stat["total_prompt"]
+        grand["cached"] += stat["total_cached"]
+        grand["cost"] += stat["cost"]
+        out.append(
+            f"{index:>4}  {stat['turns']:>3} {stat['resumes']:>4} {stat['total_prompt']:>9} {stat['total_cached']:>9} "
+            f"{_pct(stat['hit']):>10} {_pct(stat['first_hit']):>7} {_pct(stat['steady_hit']):>7} "
+            f"{stat['peak_prompt']:>9} {stat['cost']:>9.0f}  {name}"
+        )
+    out.append(
+        f"{'合计':>4}  {'':>3} {'':>4} {grand['prompt']:>9} {grand['cached']:>9} "
+        f"{_pct(_ratio(grand['cached'], grand['prompt'])):>10} {'':>7} {'':>7} {'':>9} {grand['cost']:>9.0f}"
+    )
+
+    stats_by_index = {index: stat for index, _, stat in named_stats}
+    curve = turn_hit_curve(stats_by_index)
+    if curve:
+        out.append("")
+        out.append("跨会话命中率曲线（按轮位平均；第 1 轮没有跨轮缓存，从第 2 轮起才看得到治理效果）")
+        bars = " ".join(f"{position}:{ratio:.0%}" for position, ratio, _ in curve)
+        out.append("  " + bars)
+        out.append("  轮位 → 命中率（括号内为参与平均的会话数）：")
+        for position, ratio, n in curve:
+            out.append(f"  {position:>3}  {'█' * int(ratio * 40):<40} {ratio:>5.0%}  ({n})")
+
+    compactions = [(index, name, info) for index, name, stat in named_stats for info in stat["compactions"]]
+    out.append("")
+    if compactions:
+        out.append(f"会话压缩事件（{len(compactions)} 次）：触发即一次跨轮前缀作废 + 一次摘要调用，故要看出现在哪几轮")
+        for index, name, info in compactions:
+            out.append(
+                f"  会话 {index} {name}：触发读数 {info.get('trigger_tokens')}（{info.get('trigger_source')}）"
+                f" → 压掉 {info.get('dropped_msgs')} 条 / ≈{info.get('dropped_tokens')} token，保留 {info.get('kept_msgs')} 条"
+            )
+    else:
+        out.append(
+            "本轮没有触发会话压缩。触发线 = 模型窗口 × 50%（服务端启动时的 MODEL/DEEPSEEK_CONTEXT_WINDOW），"
+            "默认 50w 窗口 → 25w 触发，十来轮的会话够不着；要看压缩，用小窗口起服务："
+            "DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.api.main"
+        )
+
+    if timeline:
+        out.append("")
+        out.append("=" * 100)
+        out.append("逐轮 steps 时间线")
+        for index, name, stat in named_stats:
+            for i, record in enumerate(stat["records"], 1):
+                out.append(f"[会话 {index} {name} · 轮 {i}] {record.get('query') or '（续跑）'}")
+                out.extend(_steps_lines(record) or ["  （无 steps —— 观测没挂上？）"])
+                out.append("")
     return "\n".join(out)
 
 
+# ── 主流程 ──────────────────────────────────────────────
+
+
 async def main() -> None:
+    # 控制台编码兜底：GBK 终端打不出装饰字符（箭头、警告符之类），print 会直接抛
+    # UnicodeEncodeError 把整轮探针打死（真机踩过）。打不出的字符降级成 ?，不中断。
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     args = _parse_args()
-    async with httpx.AsyncClient(timeout=args.timeout) as client:
-        textbook = await _resolve_textbook(client, args.base, args.textbook)
-        session_id = args.session or f"chatprobe-{uuid.uuid4().hex[:8]}"
-        print(f"教材：{textbook}\n会话：{session_id}\n开始跑 {args.turns} 轮（每 {args.deep_every} 轮一次 deep）…\n")
+    conversations = select_conversations(load_conversations(args.questions), args.only)
+    total_turns = sum(min(len(c["questions"]), args.turns or len(c["questions"])) for _, c in conversations)
+    print(f"问题集：{args.questions}\n会话 {len(conversations)} 段 · 共 {total_turns} 轮（每 {args.deep_every} 轮一次 deep）\n")
 
-        cutoff = datetime.now().astimezone().isoformat(timespec="milliseconds")
-        for i, question in enumerate(QUESTIONS[: args.turns], 1):
-            deep = args.deep_every > 0 and i % args.deep_every == 0
-            out = await _ask_with_resume(client, args, {
-                "textbook_name": textbook, "query": question, "deep": deep, "session_id": session_id,
-            })
-            first = f"{out['first_token_ms'] / 1000:.1f}s" if out["first_token_ms"] else "-"
-            print(f"  轮 {i:>2} [{'deep' if deep else 'fast'}] {out['status']:<12} "
-                  f"工具×{out['tools']}  首字 {first}  总 {out['ms'] / 1000:.1f}s  {question[:24]}")
-            if out["status"] == "error":
-                print(f"        ⚠ {out['error']}")
-            await asyncio.sleep(args.sleep)
-
-    # 按会话 + 开跑时刻切出本轮的记录，时序即请求完成序。
-    # 不按 request_id 对：被写盘确认拦下的请求不发 done 事件（拿不到 id），而那正是要看的 resolved=false 那条
-    records = [
-        r for r in _read_records(args.logs_dir)
-        if r.get("session_id") == session_id and str(r.get("ts", "")) >= cutoff
-    ]
-    records.sort(key=lambda r: str(r.get("ts", "")))
-
-    report = _print_report(records, session_id)
-    print("\n" + report)
-    if args.report:
-        args.report.write_text(report, encoding="utf-8")
-        print(f"\n摘要已另存：{args.report}")
+    named_stats: list[tuple[int, str, dict[str, Any]]] = []
+    try:
+        async with build_client(args.timeout) as client:
+            for index, conv in conversations:
+                try:
+                    textbook = await _resolve_textbook(client, args.base, conv["textbook"])
+                except LookupError as exc:
+                    # 一段会话的教材名写错不拖垮整轮：跳过它，剩下的照跑，报告里点明缺了哪段
+                    print(f"   [!] 跳过会话 {index}·{conv['name']}：{exc}\n")
+                    continue
+                session_id = f"chatprobe-{index:02d}-{uuid.uuid4().hex[:6]}"
+                questions = conv["questions"][: args.turns or len(conv["questions"])]
+                print(f"── 会话 {index} · {conv['name']} ──\n   教材：{textbook}\n   会话：{session_id}（{len(questions)} 轮）")
+                cutoff = datetime.now().astimezone().isoformat(timespec="milliseconds")
+                for turn, question in enumerate(questions, 1):
+                    deep = args.deep_every > 0 and turn % args.deep_every == 0
+                    out = await _ask_with_resume(client, args, {
+                        "textbook_name": textbook, "query": question, "deep": deep, "session_id": session_id,
+                    })
+                    first = f"{out['first_token_ms'] / 1000:.1f}s" if out["first_token_ms"] else "-"
+                    print(f"   轮 {turn:>2} [{'deep' if deep else 'fast'}] {out['status']:<12} "
+                          f"工具×{out['tools']}  首字 {first}  总 {out['ms'] / 1000:.1f}s  {question[:22]}")
+                    if out["status"] == "error":
+                        print(f"        [!] {out['error']}")
+                    await asyncio.sleep(args.sleep)
+                named_stats.append((index, conv["name"], session_stats(session_records(read_records(args.logs_dir), session_id, cutoff))))
+                print()
+    finally:
+        # 报告放 finally：跑二十分钟的探针不能因为一段会话出错就一份数据都不留
+        report = build_report(named_stats, args.timeline, total=len(conversations))
+        print(report)
+        if args.report:
+            args.report.write_text(report, encoding="utf-8")
+            print(f"\n报告已另存：{args.report}")
 
 
 if __name__ == "__main__":

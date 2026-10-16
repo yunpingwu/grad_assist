@@ -28,7 +28,7 @@ uv run ruff check .                            # line-length 150，select E/F/W/
   - **ragas 四指标（现行，见 `app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
   - 旧自研指标（待退役）：`app.eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
   - 意图识别：`app.eval.intent.run_eval` / `run_threshold_ablation`。
-  - 日志探针：`app.trace.scripts.chat_probe`（读 `logs/<日期>/metrics.log`）。
+  - 日志探针：`app.trace.scripts.chat_probe`（按 `probe_questions.json` 跑多会话，读 `logs/<日期>/metrics.log` 汇总命中率曲线与压缩事件；想看压缩得用小窗口起服务，见其 docstring）。
 
 ## 架构总览
 
