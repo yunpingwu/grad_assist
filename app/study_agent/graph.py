@@ -6,7 +6,8 @@
 
 动态提示词与前置 query 理解通过 langchain.agents 的 middleware 机制接入：
 - ``@before_agent``：作为入口节点，每轮对话只执行一次，依次做意图识别（失败回退默认行为块，
-  不阻断本轮）、把「本轮指令」落进 state、把往轮检索原文回收成一句占位并写回 state；
+  不阻断本轮）、会话压缩（超窗口半数才压，且只裁模型视图）、把「本轮指令」落进 state、
+  把往轮检索原文回收成一句占位并写回 state；
 - ``@dynamic_prompt``：渲染 system prompt，**只装全局静态壳**（教材名/意图/任务目标一律不进，为的是前缀缓存）。
 
 「本轮指令」（教材名 + 意图行为块 + 意图预判 + 任务目标）在轮首作为 SystemMessage 追加到
@@ -25,7 +26,6 @@ from langchain.agents.middleware import (
     HumanInTheLoopMiddleware,
     ModelCallLimitMiddleware,
     ModelRequest,
-    SummarizationMiddleware,
     ToolCallLimitMiddleware,
     ToolRetryMiddleware,
     before_agent,
@@ -38,6 +38,8 @@ from langgraph.runtime import Runtime
 from app.clients.llm import get_llm_client
 from app.config import budget_config
 from app.core import load_prompt, logger
+from app.study_agent.compaction import HistoryCompactionMiddleware
+from app.study_agent.message_sources import TURN_INSTRUCTION_SOURCE
 from app.study_agent.middleware import SessionBudgetMiddleware
 from app.study_agent.query_functions.intent_detection import detect_intent, format_history
 from app.study_agent.query_functions.tool_history import demote_used_tool_results
@@ -48,8 +50,6 @@ from app.trace import get_metrics
 # 意图 → 行为块文件的映射（白名单，防越界读文件）
 _INTENT_BLOCKS = frozenset({"explain", "generate", "quiz", "plan", "chat"})
 _DEFAULT_INTENT = "explain"
-# 本轮指令消息的来源标记：与摘要消息同款机制，供历史过滤与同轮去重识别
-_TURN_INSTRUCTION_SOURCE = "turn_instruction"
 
 
 @dynamic_prompt
@@ -101,13 +101,13 @@ async def record_turn_instruction(state: StudyState, runtime: Runtime) -> dict:
         last = messages[-1]
         if (
             last.type == "system"
-            and (last.additional_kwargs or {}).get("lc_source") == _TURN_INSTRUCTION_SOURCE
+            and (last.additional_kwargs or {}).get("lc_source") == TURN_INSTRUCTION_SOURCE
             and str(last.content) == content
         ):
             return {}
     return {
         "messages": [
-            SystemMessage(content=content, additional_kwargs={"lc_source": _TURN_INSTRUCTION_SOURCE})
+            SystemMessage(content=content, additional_kwargs={"lc_source": TURN_INSTRUCTION_SOURCE})
         ]
     }
 
@@ -175,6 +175,9 @@ def build_graph(checkpointer=None):
         tools=list(AGENT_TOOLS),  # 工具清单唯一来源（tools/__init__.py），避免两处各自漂移
         middleware=[
             understand_query,  # before_agent：前置 query 理解（意图识别），每轮一次
+            # before_agent：轮首压缩（超窗口半数才压；只裁模型视图，state 原文不删）。
+            # 必须排在 record_turn_instruction 之前：压完再追加本轮指令，指令永远不会被折进回顾
+            HistoryCompactionMiddleware(),
             record_turn_instruction,  # before_agent：本轮指令落 state 一次（须在意图之后）
             demote_used_tool_results,  # before_agent：往轮检索原文回收成一句占位，写回 state
             study_system_prompt,  # dynamic_prompt：只渲染全局静态壳（本轮变量不进壳）
@@ -184,14 +187,6 @@ def build_graph(checkpointer=None):
             ToolCallLimitMiddleware(tool_name="search_web", run_limit=2),
             # 护栏：工具抛异常 → 先原地重试一次，耗尽后回官方说明文本（模型据此改参数或收尾）
             ToolRetryMiddleware(max_retries=1, on_failure="continue"),
-            SummarizationMiddleware(
-                # 打标只给摘要这次调用：create_agent 的 model 参数只收 BaseChatModel，
-                # 所以 agent 主体调用保持未打标——观测侧把无 trace_role 的调用一律当 agent
-                model=get_llm_client().with_config(tags=["trace_role:summary"]),
-                # 护栏：6.4w 摘要
-                trigger=("tokens", 64000),
-                keep=("messages", 3),        # 触发后保留最近 3 条消息不摘要
-            ),
             HumanInTheLoopMiddleware(
                 interrupt_on={"write_file": True, "edit_file": True, "append_file": True}
             ),  # 护栏：所有写盘动作写前人工确认

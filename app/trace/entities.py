@@ -197,6 +197,8 @@ class RequestMetrics:
     # budget_exhausted 由护栏中间件在越线时写入；turn_cost 在 flush 时统一折算，供离线重标定 BUDGET_LIMIT
     turn_cost: float = 0.0
     budget_exhausted: bool = False
+    # 会话压缩（compaction.HistoryCompactionMiddleware）：本轮触发时写入读数，没触发为 None
+    compacted: dict[str, Any] | None = None
     # 输出侧留痕：答案疑似复述系统提示词/漏出配置形态（由 study_service 在 flush 前置位）
     output_leak_suspected: bool = False
 
@@ -235,6 +237,7 @@ class RequestMetrics:
             "completion_tokens": self.completion_tokens,
             "turn_cost": round(self.turn_cost, 1),
             "budget_exhausted": self.budget_exhausted,
+            "compacted": self.compacted,
             "output_leak_suspected": self.output_leak_suspected,
             "steps": [step.to_record() for step in self.steps],
             "error_type": self.error_type,

@@ -8,39 +8,43 @@ from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.study_agent import graph
+from app.study_agent.compaction import HistoryCompactionMiddleware
 from app.study_agent.entity.intent import IntentResult
 from app.trace import RequestMetrics
 
 
-def test_summarization_trigger_above_online_p90(monkeypatch) -> None:
-    """摘要触发阈值钉在 6.4w：线上 p90 单轮 4.8w，不该撞上它。
-
-    摘要一触发就把历史换成「摘要+最近 5 条」的新形态，跨轮前缀当场作废（2026-10-06
-    探针实见 t2 命中塌回 3072），还要多付一次 7w token 量级的摘要调用。
-    trim 预算不在这里断言：窗口 1M 装得下触发时的全量消息，中间件默认的 4000 裁剪
-    对本图不构成约束（曾按「必须放宽 trim」立断言，2026-10-07 复核为不需要，作废）。
-    """
+def _middleware_chain(monkeypatch) -> list:
+    """从 build_graph 抓生产装配的中间件链（只桩 create_agent）。"""
     captured: dict = {}
     monkeypatch.setattr(graph, "create_agent", lambda **kw: captured.update(kw) or "stub_graph")
     assert graph.build_graph() == "stub_graph"
-    mw = next(m for m in captured["middleware"] if isinstance(m, SummarizationMiddleware))
-    assert mw.trigger == ("tokens", 64000), (
-        "阈值提到 6.4w：摘要一触发就把历史换成「摘要+最近 5 条」的新形态，跨轮前缀当场作废"
-        "（2026-10-06 探针实见 t2 命中塌回 3072），线上 p90 单轮 4.8w 不该撞上它"
+    return captured["middleware"]
+
+
+def test_compaction_replaces_summarization_middleware(monkeypatch) -> None:
+    """压缩用自研件而非官方 SummarizationMiddleware，且必须排在「本轮指令」之前。
+
+    官方件挂在 ``before_model``（每次模型调用都判）且用 RemoveMessage 整段替换 state：
+    触发可能落在一轮中间，本轮指令会被折进回顾；回显读的就是 state，用户刷新后对话直接塌掉。
+    自研件挂 ``before_agent``：压完才追加本轮指令（顺序反了就会互相吃），且只裁模型视图。
+    """
+    chain = _middleware_chain(monkeypatch)
+
+    assert not any(isinstance(m, SummarizationMiddleware) for m in chain), "自研压缩上线后不该再装官方摘要中间件"
+    compaction = next(m for m in chain if isinstance(m, HistoryCompactionMiddleware))
+    assert chain.index(compaction) < chain.index(graph.record_turn_instruction), (
+        "压缩必须在「本轮指令」之前：反了的话本轮指令会落进被压区域，模型当轮就看不到教材名与行为块"
+    )
+    assert chain.index(compaction) > chain.index(graph.understand_query), (
+        "压缩排在意图识别之后：意图兜底层读的是用户问题史，压缩只会让它少看到线索"
     )
 
 
-def test_summarization_call_is_tagged_for_trace(monkeypatch) -> None:
-    """摘要那次 LLM 调用要带 ``trace_role:summary``，与 agent 首轮区分开。
-
-    摘要一触发就是 7w token 量级的调用（2026-10-06 实见），不带标签时它在观测里与
-    agent 调用混在一起，前后对比会把摘要的账记到提示词重排上。
-    """
-    captured: dict = {}
-    monkeypatch.setattr(graph, "create_agent", lambda **kw: captured.update(kw) or "stub_graph")
-    graph.build_graph()
-    mw = next(m for m in captured["middleware"] if isinstance(m, SummarizationMiddleware))
-    assert "trace_role:summary" in mw.model.config["tags"]
+def test_no_turn_tool_budget_guard(monkeypatch) -> None:
+    """轮内工具结果不设体积闸门：大任务（整章整理、多教材交叉）需要成批取材料，
+    硬闸门会把它拦在半路——窗口放大后轮内膨胀本就装得下（见 compaction.py 的触发线）。"""
+    chain = _middleware_chain(monkeypatch)
+    assert not any("TurnToolBudget" in type(m).__name__ for m in chain), "轮内体积闸门已被要求移除"
 
 
 def _render_system_prompt(state: dict) -> str:

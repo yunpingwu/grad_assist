@@ -36,6 +36,10 @@ class LLMSettings(BaseSettings):
     provider: Literal["alibaba", "deepseek"] = Field(default="alibaba", validation_alias="LLM_PROVIDER")
     model: str = Field(default="deepseek-v4-flash", validation_alias="MODEL")
     visual_model: str = Field(default="", validation_alias="VISUAL_MODEL")
+    # 模型输入窗口（token）：会话压缩的触发线（窗口 × 50%）按它算
+    # （见 study_agent/compaction.py，取值入口 current_context_window）。
+    # 按所用模型的真实窗口填——填小了过早压缩、填大了窗口溢出前不压缩，都不报错，只是行为悄悄变。
+    context_window: int = Field(default=500_000, validation_alias="MODEL_CONTEXT_WINDOW")
     base_url: str = Field(
         default="https://dashscope.aliyuncs.com/compatible-mode/v1",
         validation_alias="ALIBABA_BASE_URL",
@@ -62,6 +66,8 @@ class DeepSeekSettings(BaseSettings):
     enable_thinking: bool = Field(default=False, validation_alias="DEEPSEEK_ENABLE_THINKING")
     # 思考强度（官方取值 low/high/max，默认 high；关闭思考走 enable_thinking）
     reasoning_effort: Literal["low", "high", "max"] = Field(default="high", validation_alias="DEEPSEEK_REASONING_EFFORT")
+    # 模型输入窗口（token）：两家平台的窗口各配各的（含义见 LLMSettings.context_window）
+    context_window: int = Field(default=500_000, validation_alias="DEEPSEEK_CONTEXT_WINDOW")
 
 
 class EmbeddingSettings(BaseSettings):

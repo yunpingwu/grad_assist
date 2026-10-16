@@ -62,3 +62,8 @@ class StudyState(TypedDict):
     cost_fold_req: NotRequired[Annotated[str, PrivateStateAttr]]
     # 已触发成本降级（禁 deep / 停追问 / 收尾说明），会话内持续生效
     budget_exhausted: NotRequired[bool]
+
+    # —— 会话压缩（视图层，见 study_agent/compaction.py）——
+    # 水位线：该 id（含）之前的消息已被一份回顾取代，不再进模型视图。**state 原文一条不删**，
+    # 回显/审计照旧读得到；只裁发给模型的请求视图（与往轮检索回收同一条设计线）
+    compacted_upto: NotRequired[Annotated[str, PrivateStateAttr]]
