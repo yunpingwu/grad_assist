@@ -28,6 +28,7 @@ from langchain_core.prompts import PromptTemplate
 from app.clients.llm import bind_structured_output, get_llm_client
 from app.core import load_prompt, logger
 from app.study_agent.entity.intent import IntentResult, _IntentDecision
+from app.study_agent.message_sources import is_summary_message
 from app.trace import astage
 from app.utils import agenerate_embeddings
 
@@ -164,8 +165,8 @@ def _pool_scores(query_vec: list[float], pools: list[list[list[float]]]) -> list
 def format_history(messages: list[AnyMessage]) -> str:
     """将 LangChain 消息列表转为历史用户问题纯文本（供兜底层消歧）。
 
-    摘要中间件注入的 ``HumanMessage``（``additional_kwargs["lc_source"] == "summarization"``）
-    会被排除：它是模型自产的整篇回顾，不是用户问题，喂进来只会把兜底层的 input 撑大。
+    会话压缩注入的整篇回顾（``is_summary_message``）会被排除：它是模型自产的回顾，
+    不是用户问题，喂进来只会把兜底层的 input 撑大。
 
     Args:
         messages: 对话消息列表（取除最新一条外的历史用户问题）。
@@ -173,7 +174,7 @@ def format_history(messages: list[AnyMessage]) -> str:
     Returns:
         纯文本的历史用户问题，每行「用户: …」；无历史返回空字符串。
     """
-    questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human" and m.additional_kwargs.get("lc_source") != "summarization"]
+    questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human" and not is_summary_message(m)]
     return "\n".join(questions)
 
 

@@ -24,6 +24,7 @@ from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
 from app.study_agent.graph import build_graph
+from app.study_agent.message_sources import is_summary_message
 from app.study_agent.safety import detect_prompt_leak, strip_boundary
 from app.study_agent.state import StudyState
 from app.study_agent.tools.clarify import CANCEL_MARKER
@@ -371,7 +372,8 @@ async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_
         values = snapshot.values or {}
         if values.get("textbook_name") != textbook_name:
             continue
-        messages = values.get("messages", [])
+        # 会话压缩注入的整篇回顾不是用户说的话：连同工具消息/中间轮次一起挡在计数与「最后问题」之外
+        messages = [m for m in values.get("messages", []) if not is_summary_message(m)]
         # 会话条目数只统计可回显的消息（用户 + 最终回答），过滤工具消息/中间轮次
         chat_count = sum(
             1
@@ -397,10 +399,16 @@ def build_history(messages: list) -> list[dict]:
 
     工具一步优先取 ``artifact["content"]``：往轮的检索原文在轮首被回收成一句占位写回 state
     （那条只给模型看），原文随消息进 checkpoint 但不进请求，回显靠它保住原文。
+
+    会话压缩注入的整篇回顾（``is_summary_message``）直接跳过：它是 HumanMessage，
+    不挡的话会以「用户」身份出现在前端气泡里（压缩一触发，回显就多一条用户没说过的长消息）。
+    被压掉的历史仍在这里回显——压缩只裁模型视图，不删 state（见 study_agent/compaction.py）。
     """
     items: list[dict] = []
     pending_steps: list[dict] = []
     for m in messages:
+        if is_summary_message(m):
+            continue
         if m.type == "human":
             items.append({"role": "user", "content": str(m.content)})
         elif m.type == "ai":

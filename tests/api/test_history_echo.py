@@ -4,6 +4,9 @@
 回显若直接读 ``content``，用户刷新后看到的就是那句回收占位——故 ``/history`` 优先取 artifact。
 """
 
+import asyncio
+from types import SimpleNamespace
+
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.api import study_service as svc
@@ -56,3 +59,54 @@ def test_history_falls_back_to_content_without_artifact() -> None:
     items = svc.build_history(messages)
 
     assert items[-1]["steps"][-1]["content"] == "第1章 概述\n第3章 指针"
+
+
+def _summary_recap() -> HumanMessage:
+    """会话压缩注入的整篇回顾（打标成 HumanMessage + lc_source=summarization）。"""
+    return HumanMessage(
+        content="## 会话目标\n复习 Cache 的三种映射方式",
+        additional_kwargs={"lc_source": "summarization"},
+    )
+
+
+def test_history_hides_summarization_recap() -> None:
+    """压缩注入的回顾不进回显：它是 HumanMessage，不挡就会冒充成用户说过的话。
+
+    回显侧唯一挡它的地方就是这里的 lc_source 判据；被压掉的历史照旧回显（压缩只裁模型视图）。
+    """
+    items = svc.build_history([_summary_recap(), HumanMessage(content="再讲讲组相联"), AIMessage(content="组相联…")])
+
+    assert [i["role"] for i in items] == ["user", "assistant"], "摘要那条被当成用户消息展示出来了"
+    assert items[0]["content"] == "再讲讲组相联"
+
+
+def test_sessions_skip_summarization_recap(monkeypatch) -> None:
+    """会话列表的计数与「最后问题」同样排除摘要回顾：否则计数虚高、列表摘要串味。"""
+
+    class _Collection:
+        def distinct(self, _field: str) -> list[str]:
+            return ["u1:s1"]
+
+    class _Mongo:
+        def get_collection(self, _name: str) -> _Collection:
+            return _Collection()
+
+    class _Graph:
+        async def aget_state(self, _config: dict) -> SimpleNamespace:
+            messages = [
+                _summary_recap(),
+                HumanMessage(content="第一问"),
+                AIMessage(content="答一"),
+                HumanMessage(content="第二问"),
+                AIMessage(content="答二"),
+            ]
+            return SimpleNamespace(values={"textbook_name": "T", "messages": messages}, created_at="2026-10-16T00:00:00")
+
+    # 会话列表只读 checkpoint 与 Mongo 的 thread 名单，两处都换成假件（不起服务、不连库）
+    monkeypatch.setattr(svc, "mongo_client", _Mongo())
+    monkeypatch.setattr(svc, "study_graph", _Graph())
+
+    items = asyncio.run(svc.sessions(textbook_name="T", user_id="u1"))
+
+    assert items[0]["message_count"] == 4, "摘要那条被算进条目数了"
+    assert items[0]["last_question"] == "第二问"
