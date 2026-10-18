@@ -30,8 +30,8 @@ from pathlib import Path
 from typing import Any
 
 from app.eval.intent.metrics import evaluate, is_correct
+from app.ml import agenerate_embeddings
 from app.study_agent.query_functions.intent_detection import detect_intent
-from app.utils import agenerate_embeddings
 
 _ROOT = Path(__file__).resolve().parents[3]
 

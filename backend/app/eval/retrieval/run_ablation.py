@@ -37,8 +37,8 @@ from app.core import logger
 from app.eval.retrieval.channels import run_deep, run_dense, run_hybrid, run_hyde_rrf, run_sparse
 from app.eval.retrieval.dataset import gold_chunk_ids, load_dataset
 from app.eval.retrieval.metrics import compute_metrics
-from app.utils.batch_manager.embedder import agenerate_embeddings
-from app.utils.reranker_util import compute_rerank_scores
+from app.ml.batch_manager.embedder import agenerate_embeddings
+from app.ml.reranker_util import compute_rerank_scores
 
 # ===== 评测集路径常量：改这里即可切换默认评测的套集 =====
 # 也可运行时传第一个位置参数（如 python -m app.eval.retrieval.run_ablation "data/eval/xxx/qa_set.json"）

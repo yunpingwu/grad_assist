@@ -2,7 +2,7 @@
 
 从 query_functions 收编而来：仅保留纯函数 rerank_chunks（原节点封装已移除）。
 
-- 打分由 ``app.utils.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker），
+- 打分由 ``app.ml.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker），
   模型单例在 util 模块内部维护，本函数只拿分数、不接触模型实例；
 - 候选仅 ≤10 条，本地 CPU 精排约 0.5~2s，CUDA 更快；任何失败由调用方降级回退。
 """
@@ -10,8 +10,8 @@
 from __future__ import annotations
 
 from app.core import logger
-from app.utils.batch_manager.reranker import arerank_scores
-from app.utils.reranker_util import compute_rerank_scores
+from app.ml.batch_manager.reranker import arerank_scores
+from app.ml.reranker_util import compute_rerank_scores
 
 
 def _extract_texts(chunks: list[dict]) -> list[str]:

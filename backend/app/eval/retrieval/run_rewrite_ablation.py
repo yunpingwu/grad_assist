@@ -31,7 +31,7 @@ from pathlib import Path
 from app.eval.retrieval.channels import run_fast
 from app.eval.retrieval.dataset import gold_chunk_ids
 from app.eval.retrieval.metrics import compute_metrics
-from app.utils.batch_manager.embedder import agenerate_embeddings
+from app.ml.batch_manager.embedder import agenerate_embeddings
 
 _DECODER = json.JSONDecoder()
 

@@ -1,0 +1,26 @@
+# 本地环境与虚拟环境
+.venv/
+.env
+.env.*
+!.env.example
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# 运行时数据（镜像内不打包，部署时按需挂载）
+data/
+textbooks/
+study/
+logs/
+scripts/
+
+# 测试与开发期工具
+tests/
+mcp/
+
+# 构建上下文自身
+Dockerfile
+.dockerignore

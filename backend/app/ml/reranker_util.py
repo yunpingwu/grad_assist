@@ -85,4 +85,4 @@ def compute_rerank_scores(query: str, texts: list[str]) -> list[float]:
     return _score_pairs([(query, text) for text in texts])
 
 
-# 动态攒批（BatchReranker / arerank_scores）已迁至 app.utils.batch_manager.reranker
+# 动态攒批（BatchReranker / arerank_scores）已迁至 app.ml.batch_manager.reranker

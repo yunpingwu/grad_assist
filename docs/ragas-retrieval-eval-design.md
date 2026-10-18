@@ -316,7 +316,7 @@ async def retrieve(question: str, textbook: str, config: str) -> RetrievalResult
 
 - `app.eval.retrieval.channels.run_dense / run_sparse / run_hybrid / run_hyde_rrf / run_deep`：检索实现。
 - `app.eval.retrieval.metrics.recall_at_k / mean_reciprocal_rank_at_k`：① 的对照实现与 ② 的实现。
-- `app.utils.reranker_util` / 底层模型单例：预热。
+- `app.ml.reranker_util` / 底层模型单例：预热。
 
 **⛔ 硬约束**：`app/eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/study_agent` 的导入路径上**。服务进程在模块级就 `build_graph` + 连 Mongo（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
 

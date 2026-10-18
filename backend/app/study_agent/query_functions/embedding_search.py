@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 from app.core import logger
+from app.ml.batch_manager.embedder import agenerate_embeddings
 from app.trace import stage
-from app.utils.batch_manager.embedder import agenerate_embeddings
 from app.utils.milvus_util import escape_expr_value, get_collection_by_name, hybrid_search
 
 

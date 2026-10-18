@@ -27,10 +27,10 @@ from langchain_core.prompts import PromptTemplate
 
 from app.clients.llm import bind_structured_output, get_llm_client
 from app.core import load_prompt, logger
+from app.ml import agenerate_embeddings
 from app.study_agent.entity.intent import IntentResult, _IntentDecision
 from app.study_agent.message_sources import is_summary_message
 from app.trace import astage
-from app.utils import agenerate_embeddings
 
 # 兜底层历史段的空值占位：显式标注首轮，避免模型把空白当成「问题被截断」
 _NO_HISTORY = "（无历史问题，本次为首次提问）"

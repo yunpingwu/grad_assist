@@ -80,6 +80,18 @@ npm run dev                     # http://localhost:5173
 
 首次运行会从 HuggingFace 下载 `BAAI/bge-m3` 与 `BAAI/bge-reranker-large`；CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`（torch 源按平台自动选择：Windows 装 CUDA 版、Linux 装 CPU 版，见 pyproject 的 `[tool.uv.sources]`）。
 
+### 容器化（可选）
+
+后端提供 CPU 镜像（`backend/Dockerfile`）。模型文件不入镜像，需把模型目录挂到容器内：
+
+```bash
+# 仓库根目录：中间件 + 后端（backend 在 app profile 下，默认不启动）
+MODEL_CACHE_DIR=/path/to/models docker compose -f docker/docker-compose.yml --profile app up -d --build
+# 后端默认映射宿主机 8001（8000 已被 Attu 占用）
+```
+
+容器内默认按 HF 缓存布局查找 `/models/BAAI/bge-m3` 与 `/models/BAAI/bge-reranker-large`，可用 `EMBEDDING_MODEL_PATH` / `RERANKER_MODEL_PATH` 覆盖；MinIO 凭据由 compose 的 `MINIO_ROOT_USER/PASSWORD` 统一注入，与后端容器保持一致。
+
 ### 主要接口
 
 | 方法 | 路径 | 说明 |
@@ -114,13 +126,15 @@ uv run python -m app.eval.retrieval.run_multi_user_eval
 backend/
 ├── app/              # FastAPI + LangGraph 后端
 │   ├── main.py       # 应用装配、生命周期与 uvicorn 启动入口
-│   ├── api/          # 路由汇总与端点（SSE 流式、写盘确认/澄清续跑）
+│   ├── api/          # 路由汇总与 HTTP 端点（routes/）
+│   ├── services/     # 应用编排：SSE 流式、HITL 续跑、会话/文件查询
 │   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、意图路由
 │   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
 │   ├── eval/         # 离线评测：数据集、指标、消融实验
 │   ├── prompts/      # 按意图动态加载的 system prompt
 │   ├── clients/      # Milvus / MongoDB / MinIO 客户端
-│   └── utils/        # 嵌入/重排批处理、检索原语
+│   ├── ml/           # BGE-M3 / Reranker 模型加载与动态攒批
+│   └── utils/        # 无状态工具：chunk id、Milvus/MinIO 原语
 ├── tests/            # pytest 单测（默认排除 integration 标记的端到端测试）
 ├── data/             # 评测集与结果（不入库）
 ├── textbooks/        # 教材 PDF 与解析产物（不入库）

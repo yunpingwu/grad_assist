@@ -12,8 +12,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.clients.llm import get_llm_client
 from app.core import load_prompt, logger
+from app.ml.batch_manager.embedder import agenerate_embeddings
 from app.study_agent.query_functions.embedding_search import search_by_vectors
-from app.utils.batch_manager.embedder import agenerate_embeddings
 
 
 async def hyde_doc_generate(search_query: str) -> str:

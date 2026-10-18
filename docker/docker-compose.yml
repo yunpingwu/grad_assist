@@ -123,3 +123,51 @@ services:
         limits:
           cpus: '0.3'
           memory: 512M
+
+  # 可选：后端容器（默认不启动，需 --profile app）。
+  # - CPU 镜像；模型目录通过 MODEL_CACHE_DIR 挂到 /models，容器内路径由 EMBEDDING_MODEL_PATH /
+  #   RERANKER_MODEL_PATH 指定（默认按 HF 缓存布局 /models/BAAI/...）。
+  # - 宿主机 8000 已被 Attu 占用，默认映射到 8001。
+  # - MinIO 凭据直接用 compose 的 MINIO_ROOT_USER/PASSWORD 覆盖，避免与后端 .env 不一致。
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: grad-assist-backend
+    restart: unless-stopped
+    profiles: ["app"]
+    env_file:
+      - path: ../backend/.env
+        required: false
+    environment:
+      MILVUS_URI: http://milvus:19530
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-mongo}:${MONGO_ROOT_PASSWORD:-mongoadmin}@mongodb:27017/?authSource=admin
+      EMBEDDING_DEVICE: cpu
+      RERANKER_DEVICE: cpu
+      EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-/models/BAAI/bge-m3}
+      RERANKER_MODEL_PATH: ${RERANKER_MODEL_PATH:-/models/BAAI/bge-reranker-large}
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"
+    volumes:
+      - ../backend/study:/app/study
+      - ../backend/textbooks:/app/textbooks
+      - ../backend/logs:/app/logs
+      - ${MODEL_CACHE_DIR:-../backend/models}:/models:ro
+    depends_on:
+      milvus:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/openapi.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s

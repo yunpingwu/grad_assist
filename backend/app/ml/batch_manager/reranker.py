@@ -1,7 +1,7 @@
 """BatchReranker：动态攒批精排器
 
 把并发到来的交叉编码请求攒成一批 (query, text) 对，一次前向再按序拆分回填。
-底层打分由 ``app.utils.reranker_util._score_pairs`` 提供（BGE-Reranker，
+底层打分由 ``app.ml.reranker_util._score_pairs`` 提供（BGE-Reranker，
 模型单例在 util 模块内部维护）。
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.utils.reranker_util import _score_pairs
+from app.ml.reranker_util import _score_pairs
 
 # 动态攒批参数：单卡 RTX 5060（8GB）+ BGE-Reranker（fp16）。max_batch 按 (query, text)
 # 对数量计；精排单请求候选通常少于 max_batch，满批时直接单发不截断。

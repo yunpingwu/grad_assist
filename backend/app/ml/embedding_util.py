@@ -86,4 +86,4 @@ def generate_embeddings(texts: list[str]) -> dict:
     return {"dense": dense, "sparse": sparse}
 
 
-# 动态攒批（BatchEmbedder / agenerate_embeddings）已迁至 app.utils.batch_manager.embedder
+# 动态攒批（BatchEmbedder / agenerate_embeddings）已迁至 app.ml.batch_manager.embedder

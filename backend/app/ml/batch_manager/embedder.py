@@ -1,7 +1,7 @@
 """BatchEmbedder：动态攒批器
 
 把并发小请求攒成一批，一次前向再按序拆分回填（单实例 + 动态 batching）。
-底层前向由 ``app.utils.embedding_util.generate_embeddings`` 提供（BGE-M3，
+底层前向由 ``app.ml.embedding_util.generate_embeddings`` 提供（BGE-M3，
 模型单例在 util 模块内部维护）。
 """
 
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import asyncio
 
+from app.ml.embedding_util import generate_embeddings
 from app.trace import astage
-from app.utils.embedding_util import generate_embeddings
 
 # 动态攒批参数：单卡 RTX 5060（8GB）+ BGE-M3（fp16，权重约 2.2GB）。
 # max_batch 控制「并发小请求攒到多少条文本就前向」；摄入的 64 条满批不受此上限

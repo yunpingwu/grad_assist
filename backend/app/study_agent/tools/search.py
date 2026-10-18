@@ -19,6 +19,7 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import logger
+from app.ml import agenerate_embeddings
 from app.study_agent.query_functions.embedding_search import search_by_query, search_by_vectors
 from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
 from app.study_agent.query_functions.merge_recalls import rrf_merge
@@ -26,7 +27,6 @@ from app.study_agent.query_functions.rerank import arerank_chunks_weighted
 from app.study_agent.safety import wrap_untrusted
 from app.trace import astage, mark_tool
 from app.utils import (
-    agenerate_embeddings,
     get_collection_by_name,
     query_section_codes,
 )

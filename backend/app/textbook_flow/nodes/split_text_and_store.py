@@ -7,9 +7,9 @@ from langgraph.types import StreamWriter
 
 from app.clients import milvus_client
 from app.core import log_node, logger
+from app.ml import agenerate_embeddings
 from app.textbook_flow.state import TextBookState
 from app.utils import (
-    agenerate_embeddings,
     build_chunk_id,
     deterministic_collection_name,
     get_collection_by_name,
