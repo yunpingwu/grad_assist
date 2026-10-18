@@ -9,7 +9,7 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
-from app.api import study_service as svc
+from app.services import study as svc
 from app.trace import end_request, start_request
 
 

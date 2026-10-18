@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.api import study_service as svc
+from app.services import study as svc
 from app.study_agent.tools import search
 
 # artifact 由生产方的构造器产出：键名改了，回显会静默回退成 state 里那句回收占位

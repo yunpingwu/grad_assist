@@ -5,8 +5,8 @@
 """
 from fastapi import APIRouter
 
-from app.api.study_service import router as study_router
-from app.api.textbook_service import router as textbook_router
+from app.api.routes.study import router as study_router
+from app.api.routes.textbook import router as textbook_router
 
 api_router = APIRouter()
 api_router.include_router(textbook_router)

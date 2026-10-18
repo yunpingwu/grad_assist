@@ -7,7 +7,7 @@ match number of hanging tool calls (2)"，线程卡死，下一轮模型调用�
 
 from types import SimpleNamespace
 
-from app.api import study_service as svc
+from app.services import study as svc
 
 
 def _snapshot(*values: dict) -> SimpleNamespace:

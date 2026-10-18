@@ -7,8 +7,9 @@ deep 从模型可见参数里摘掉后，这条 state 通道就是唯一来源�
 import asyncio
 from typing import Any
 
-from app.api import study_service as svc
+from app.api.routes import study as route
 from app.api.schemas import ChatRequest
+from app.services import study as svc
 
 
 class _Snap:
@@ -36,7 +37,7 @@ def _run(monkeypatch, req: ChatRequest) -> list:
     monkeypatch.setattr(svc, "study_graph", _FakeGraph())
     monkeypatch.setattr(svc, "stream_agent", _fake_stream)
     monkeypatch.setattr(svc, "flush_metrics", svc.end_request)
-    resp = asyncio.run(svc.chat(req, user_id="u1"))
+    resp = asyncio.run(route.chat(req, user_id="u1"))
     asyncio.run(_drain(resp))
     return seen
 

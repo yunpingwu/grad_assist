@@ -199,7 +199,7 @@ class RequestMetrics:
     budget_exhausted: bool = False
     # 会话压缩（compaction.HistoryCompactionMiddleware）：本轮触发时写入读数，没触发为 None
     compacted: dict[str, Any] | None = None
-    # 输出侧留痕：答案疑似复述系统提示词/漏出配置形态（由 study_service 在 flush 前置位）
+    # 输出侧留痕：答案疑似复述系统提示词/漏出配置形态（由 services/study 在 flush 前置位）
     output_leak_suspected: bool = False
 
     @property

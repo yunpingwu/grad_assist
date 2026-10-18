@@ -22,7 +22,7 @@ from app.trace.context import get_metrics
 from app.trace.entities import RequestMetrics
 from app.trace.llm_usage import get_handler, weighted_cost
 
-# 指标落盘目录（项目根 logs/，与 study_service 的 messages.log 同目录）
+# 指标落盘目录（项目根 logs/，与后端运行日志同目录）
 LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
 _LOG_WRITE_LOCK = threading.Lock()
 

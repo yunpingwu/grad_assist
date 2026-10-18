@@ -9,7 +9,8 @@ from fastapi import HTTPException
 from langgraph.types import Command
 from pypdf import PdfWriter
 
-from app.api import textbook_service as svc
+from app.api.routes import textbook as route
+from app.services import textbook as svc
 from app.textbook_flow.cache import toc_cache
 
 CANDIDATES = [{"textbook_name": "机器学习", "offset": 10}]
@@ -75,7 +76,7 @@ def test_reconnect_at_offset_without_offsets_replays_ask_offset(monkeypatch) -> 
 
     async def run():
         # 直调端点函数不走 FastAPI 参数解析，Body 默认值需显式传 None
-        resp = await svc.resolve_textbooks(task_id="t1", user_id="u1", offsets=None)
+        resp = await route.resolve_textbooks(task_id="t1", user_id="u1", offsets=None)
         return await _frames(resp)
 
     frames = asyncio.run(run())
@@ -94,7 +95,7 @@ def test_reconnect_at_offset_with_offsets_resumes(monkeypatch) -> None:
     monkeypatch.setattr(svc, "textbook_graph", fake)
 
     async def run():
-        resp = await svc.resolve_textbooks(task_id="t1", user_id="u1", offsets=CANDIDATES)
+        resp = await route.resolve_textbooks(task_id="t1", user_id="u1", offsets=CANDIDATES)
         return await _frames(resp)
 
     frames = asyncio.run(run())
@@ -112,7 +113,7 @@ def test_reconnect_resumable_without_path_ok(monkeypatch) -> None:
     monkeypatch.setattr(svc, "textbook_graph", fake)
 
     async def run():
-        resp = await svc.resolve_textbooks(task_id="t1", user_id="u1")
+        resp = await route.resolve_textbooks(task_id="t1", user_id="u1")
         return await _frames(resp)
 
     frames = asyncio.run(run())
@@ -129,7 +130,7 @@ def test_unknown_task_without_path_still_400(monkeypatch) -> None:
     monkeypatch.setattr(svc, "textbook_graph", fake)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(svc.resolve_textbooks(task_id="t1", user_id="u1"))
+        asyncio.run(route.resolve_textbooks(task_id="t1", user_id="u1"))
     assert exc.value.status_code == 400
 
 
@@ -168,7 +169,7 @@ def test_reconnect_info_frame_carries_tocs_and_done_pops_cache(monkeypatch, tmp_
     monkeypatch.setattr(svc, "textbook_graph", fake)
 
     async def run():
-        resp = await svc.resolve_textbooks(task_id=task_id, user_id="u1", offsets=CANDIDATES)
+        resp = await route.resolve_textbooks(task_id=task_id, user_id="u1", offsets=CANDIDATES)
         return await _frames(resp)
 
     frames = asyncio.run(run())
@@ -188,7 +189,7 @@ def test_first_run_info_without_toc_keeps_sse_path(monkeypatch, tmp_path) -> Non
     monkeypatch.setattr(svc, "textbook_graph", fake)
 
     async def run():
-        resp = await svc.resolve_textbooks(textbook_path=str(tmp_path), user_id="u1", offsets=None)
+        resp = await route.resolve_textbooks(textbook_path=str(tmp_path), user_id="u1", offsets=None)
         return await _frames(resp)
 
     frames = asyncio.run(run())

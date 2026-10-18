@@ -1,7 +1,7 @@
-"""统一教材助手服务路由：SSE 流式对话（含写盘确认续跑）+ 产物文件读取。
+"""统一教材助手的应用编排层。
 
-对话 thread_id = user_id:session_id，独立 checkpoint collection（study_checkpoints），
-多用户按 X-User-Id 软隔离。多轮交互的消息结构调试信息仅输出到控制台。
+路由层（``app/api/routes/study.py``）只负责 HTTP 参数与响应；本模块承载
+SSE 事件生成、HITL 续跑判定、会话/历史/产物读取，URL 与 SSE 事件协议保持不变。
 """
 
 from __future__ import annotations
@@ -9,17 +9,14 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.types import Command
-from starlette.responses import Response, StreamingResponse
 
-from app.api.deps import get_user_id
-from app.api.schemas import ChatRequest
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger
@@ -31,8 +28,6 @@ from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
 from app.trace import end_request, flush_metrics, get_metrics, mark_stage, start_request
 
-router = APIRouter(tags=["study"])
-
 # 模块级编译一次：独立 checkpoint collection，避免与 query/textbook 图 thread 冲突
 checkpointer = MongoDBSaver(
     mongo_client.get_client(),
@@ -42,25 +37,36 @@ checkpointer = MongoDBSaver(
 )
 study_graph = build_graph(checkpointer=checkpointer)
 
+CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
 
-@router.post(
-    "/study/chat",
-    summary="统一助手对话（含写盘确认/澄清反问续跑）",
-    description="SSE 事件流：tool / thought / token / ask_confirm / ask_clarify / done / error；多轮经 session_id 续接；"
-    "对停留在写盘确认的会话传 decision=approve|reject 统一放行/拒绝；"
-    "对停留在澄清反问的会话传 clarify_answers 续跑",
-)
-async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> StreamingResponse:
-    """统一对话入口：新问题直接跑；上轮停在写盘确认时按 decision 放行/拒绝后续跑同一线程。"""
-    session_id = req.session_id or str(uuid.uuid4())
+
+async def prepare_chat(
+    *,
+    user_id: str,
+    session_id: str | None,
+    textbook_name: str,
+    query: str,
+    deep: bool,
+    decision: str | None = None,
+    clarify_answers: list[dict] | None = None,
+) -> tuple[dict | Command, dict, str]:
+    """判定线程是否停在中断，生成本轮图输入与运行配置。
+
+    写盘确认与澄清反问的续跑语义都在这里：传入 response 时以 ``Command(resume=...)``
+    推进同一线程；停在中断却发来新问题时先自动解锁（拒绝写盘 / 取消澄清），再按新问题跑。
+
+    Returns:
+        ``(agent_input, config, session_id)``；session_id 缺省时在服务层生成。
+    """
+    session_id = session_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
     state: StudyState = {
         "user_id": user_id,
         "task_id": session_id,
-        "textbook_name": req.textbook_name,
-        "requirement": req.query,
-        "deep": req.deep,
-        "messages": [HumanMessage(content=req.query)],
+        "textbook_name": textbook_name,
+        "requirement": query,
+        "deep": deep,
+        "messages": [HumanMessage(content=query)],
     }
 
     # 判断线程是否停在中断（写盘确认 或 澄清反问）
@@ -82,17 +88,17 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
                 break
         pending_count = _hanging_write_count(snapshot)
         if interrupt_value and interrupt_value.get("type") == "clarify":
-            if req.clarify_answers is not None:
+            if clarify_answers is not None:
                 # 用户回应上轮澄清反问：按问题逐一作答，续跑同一线程
-                agent_input = Command(resume={"answers": [a.model_dump() for a in req.clarify_answers]})
+                agent_input = Command(resume={"answers": clarify_answers})
             else:
                 # 停在澄清却发来新问题 → 自动取消本轮澄清（返回空答案解锁线程），再正常跑新问题
                 logger.info(f"session {session_id} 停在澄清反问但收到新问题，自动取消本轮澄清")
                 await study_graph.ainvoke(Command(resume={CANCEL_MARKER: True}), config)
                 agent_input = state
-        elif req.decision in ("approve", "reject"):
+        elif decision in ("approve", "reject"):
             # 用户回应上轮确认：对该中断里全部挂起的写盘调用统一生效，续跑同一线程
-            agent_input = Command(resume={"decisions": [{"type": req.decision}] * pending_count})
+            agent_input = Command(resume={"decisions": [{"type": decision}] * pending_count})
         else:
             # 方案A：停在写盘确认却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
             logger.info(f"session {session_id} 停在写盘确认但收到新问题，自动拒绝本次写盘")
@@ -101,38 +107,36 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_user_id)) -> Streami
             )
             agent_input = state
 
-    async def event_gen():
-        metrics = start_request(session_id, req.query)
-        t_start = time.perf_counter()
-        try:
-            async for ev in stream_agent(agent_input, config, session_id):
-                yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
-        except ValueError as exc:
-            # 教材未登记等业务错误
-            metrics.error_type = type(exc).__name__
-            payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
-            yield f"data: {payload}\n\n"
-        except Exception as exc:
-            metrics.error_type = type(exc).__name__
-            logger.exception(f"统一对话执行失败: {exc}")
-            payload = json.dumps({"type": "error", "message": "回答生成失败"}, ensure_ascii=False)
-            yield f"data: {payload}\n\n"
-        finally:
-            # 总耗时 = 请求进入到最后一条事件（含收尾落盘前），随后聚合落库
-            mark_stage("total_ms", (time.perf_counter() - t_start) * 1000)
-            # 输出侧留痕（不拦截：流式已把 token 发给前端，事后无法撤回）：
-            # 答案疑似复述系统提示词或漏出配置形态时告警并落进 metrics 记录
-            if detect_prompt_leak(metrics.answer_content):
-                metrics.output_leak_suspected = True
-                logger.warning(f"回答疑似泄露系统提示词/敏感形态（session {session_id}）")
-            flush_metrics()
-            end_request()
+    return agent_input, config, session_id
 
-    return StreamingResponse(
-        event_gen(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+
+async def chat_events(agent_input: dict | Command, config: dict, session_id: str, query: str) -> AsyncIterator[str]:
+    """把一轮对话编码成 SSE 帧，并负责请求级 metrics 的收尾。"""
+    metrics = start_request(session_id, query)
+    t_start = time.perf_counter()
+    try:
+        async for ev in stream_agent(agent_input, config, session_id):
+            yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+    except ValueError as exc:
+        # 教材未登记等业务错误
+        metrics.error_type = type(exc).__name__
+        payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
+        yield f"data: {payload}\n\n"
+    except Exception as exc:
+        metrics.error_type = type(exc).__name__
+        logger.exception(f"统一对话执行失败: {exc}")
+        payload = json.dumps({"type": "error", "message": "回答生成失败"}, ensure_ascii=False)
+        yield f"data: {payload}\n\n"
+    finally:
+        # 总耗时 = 请求进入到最后一条事件（含收尾落盘前），随后聚合落库
+        mark_stage("total_ms", (time.perf_counter() - t_start) * 1000)
+        # 输出侧留痕（不拦截：流式已把 token 发给前端，事后无法撤回）：
+        # 答案疑似复述系统提示词或漏出配置形态时告警并落进 metrics 记录
+        if detect_prompt_leak(metrics.answer_content):
+            metrics.output_leak_suspected = True
+            logger.warning(f"回答疑似泄露系统提示词/敏感形态（session {session_id}）")
+        flush_metrics()
+        end_request()
 
 
 async def stream_agent(agent_input: dict | Command, config: dict, session_id: str):
@@ -295,9 +299,6 @@ def _dump_messages(messages: list) -> list[dict]:
     return out
 
 
-CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
-
-
 def _hanging_write_count(snapshot: Any) -> int:
     """挂起的写盘调用数 = 各中断 payload 里 ``action_requests`` 的总和（无快照时兜底 1）。
 
@@ -315,8 +316,7 @@ def _hanging_write_count(snapshot: Any) -> int:
     return max(count, 1)
 
 
-@router.get("/study/files", summary="任务产物文件列表", description="列出某任务目录内已生成的文件（相对路径 + 大小）")
-async def files(task_id: str, textbook_name: str, user_id: str = Depends(get_user_id)) -> list[dict]:
+def files(task_id: str, textbook_name: str) -> list[dict]:
     """列出某任务的全部落盘文件。"""
     root = (MATERIAL_ROOT / textbook_name / task_id).resolve()
     if not root.is_dir():
@@ -328,38 +328,31 @@ async def files(task_id: str, textbook_name: str, user_id: str = Depends(get_use
     ]
 
 
-@router.get("/study/file", summary="读取产物文件内容", description="读取任务目录内一份文件（路径经沙箱校验）")
-async def read_file(task_id: str, textbook_name: str, path: str) -> dict:
-    """读取一份文件内容（前端预览用）。"""
+def read_file(task_id: str, textbook_name: str, path: str) -> dict:
+    """读取一份文件内容（前端预览用），路径校验与 tools/files.py 同一策略。
+
+    Raises:
+        ValueError: 路径非法（绝对路径 / ``..`` / symlink 逃逸）。
+        FileNotFoundError: 目标文件不存在。
+    """
     root = (MATERIAL_ROOT / textbook_name / task_id).resolve()
     # 路径防线：拒绝绝对路径 / `..` 逃逸 / symlink 逃逸（与 tools/files.py 同一策略）
-    try:
-        if not path or "\x00" in path or Path(path).is_absolute():
-            raise ValueError(f"文件名非法（须为非空相对路径）: {path!r}")
-        target = root
-        for part in Path(path).parts:
-            if part in ("", ".", ".."):
-                raise ValueError(f"非法路径片段: {path!r}")
-            target = (target / part).resolve(strict=False)
-            if target != root and not target.is_relative_to(root):
-                raise ValueError(f"路径越出任务沙箱: {path!r}")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not path or "\x00" in path or Path(path).is_absolute():
+        raise ValueError(f"文件名非法（须为非空相对路径）: {path!r}")
+    target = root
+    for part in Path(path).parts:
+        if part in ("", ".", ".."):
+            raise ValueError(f"非法路径片段: {path!r}")
+        target = (target / part).resolve(strict=False)
+        if target != root and not target.is_relative_to(root):
+            raise ValueError(f"路径越出任务沙箱: {path!r}")
     if not target.is_file():
-        raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
+        raise FileNotFoundError(f"文件不存在: {path}")
     return {"path": path, "content": target.read_text(encoding="utf-8")}
 
 
-@router.get(
-    "/sessions",
-    summary="会话列表",
-    description="按教材列出当前用户的对话会话摘要（从 study checkpoint 读取），最近更新在前，排除资料任务线程",
-)
-async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+async def sessions(textbook_name: str, user_id: str) -> list[dict]:
     """列出当前用户某教材的全部对话会话摘要（基于 study_checkpoints，倒序）。"""
-    if not textbook_name:
-        raise HTTPException(status_code=400, detail="缺少 textbook_name")
-
     prefix = f"{user_id}:"
     thread_ids = [
         t
@@ -432,27 +425,12 @@ def build_history(messages: list) -> list[dict]:
     return items
 
 
-@router.get(
-    "/history",
-    summary="会话历史",
-    description="获取当前用户某会话的全部消息（从 study checkpoint 读取），供历史回显",
-)
-async def history(session_id: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
+async def history(session_id: str, user_id: str) -> list[dict]:
     """获取某会话的结构化消息列表。"""
-    if not session_id:
-        raise HTTPException(status_code=400, detail="缺少 session_id")
     snapshot = await study_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
     return build_history((snapshot.values or {}).get("messages", []))
 
 
-@router.delete(
-    "/sessions/{session_id}",
-    summary="删除会话",
-    description="删除当前用户的单个对话会话（删除其全部 checkpoint）",
-)
-async def delete_session(session_id: str, user_id: str = Depends(get_user_id)) -> Response:
-    """删除单个会话（幂等：会话不存在也返回 204）。"""
-    if not session_id:
-        raise HTTPException(status_code=400, detail="缺少 session_id")
+def delete_session(session_id: str, user_id: str) -> None:
+    """删除单个会话（幂等：会话不存在也视为成功）。"""
     checkpointer.delete_thread(f"{user_id}:{session_id}")
-    return Response(status_code=204)
