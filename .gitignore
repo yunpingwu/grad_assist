@@ -26,6 +26,8 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+node_modules/
+.npm-cache/
 
 # IDE 和本地开发工具配置
 .idea/
@@ -44,14 +46,17 @@ textbooks/
 study/
 
 # RAG评估结果数据
-/data
+/backend/data/
+
+# 运行日志目录（*.log 已单独忽略，这里兜住目录本身）
+/backend/logs/
 
 # Docker 本地数据卷与口令（compose 本体入库）
 docker/*-data/
 docker/.env
 
 # LLM脚本
-/scripts
+/backend/scripts/
 
 # 运行日志和临时文件
 *.log
@@ -61,6 +66,3 @@ docker/.env
 # pytest/pytorch 在仓库根目录留下的本地临时产物
 pytest-of-*/
 torchinductor_*/
-
-# 前端目录（独立部署，不进后端仓库）
-frontend/

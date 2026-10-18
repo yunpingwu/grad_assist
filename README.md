@@ -12,7 +12,7 @@
 | 多轮会话评测 | **50 会话 × 200 轮全部通过** | 无会话串扰；检索触发率 88% → 99%，追问轮 hit@5 0.662 → 0.887 |
 | 跨轮缓存命中率 | 49% → **92%** | 13 轮会话逐次调用实测：静态壳 + 尾部本轮指令 + 往轮原文回收让断裂点只随轮首前移（数据口径见 `logs/<日期>/metrics.log` 的 `cached`/`input_digest`） |
 
-评测脚本与指标计算均在 [app/eval/](app/eval) 内，可离线复现（评测集与教材 PDF 因体积与版权未随仓库分发，见「评测复现」）。
+评测脚本与指标计算均在 [backend/app/eval/](backend/app/eval) 内，可离线复现（评测集与教材 PDF 因体积与版权未随仓库分发，见「评测复现」）。
 
 ## 架构
 
@@ -63,12 +63,19 @@ LangGraph / LangChain · FastAPI (SSE) · Milvus 2.4 · MongoDB · MinIO · BGE-
 # 1. 启动依赖中间件（Milvus + etcd + MinIO + MongoDB + Attu）
 docker compose -f docker/docker-compose.yml up -d
 
-# 2. 安装依赖并配置环境变量
+# 2. 后端：安装依赖并配置环境变量
+cd backend
 uv sync
 cp .env.example .env   # 填入 LLM API Key 等，模型默认走阿里云百炼 OpenAI 兼容接口
 
-# 3. 启动服务（启动时预热 BGE-M3 / Reranker，首个请求不再背冷启动）
-python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
+# 3. 启动后端（启动时预热 BGE-M3 / Reranker，首个请求不再背冷启动）
+uv run python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
+
+# 4. 前端：另开终端
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev                     # http://localhost:5173
 ```
 
 首次运行会从 HuggingFace 下载 `BAAI/bge-m3` 与 `BAAI/bge-reranker-large`；CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`（torch 源按平台自动选择：Windows 装 CUDA 版、Linux 装 CPU 版，见 pyproject 的 `[tool.uv.sources]`）。
@@ -86,41 +93,53 @@ python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
 ## 评测复现
 
 ```bash
+cd backend
+
 # 检索离线消融：300 题（6 本教材 × 50），各配置 Recall/Hit/NDCG/MRR 对比 + 显著性检验
-python -m app.eval.retrieval.run_ablation
+uv run python -m app.eval.retrieval.run_ablation
 
 # 问题重写消融（历史链路复现）：原问句 vs 当年重写问句单路替换 + 双路 RRF 融合
 # 前置重写已下线，此脚本只读旧 metrics.log 复现结论，新日志样本数为 0
-python -m app.eval.retrieval.run_rewrite_ablation
+uv run python -m app.eval.retrieval.run_rewrite_ablation
 
 # 多用户多轮会话评测：50 会话 × 200 轮，含延迟/token/检索触发率统计
-python -m app.eval.retrieval.run_multi_user_eval
+uv run python -m app.eval.retrieval.run_multi_user_eval
 ```
 
-> 评测依赖 `data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [app/eval/retrieval/dataset.py](app/eval/retrieval/dataset.py) 的格式构造题目。
+> 评测依赖 `backend/data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [backend/app/eval/retrieval/dataset.py](backend/app/eval/retrieval/dataset.py) 的格式构造题目。
 
 ## 目录结构
 
 ```
-app/
-├── api/            # FastAPI 入口与路由（SSE 流式、写盘确认/澄清续跑）
-├── study_agent/    # 问答 Agent：graph 装配、工具、middleware、意图路由
-├── textbook_flow/  # 教材摄入流水线：解析、富化、切分入库
-├── eval/           # 离线评测：数据集、指标、消融实验
-├── prompts/        # 按意图动态加载的 system prompt
-├── clients/        # Milvus / MongoDB / MinIO 客户端
-└── utils/          # 嵌入/重排批处理、检索原语
-docker/             # Milvus 全家桶 + MongoDB + MinIO 编排
-docs/               # 设计文档（图片 caption、chunk 对齐修复、网关设计）
-tests/              # pytest 单测（默认排除 integration 标记的端到端测试）
+backend/
+├── app/              # FastAPI + LangGraph 后端
+│   ├── api/          # 入口与路由（SSE 流式、写盘确认/澄清续跑）
+│   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、意图路由
+│   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
+│   ├── eval/         # 离线评测：数据集、指标、消融实验
+│   ├── prompts/      # 按意图动态加载的 system prompt
+│   ├── clients/      # Milvus / MongoDB / MinIO 客户端
+│   └── utils/        # 嵌入/重排批处理、检索原语
+├── tests/            # pytest 单测（默认排除 integration 标记的端到端测试）
+├── data/             # 评测集与结果（不入库）
+├── textbooks/        # 教材 PDF 与解析产物（不入库）
+├── study/            # 助手产物（不入库）
+└── logs/             # 运行日志（不入库）
+frontend/             # Vue 3 + TypeScript 前端（Vite）
+docker/               # Milvus 全家桶 + MongoDB + MinIO 编排
+docs/                 # 设计文档（图片 caption、chunk 对齐修复、网关设计）
 ```
 
 ## 测试与代码检查
 
 ```bash
+cd backend
 uv run pytest            # 单元测试（默认 -m "not integration"，不依赖真实外部服务）
 uv run pytest -m integration   # 端到端测试，需 .env 中的真实凭据
 uv run ruff check .
+
+cd ../frontend
+npm run build            # vue-tsc 类型检查 + Vite 构建
 ```
 
-push / PR 到 `main` 后由 GitHub Actions 自动执行上述 ruff + pytest（`.github/workflows/ci.yml`）；CI 自带 MongoDB 容器，单元测试不依赖本地中间件。依赖由 `uv.lock` 锁定，**修改依赖后需 `uv lock` 并把锁文件一并提交**，否则 CI 的 `uv sync --locked` 会直接失败。
+push / PR 到 `main` 后由 GitHub Actions 自动执行后端 ruff + pytest 与前端构建（`.github/workflows/ci.yml`）；CI 自带 MongoDB 容器，单元测试不依赖本地中间件。依赖由 `backend/uv.lock` 锁定，**修改依赖后需在 `backend/` 下 `uv lock` 并把锁文件一并提交**，否则 CI 的 `uv sync --locked` 会直接失败。

@@ -11,8 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
+# 仓库根目录：中间件（milvus/etcd/minio/attu/mongodb）
+docker compose -f docker/docker-compose.yml up -d
+
+# backend/：后端安装、启动、测试（下文 app/... 均指 backend/app/...）
+cd backend
 uv sync                                        # 安装依赖（Python 3.13）
-docker compose -f docker/docker-compose.yml up -d   # 中间件：milvus/etcd/minio/attu/mongodb
 cp .env.example .env                           # 填入密钥；模型供应商见下
 uv run python -m app.api.main                  # 启服务（启动时预热 BGE-M3 / Reranker）
 
@@ -20,12 +24,18 @@ uv run pytest                                  # 单测（默认 -m "not integra
 uv run pytest tests/trace/test_metrics.py::test_xxx    # 单条
 uv run pytest -m integration                   # 端到端（需真实 MinerU/Milvus/凭据，共 10 条，缺前置条件自动 skip）
 uv run ruff check .                            # line-length 150，select E/F/W/I/UP/B
+
+# frontend/：前端开发与构建
+cd ../frontend
+npm ci
+npm run dev                                    # http://localhost:5173
+npm run build                                  # vue-tsc 类型检查 + Vite 构建
 ```
 
 - **依赖变更必须 `uv lock` 并提交 `uv.lock`**，CI 用 `uv sync --locked` 会直接失败。CI 的 ruff/uv 版本钉死（`ruff==0.16.3` / `uv==0.11.16`，见 `.github/workflows/ci.yml`），本地版本更旧时 CI 仍可能报错。
-- CI 的 pytest job 起 `mongo:6.0` 并塞 `ALIBABA_API_KEY=dummy`：`app/api/study_service.py` 在**模块级** `build_graph` + 构造 `MongoDBSaver`，import 就要这些。
-- 评测/探针（都在 `app/eval/`、`app/trace/scripts/`，全部 `python -m` 运行）：
-  - **ragas 四指标（现行，见 `app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
+- CI 的 pytest job 起 `mongo:6.0` 并塞 `ALIBABA_API_KEY=dummy`：`backend/app/api/study_service.py` 在**模块级** `build_graph` + 构造 `MongoDBSaver`，import 就要这些。
+- 评测/探针（都在 `backend/app/eval/`、`backend/app/trace/scripts/`，在 `backend/` 下全部 `python -m` 运行）：
+  - **ragas 四指标（现行，见 `backend/app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
   - 旧自研指标（待退役）：`app.eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
   - 意图识别：`app.eval.intent.run_eval` / `run_threshold_ablation`。
   - 日志探针：`app.trace.scripts.chat_probe`（按 `probe_questions.json` 跑多会话，读 `logs/<日期>/metrics.log` 汇总命中率曲线与压缩事件；想看压缩得用小窗口起服务，见其 docstring）。
@@ -34,10 +44,10 @@ uv run ruff check .                            # line-length 150，select E/F/W/
 
 两条 LangGraph 流水线 + 一套存储（Milvus / MongoDB / MinIO / 本地盘），架构图与检索链路见 README。需要读多处代码才能拼出来的部分：
 
-- **问答 Agent**（`app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
-- **教材摄入**（`app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
-- **观测**（`app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
-- **API**（`app/api/`）：两个 APIRouter 挂同一 FastAPI；对话与摄入各用独立 checkpoint collection。
+- **问答 Agent**（`backend/app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
+- **教材摄入**（`backend/app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
+- **观测**（`backend/app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
+- **API**（`backend/app/api/`）：两个 APIRouter 挂同一 FastAPI；对话与摄入各用独立 checkpoint collection。
 
 ## 关键不变量（违反会静默变贵/变错，不报错）
 
@@ -100,7 +110,7 @@ uv run ruff check .                            # line-length 150，select E/F/W/
 
 ### 9. 文件工具沙箱
 
-`MATERIAL_ROOT = <repo>/study`，目标路径固定为 `study/{教材名}/{task_id}/`；拒绝对路径、`..`、symlink 逃逸；`edit_file` 要求本进程先 `read_file` 过（`_known_files`）。改落盘根只改 `tools/files.py` 顶部的常量。
+`MATERIAL_ROOT = <backend>/study`，目标路径固定为 `study/{教材名}/{task_id}/`；拒绝对路径、`..`、symlink 逃逸；`edit_file` 要求本进程先 `read_file` 过（`_known_files`）。改落盘根只改 `tools/files.py` 顶部的常量。
 
 ## 测试约定（`tests/`）
 
@@ -122,6 +132,8 @@ uv run ruff check .                            # line-length 150，select E/F/W/
 
 ## 仓库边界
 
-`frontend/`（Vue3 独立部署，走 `X-User-Id` + `/study/chat` SSE）、`data/`（评测集与结果）、`textbooks/`、`study/`（助手产物）、`scripts/`（一次性评测集构建工具）、`logs/` 均**不入库**（见 `.gitignore`），改它们不会进 commit；后端与前端不在同一仓库部署。
+单仓形态：`backend/`（FastAPI + LangGraph 后端）与 `frontend/`（Vue3 + TypeScript，Vite 构建，走 `X-User-Id` + `/study/chat` SSE）**均入库**；`docker/`、`docs/`、`.github/` 服务于整个仓库。
 
-`mcp/milvus.py` 是给开发期用的只读 Milvus MCP 服务器（查集合元数据与数据），不参与运行时。
+以下本地运行数据**不入库**（见 `.gitignore`），改它们不会进 commit：`backend/data/`（评测集与结果）、`backend/textbooks/`、`backend/study/`（助手产物）、`backend/logs/`、`backend/scripts/`（一次性评测集构建工具）。
+
+`backend/mcp/milvus.py` 是给开发期用的只读 Milvus MCP 服务器（查集合元数据与数据），不参与运行时。

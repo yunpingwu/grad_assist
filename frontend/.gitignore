@@ -1,0 +1,7 @@
+# 依赖与构建产物
+node_modules/
+dist/
+.npm-cache/
+
+# 本地环境变量（提交 .env.example）
+.env
