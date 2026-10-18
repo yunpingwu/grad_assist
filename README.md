@@ -69,7 +69,7 @@ uv sync
 cp .env.example .env   # 填入 LLM API Key 等，模型默认走阿里云百炼 OpenAI 兼容接口
 
 # 3. 启动后端（启动时预热 BGE-M3 / Reranker，首个请求不再背冷启动）
-uv run python -m app.api.main   # http://localhost:8000, 交互式文档见 /docs
+uv run python -m app.main   # http://localhost:8000, 交互式文档见 /docs
 
 # 4. 前端：另开终端
 cd frontend
@@ -113,7 +113,8 @@ uv run python -m app.eval.retrieval.run_multi_user_eval
 ```
 backend/
 ├── app/              # FastAPI + LangGraph 后端
-│   ├── api/          # 入口与路由（SSE 流式、写盘确认/澄清续跑）
+│   ├── main.py       # 应用装配、生命周期与 uvicorn 启动入口
+│   ├── api/          # 路由汇总与端点（SSE 流式、写盘确认/澄清续跑）
 │   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、意图路由
 │   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
 │   ├── eval/         # 离线评测：数据集、指标、消融实验

@@ -19,7 +19,7 @@ from langgraph.types import Command
 from starlette.responses import Response, StreamingResponse
 
 from app.api.deps import get_user_id
-from app.api.req import ChatRequest
+from app.api.schemas import ChatRequest
 from app.clients import mongo_client
 from app.config import mongo_config
 from app.core import logger

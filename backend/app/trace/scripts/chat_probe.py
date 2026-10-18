@@ -6,7 +6,7 @@
 
 想要压缩事件出现在探针里，得把服务用**小窗口**起（触发线 = 窗口 × 50%）：
 
-    DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.api.main
+    DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.main
 
 默认 50w 窗口的触发线在 25w，十来轮的探针撞不到它；小窗口只是把同一条代码路径的触发点提前。
 
@@ -424,7 +424,7 @@ def build_report(named_stats: list[tuple[int, str, dict[str, Any]]], timeline: b
         out.append(
             "本轮没有触发会话压缩。触发线 = 模型窗口 × 50%（服务端启动时的 MODEL/DEEPSEEK_CONTEXT_WINDOW），"
             "默认 50w 窗口 → 25w 触发，十来轮的会话够不着；要看压缩，用小窗口起服务："
-            "DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.api.main"
+            "DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.main"
         )
 
     if timeline:

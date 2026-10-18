@@ -8,7 +8,7 @@ import asyncio
 from typing import Any
 
 from app.api import study_service as svc
-from app.api.req import ChatRequest
+from app.api.schemas import ChatRequest
 
 
 class _Snap:

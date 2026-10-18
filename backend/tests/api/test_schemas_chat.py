@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.api.req.chat import ChatRequest, ClarifyAnswerIn
+from app.api.schemas.chat import ChatRequest, ClarifyAnswerIn
 
 
 def test_overlong_query_rejected() -> None:

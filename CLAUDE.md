@@ -18,7 +18,7 @@ docker compose -f docker/docker-compose.yml up -d
 cd backend
 uv sync                                        # 安装依赖（Python 3.13）
 cp .env.example .env                           # 填入密钥；模型供应商见下
-uv run python -m app.api.main                  # 启服务（启动时预热 BGE-M3 / Reranker）
+uv run python -m app.main                      # 启服务（启动时预热 BGE-M3 / Reranker）
 
 uv run pytest                                  # 单测（默认 -m "not integration"）
 uv run pytest tests/trace/test_metrics.py::test_xxx    # 单条
@@ -47,7 +47,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 - **问答 Agent**（`backend/app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
 - **教材摄入**（`backend/app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
 - **观测**（`backend/app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
-- **API**（`backend/app/api/`）：两个 APIRouter 挂同一 FastAPI；对话与摄入各用独立 checkpoint collection。
+- **API**（`backend/app/main.py` + `backend/app/api/`）：应用实例与生命周期在 `main.py`，`api/main.py` 只汇总路由；对话与摄入两个 APIRouter 挂同一 FastAPI，各用独立 checkpoint collection。
 
 ## 关键不变量（违反会静默变贵/变错，不报错）
 
