@@ -1,10 +1,4 @@
-"""
-Embedding 工具
-
-基于 FlagEmbedding BGE-M3 生成 dense + sparse 向量，可直接存入 Milvus。
-
-模型加载优先级: config.model_path (本地) → config.model_name (HuggingFace ID)
-"""
+"""BGE-M3 嵌入：生成 dense + sparse 向量；模型单例由本模块内部维护。"""
 
 from __future__ import annotations
 
@@ -46,16 +40,9 @@ def _get_model():
 
 @retry(attempts=3, base_delay=0.3, max_delay=2.0, name="embedding_generate")
 def generate_embeddings(texts: list[str]) -> dict:
-    """为文本列表生成 dense + sparse 向量，返回 Milvus 可直接入库的格式。
+    """生成 dense + sparse 向量，返回 ``{"dense": [...], "sparse": [...]}``。
 
-    对 BGE-M3 前向做 3 次重试（指数退避 0.3→0.6→1.2s），覆盖 GPU
-    偶发前向失败 / 显存瞬时不足等瞬时故障；参数错误（空列表）不重试。
-
-    返回:
-        {
-            "dense": [[float * EMBEDDING_DIM], ...],  # 稠密向量，已 L2 归一化
-            "sparse": [{int: float}, ...],             # 稀疏向量，{token_id: 权重}
-        }
+    BGE-M3 前向失败按指数退避重试 3 次；空列表等参数错误不重试。
     """
     if not isinstance(texts, list) or len(texts) == 0:
         raise ValueError("texts 必须是非空列表")
@@ -86,4 +73,3 @@ def generate_embeddings(texts: list[str]) -> dict:
     return {"dense": dense, "sparse": sparse}
 
 
-# 动态攒批（BatchEmbedder / agenerate_embeddings）已迁至 app.ml.batch_manager.embedder

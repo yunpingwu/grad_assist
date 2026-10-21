@@ -1,24 +1,4 @@
-"""多用户并发、多轮会话评测。
-
-支持两种数据集形态：
-
-1. 扁平题集（默认 ``data/eval/*/qa_set.json``）：每本教材拆成多个虚拟用户，
-   同一用户的题目串行发送并复用随机生成的 session_id。
-2. 对话集（含 ``conversations`` 键的 qa_set.json，如
-   ``data/eval_multi_turn/qa_set.json``）：直接使用数据集中的 user_id、
-   session_key 与逐轮 turn_role/anaphora，session_id 固定为
-   ``session-{user_id}-{session_key}``，用于指代消歧与会话隔离评测。
-
-示例::
-
-    # 扁平题集
-    python -m app.eval.retrieval.run_multi_user_eval \\
-        --users-per-book 5 --turns-per-user 10 --concurrency 10
-
-    # 多轮对话集（200 轮 / 50 会话 / 25 虚拟用户）
-    python -m app.eval.retrieval.run_multi_user_eval \\
-        --dataset-root data/eval_multi_turn --concurrency 10
-"""
+"""多用户并发、多轮会话评测：支持扁平题集与 ``conversations`` 对话集。"""
 
 from __future__ import annotations
 
@@ -159,12 +139,8 @@ async def _request_turn(
 ) -> dict[str, Any]:
     """发送一轮 SSE 请求；同一 session 的调用由上层串行调度。
 
-    计时口径（三件事分开测，别把排队当成 Agent 慢）：
-    - ``queue_ms``：进入本函数到首次抢到并发槽位的等待，只记第一次排队；
-    - ``service_ms``：请求真正发出到 SSE 收尾的耗时，即 Agent 端到端服务时间
-      （重试的退避与二次排队落在这一段，不再回摊到 ``queue_ms``）；
-    - ``first_token_ms``：请求发出到收到第一个 ``token`` 事件（用户可见正文）的等待；
-    - ``latency_ms``：``queue_ms + service_ms`` 的总时长，仅作向后兼容保留。
+    计时分三段：``queue_ms``（抢并发槽）、``service_ms``（请求到收尾）、
+    ``first_token_ms``（到首个 token）。
     """
     t_enter = time.perf_counter()
     t_send: float | None = None

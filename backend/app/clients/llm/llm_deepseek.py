@@ -1,13 +1,4 @@
-"""DeepSeek 官方平台口径：模型/密钥/地址取 ``DeepSeekSettings``，与百炼不同的两处都关在本文件里。
-
-- **思考模式**：平台侧默认开启（effort 默认 high），要关必须显式 ``thinking={"type": "disabled"}``；
-  开启时另带 ``reasoning_effort``（low/high/max）；
-- **结构化输出**：目前不支持 ``response_format=json_schema``（实测 400：This response_format
-  type is unavailable now），走 ``function_calling``。
-
-契约（``llm.py`` 的门面按这四项消费，新增供应商照此实现）：
-``NAME`` / ``API_KEY_ENV`` / ``STRUCTURED_OUTPUT_METHOD`` / ``client_kwargs``。
-"""
+"""DeepSeek 官方平台口径：思考开关与结构化输出方式收在本文件。"""
 
 from __future__ import annotations
 

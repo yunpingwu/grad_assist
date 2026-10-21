@@ -1,11 +1,6 @@
-"""澄清问题工具：任务描述不明确、缺关键信息时，由模型向用户反问（结构化），人工作答后回灌继续执行。
+"""澄清工具：信息不足时由模型结构化反问，人工作答后经 resume 续跑。
 
-设计要点：
-- 一次工具调用 = 一轮所有澄清问题（最多 ``MAX_CLARIFY_QUESTIONS`` 个），规避并行 interrupt；
-- 工具入参（ClarifyQuestion）即模型产物：选项型(choice)带建议选项+对应解决方法，开放型(open)让用户自定义；
-- 工具返回值（list[ClarifyAnswer]）即模型续跑拿到的结果：每个问题 {id, answer}（选中的 method 或自定义文本）；
-- 人工作答经 ``Command(resume={"answers": [...]})`` 续跑；resume 数据不合法时在工具内再次 interrupt
-  提示重填，直到通过；服务端可在新问题撞上澄清挂起时发 ``Command(resume={"cancelled": True})`` 自动取消。
+一次工具调用承载本轮所有澄清问题，避免并行 interrupt；作答不合法时原地重问。
 """
 
 from __future__ import annotations
@@ -48,15 +43,7 @@ class ClarifyAnswer(BaseModel):
 
 
 def _normalize_answers(resume: Any, questions: list[ClarifyQuestion]) -> list[ClarifyAnswer] | str:
-    """校验并归一化 resume 数据；合法返回答案列表，非法返回可在前端展示的错误信息。
-
-    Args:
-        resume: Command(resume=...) 传入的数据（服务端已按请求体重构）。
-        questions: 本工具当前这轮提出的问题列表。
-
-    Returns:
-        list[ClarifyAnswer] 表示校验通过；str 表示错误信息（触发再次 interrupt 提示重填）。
-    """
+    """校验 resume 数据：合法返回答案列表，非法返回供前端展示的错误信息。"""
     if not isinstance(resume, dict):
         return "澄清回应格式无效：需为 {'answers': [{'id': ..., 'answer': ...}]}"
     # 取消标记：用户放弃澄清（服务端在收到新问题时发出）
@@ -81,21 +68,10 @@ def _normalize_answers(resume: Any, questions: list[ClarifyQuestion]) -> list[Cl
 
 @tool
 def ask_clarification(questions: list[ClarifyQuestion]) -> list[ClarifyAnswer]:
-    """任务描述不明确、缺少决定产出方向的关键信息时，向用户提出澄清问题，等人工回答后继续。
+    """任务方向不明时向用户提出澄清问题，等人工回答后继续。
 
-    用法：
-    - 一次调用连问 1-3 个问题，一个问题不需澄清就别问；能合理默认的就别问；
-    - 每个问题给 2-3 个建议选项（label 展示、method 为选中后的对应做法），或 type=open 让用户自定义回答；
-    - 需要澄清时只调用本工具这一个，不要与其它工具并行。
-
-    Args:
-        questions: 澄清问题列表，1-3 个。
-
-    Returns:
-        人工确认后每个问题的最终答案（选中的 method 或自定义文本），按 {id, answer} 返回供继续执行原任务。
-
-    Raises:
-        ValueError: 问题数不在 1-3 内（说明文本回给模型，让它自行收敛后重试）。
+    一次问 1-3 个，能合理默认的别问；每个问题给 2-3 个建议选项，或 type=open 让用户自定义。
+    需要澄清时只调本工具，不要与其它工具并行。
     """
     if not 1 <= len(questions) <= MAX_CLARIFY_QUESTIONS:
         raise ValueError(

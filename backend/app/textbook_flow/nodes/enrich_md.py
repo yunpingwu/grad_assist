@@ -1,9 +1,4 @@
-"""教材章节富化节点:为图片/代码生成简介,写入 full.md 的副本 full_captioned.md。
-
-富化产物供切块入库使用:
-- 图片行 alt = 视觉模型生成的简介(切块时原位嵌入正文参与检索);
-- 代码块后插入「> 代码说明: …」行(保留在正文,供语义类问题感知代码存在)。
-"""
+"""教材章节富化：为图片/代码生成简介，写入 ``full_captioned.md`` 供切块入库。"""
 
 import asyncio
 import base64
@@ -137,13 +132,9 @@ def _rebuild_text(
 
 
 async def code_and_image_caption(extracted_dirs) -> None:
-    """遍历章节目录,为图片/代码生成简介,写入 full.md 的副本 full_captioned.md。
+    """为各章图片/代码生成简介，写入 ``full_captioned.md``。
 
-    流程:
-    1. 收集: 跳过已富化章节(幂等),复制副本,收集各章任务(图片/代码按位置排序);
-    2. 执行: 所有章节的所有任务扁平化,统一 asyncio.Semaphore 并发调 LLM(跨章并行);
-    3. 重组: 按章节分组,位置切片重组后写回各自副本。
-    单个任务失败仅降级(图片 alt 用文件名、代码块不插说明行),不阻断整章。
+    跳过已富化章节；跨章并发调 LLM，单个任务失败仅降级，不阻断整章。
     """
     text_model, visual_model = get_model()
     image_prompt = load_prompt("image_introduction")

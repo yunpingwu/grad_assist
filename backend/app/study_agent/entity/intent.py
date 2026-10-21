@@ -16,13 +16,7 @@ class _IntentDecision(BaseModel):
 
 @dataclass(frozen=True)
 class IntentResult:
-    """意图识别结果。
-
-    Attributes:
-        intent: 意图枚举值（explain/generate/quiz/plan/chat/unclear）。
-        confidence: 置信度 0~1。
-        source: 判定来源（keyword/embedding/llm/fallback），便于观测与回归。
-    """
+    """意图识别结果：意图、置信度与来源（keyword/embedding/llm/fallback）。"""
 
     intent: str
     confidence: float

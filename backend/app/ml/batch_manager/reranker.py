@@ -1,15 +1,10 @@
-"""BatchReranker：动态攒批精排器
-
-把并发到来的交叉编码请求攒成一批 (query, text) 对，一次前向再按序拆分回填。
-底层打分由 ``app.ml.reranker_util._score_pairs`` 提供（BGE-Reranker，
-模型单例在 util 模块内部维护）。
-"""
+"""BatchReranker：把并发精排请求攒成一批 (query, text) 对，一次前向再拆分回填。"""
 
 from __future__ import annotations
 
 import asyncio
 
-from app.ml.reranker_util import _score_pairs
+from app.ml.reranker_util import score_pairs
 
 # 动态攒批参数：单卡 RTX 5060（8GB）+ BGE-Reranker（fp16）。max_batch 按 (query, text)
 # 对数量计；精排单请求候选通常少于 max_batch，满批时直接单发不截断。
@@ -18,11 +13,9 @@ _MAX_WAIT_S = 0.01
 
 
 class BatchReranker:
-    """把并发到来的交叉编码请求攒成一批 (query, text) 对，一次前向再按序拆分回填。
+    """把并发精排请求攒成一批 (query, text) 对，一次前向再按序拆分回填。
 
-    单实例模型只有一个 drainer 任务串行调用 ``_score_pairs``，天然线程安全，
-    因此 ``_score_pairs`` 不再需要锁。调用方视角：提交 (query, texts) → await 得到
-    与 texts 等长的分数列表。
+    单实例只有一个 drainer 串行打分，天然线程安全，无需额外加锁。
     """
 
     def __init__(self, max_batch: int = _MAX_BATCH, max_wait_s: float = _MAX_WAIT_S):
@@ -31,14 +24,11 @@ class BatchReranker:
         self._max_wait = max_wait_s
         self._task: asyncio.Task | None = None
 
-    def _ensure_started(self) -> None:
-        """幂等启动常驻 drainer（绑定到调用方所在事件循环）。"""
-        if self._task is None or self._task.done():
-            self._task = asyncio.get_running_loop().create_task(self._drain())
-
     async def encode(self, query: str, texts: list[str]) -> list[float]:
         """提交一个精排请求（单 query + 多个候选），挂起等待自己的分数。"""
-        self._ensure_started()
+        # 幂等启动常驻 drainer（绑定到调用方所在事件循环）
+        if self._task is None or self._task.done():
+            self._task = asyncio.get_running_loop().create_task(self._drain())
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         await self._queue.put((query, texts, fut))
         return await fut
@@ -62,7 +52,7 @@ class BatchReranker:
                 items.append((q, ts, f))
                 flat_pairs.extend((q, t) for t in ts)
 
-            scores = await asyncio.to_thread(_score_pairs, flat_pairs)  # 一次前向
+            scores = await asyncio.to_thread(score_pairs, flat_pairs)  # 一次前向
             off = 0
             for _q, ts, f in items:                      # 按各请求候选数拆分回填
                 n = len(ts)

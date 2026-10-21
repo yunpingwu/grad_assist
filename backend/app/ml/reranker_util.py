@@ -1,12 +1,4 @@
-"""Rerank 工具
-
-基于 FlagEmbedding BGE-Reranker 对 (查询, 片段) 对做交叉编码打分。
-
-- 对外只暴露打分结果（``compute_rerank_scores``），不暴露模型实例；
-- 模型单例由模块内部维护（``_get_reranker``），全进程仅加载一份、懒加载、可复用。
-
-模型加载优先级: config.model_path (本地) → config.model_name (HuggingFace ID)
-"""
+"""BGE-Reranker 交叉编码打分；模型单例由本模块内部维护并懒加载。"""
 
 from __future__ import annotations
 
@@ -55,7 +47,7 @@ def _get_reranker() -> FlagReranker:
     return _reranker
 
 
-def _score_pairs(pairs: list[tuple[str, str]]) -> list[float]:
+def score_pairs(pairs: list[tuple[str, str]]) -> list[float]:
     """批量交叉编码打分（纯同步前向，由 BatchReranker 串行调用）。"""
     reranker = _get_reranker()
     scores = reranker.compute_score(pairs)
@@ -65,24 +57,12 @@ def _score_pairs(pairs: list[tuple[str, str]]) -> list[float]:
 
 
 def compute_rerank_scores(query: str, texts: list[str]) -> list[float]:
-    """计算查询与每个候选片段的交叉编码分数（sigmoid 归一化，越大越相关）。
+    """计算 query 与各候选的交叉编码分数（sigmoid 归一化，越大越相关）。
 
-    同步版：直接对 ``(query, text)`` 对列表做一次前向，供预热等单处调用；
-    多用户并发精排请走 ``arerank_scores``（动态攒批）。
-
-    Args:
-        query: 查询文本。
-        texts: 候选片段文本列表，顺序与返回分数一一对应。
-
-    Returns:
-        与 ``texts`` 等长的分数列表。
-
-    Raises:
-        ValueError: ``texts`` 为空。
+    同步版，供预热等单处调用；并发精排走 ``arerank_scores``。
     """
     if not texts:
         raise ValueError("texts 必须是非空列表")
-    return _score_pairs([(query, text) for text in texts])
+    return score_pairs([(query, text) for text in texts])
 
 
-# 动态攒批（BatchReranker / arerank_scores）已迁至 app.ml.batch_manager.reranker

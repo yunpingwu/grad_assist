@@ -1,19 +1,7 @@
-"""四个指标的评测工作流：检索侧的 Context Precision / Context Recall，
-生成侧的 Faithfulness / Answer Relevancy。
+"""ragas 四指标评测：Context Precision/Recall + Faithfulness/Answer Relevancy。
 
-    uv run python -m app.eval.rag.evals              # 全部 6 份数据集
-    uv run python -m app.eval.rag.evals os --limit 5 # 先小样本打通
-
-指标取自 `ragas.metrics.collections`（0.4 的新路径，不吃弃用告警）。**不用**
-`evaluate()` / `aevaluate()`：collections 的 `BaseMetric` 没有 `single_turn_ascore`，
-`aevaluate` 分发不到它；而自带的 `abatch_score` 是无上限全量并发，300 题会打出
-3300 路请求。所以并发由本文件用信号量自己控。
-
-评审模型（judge）默认取 `.env` 里的 `LLM_PROVIDER`，可用 `--judge-provider` 换。
-⚠️ **换一个与生成侧不同的模型/供应商更好**——自己答、自己判，Faithfulness 会偏高。
-本轮生成用的是 `deepseek-flash`，结果里会记下两个模型各是谁。
-
-产物：`results/<key>.json`（逐题分数 + 均值 + 用了哪个模型），控制台打总表。
+并发由信号量控制；judge 默认取 ``LLM_PROVIDER``，建议与生成侧用不同模型。
+用法：``uv run python -m app.eval.rag.evals [数据集] [--limit N]``。
 """
 
 from __future__ import annotations
@@ -37,7 +25,7 @@ from ragas.metrics.collections import (
     Faithfulness,
 )
 
-from app.clients import llm_alibaba, llm_deepseek
+from app.clients.llm import llm_alibaba, llm_deepseek
 from app.config import llm_config
 from app.core import logger
 from app.eval.rag import rag
@@ -56,15 +44,7 @@ ANSWER_RELEVANCY_STRICTNESS = 3
 
 
 class BgeM3Embeddings(BaseRagasEmbedding):
-    """把项目自己的 BGE-M3 接到 ragas 的 embeddings 接口。
-
-    只有 AnswerRelevancy 需要 embeddings（它把答案反生成的问题与原问题算余弦相似度）。
-    不绕 `ragas.embeddings.embedding_factory`——那个工厂不传 client 会静默回退到
-    OpenAIEmbeddings（读环境变量 `OPENAI_API_KEY`），我们根本不用 OpenAI。
-
-    复用 `agenerate_embeddings`（动态攒批 + 单例模型），返回的 dense 向量已 L2 归一化，
-    正好可直接算余弦。
-    """
+    """把项目 BGE-M3 接到 ragas embeddings 接口；dense 向量已 L2 归一化。"""
 
     def embed_text(self, text: str, **kwargs) -> list[float]:
         return generate_embeddings([text])["dense"][0]
@@ -78,20 +58,10 @@ class BgeM3Embeddings(BaseRagasEmbedding):
 
 
 def _judge_llm(provider: str):
-    """按供应商造 ragas 的 InstructorLLM。
+    """按供应商构造 ragas 的 InstructorLLM（async client，两家均走 OpenAI 兼容端点）。
 
-    collections 指标只接受 `llm_factory` 出来的现代 LLM（传 LangChain 包装会直接
-    ValueError），且 client 必须是 async——四个指标的 ascore 都只调 `agenerate`。
-    两家都是 OpenAI 兼容端点，所以统一走 `AsyncOpenAI`。
-
-    两处参数不是可选的，都是实测踩出来的（真实样本：5 条上下文共 5679 字）：
-
-    - `extra_body` 关思考：**DeepSeek 平台侧思考默认开启**，而 `AsyncOpenAI` 构造
-      不收 `extra_body`（逐请求参数），得经 `llm_factory` 转发。不关的话思考把输出
-      预算吃光，指标直接抛 `IncompleteOutputException`。这里复用供应商模块的
-      `client_kwargs`，开关口径仍只有一处定义（`app/clients/llm_<供应商>.py`）。
-    - `max_tokens` 给足：judging 长上下文时输出（逐句 verdict）会很长，留默认值
-      同样会截断。
+    ``extra_body`` 必须经 ``llm_factory`` 转发关思考（DeepSeek 默认开启），
+    ``max_tokens`` 给足，否则长上下文 judging 会截断。
     """
     module = _PROVIDER_MODULES[provider]
     kwargs = module.client_kwargs(None, False)

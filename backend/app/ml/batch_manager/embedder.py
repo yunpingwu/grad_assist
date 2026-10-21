@@ -1,9 +1,4 @@
-"""BatchEmbedder：动态攒批器
-
-把并发小请求攒成一批，一次前向再按序拆分回填（单实例 + 动态 batching）。
-底层前向由 ``app.ml.embedding_util.generate_embeddings`` 提供（BGE-M3，
-模型单例在 util 模块内部维护）。
-"""
+"""BatchEmbedder：把并发小请求攒批后一次前向，再按请求边界拆分回填。"""
 
 from __future__ import annotations
 
@@ -12,20 +7,16 @@ import asyncio
 from app.ml.embedding_util import generate_embeddings
 from app.trace import astage
 
-# 动态攒批参数：单卡 RTX 5060（8GB）+ BGE-M3（fp16，权重约 2.2GB）。
-# max_batch 控制「并发小请求攒到多少条文本就前向」；摄入的 64 条满批不受此上限
-# 截断（drainer 拿到第一条即满批，直接单发）。max_wait 是攒批等待上限（10ms），
+# 攒批参数：max_batch 是并发小请求的合批上限（满批直接单发），max_wait 是等待窗口，
 # 用几毫秒延迟换取 GPU 吞吐。
 _MAX_BATCH = 32
 _MAX_WAIT_S = 0.01
 
 
 class BatchEmbedder:
-    """把并发小请求攒成一批，一次前向再按序拆分回填（单实例 + 动态 batching）。
+    """把并发小请求攒成一批，一次前向再按序拆分回填。
 
-    单实例模型只有一个 drainer 任务串行调用 ``generate_embeddings``，天然线程安全，
-    因此 ``generate_embeddings`` 不再需要锁。调用方视角与旧版 ``agenerate_embeddings``
-    完全一致：提交文本 → await 返回自己的 dense/sparse。
+    单实例只有一个 drainer 串行调用模型，天然线程安全，无需额外加锁。
     """
 
     def __init__(self, max_batch: int = _MAX_BATCH, max_wait_s: float = _MAX_WAIT_S):
@@ -34,14 +25,11 @@ class BatchEmbedder:
         self._max_wait = max_wait_s
         self._task: asyncio.Task | None = None
 
-    def _ensure_started(self) -> None:
-        """幂等启动常驻 drainer（绑定到调用方所在事件循环）。"""
-        if self._task is None or self._task.done():
-            self._task = asyncio.get_running_loop().create_task(self._drain())
-
     async def encode(self, texts: list[str]) -> dict:
         """提交一批文本，挂起等待本请求被拆分回填的结果。"""
-        self._ensure_started()
+        # 幂等启动常驻 drainer（绑定到调用方所在事件循环）
+        if self._task is None or self._task.done():
+            self._task = asyncio.get_running_loop().create_task(self._drain())
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         await self._queue.put((texts, fut))
         return await fut
@@ -85,18 +73,7 @@ _embedder = BatchEmbedder()
 async def agenerate_embeddings(texts: list[str]) -> dict:
     """异步版 generate_embeddings：提交到动态攒批器，攒批后一次前向。
 
-    适用多用户并发场景——把并发到达的小请求（1~6 条）攒成一批再一次 forward，
-    避免逐条前向造成的 GPU 利用率低下。模型前向仍由 ``to_thread`` 移出事件循环；
-    串行化不再依赖锁，改由 drainer 单任务串行调用 ``generate_embeddings`` 保证。
-
-    注意：耗时埋点 ``embedding_ms`` 在协程层记录（``astage``），涵盖「排队 + 前向」；
-    ``to_thread`` 会隔离 contextvar，同步函数内无法写入请求指标上下文。
-
-    Args:
-        texts: 待编码文本列表。
-
-    Returns:
-        同 generate_embeddings 的 ``{"dense": ..., "sparse": ...}`` 结构。
+    耗时埋点 ``embedding_ms`` 在协程层记录，涵盖排队 + 前向。
     """
     async with astage("embedding_ms"):
         return await _embedder.encode(texts)

@@ -1,20 +1,6 @@
-"""意图识别准确性评测：真漏斗（关键词/embedding/LLM）跑标注样本，输出分层指标报告。
+"""意图识别评测：跑标注样本，输出分层指标报告。
 
-默认口径只跑手写补充集 ``data/eval/intent/intent_extra.json``（114 条，覆盖
-quiz/generate/plan/chat/unclear 与跨意图省略句）。``--include-anchors`` 追加两套零标注
-成本的 explain 锚点：六教材 ``data/eval/*/qa_set.json`` 单轮题、``data/eval_multi_turn``
-各轮（前轮问句拼 history，与线上 format_history 同构）——检索评测集问句无行为关键词，
-期望意图清一色 explain，用来测错误改判与错误弃权。
-
-用法（项目根目录，需要 embedding 服务与 LLM 中转可用）::
-
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_eval
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_eval --include-anchors
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_eval --groups extra_multiturn,extra_quiz
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_eval --repeats 3 --limit 50
-
-指标口径：expected 为可接受集合、默认单值精确匹配；unclear 判到非 unclear 金标上记「弃权」，
-单独报弃权率。--repeats>1 时对同一条取多数票并标记不稳定样本（LLM 随机性体检）。
+默认只跑手写补充集；``--include-anchors`` 追加 explain 锚点，``--repeats`` 做多数票体检。
 """
 
 from __future__ import annotations

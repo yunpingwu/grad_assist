@@ -1,9 +1,4 @@
-"""向量混合检索工具函数：供 search_textbook 做稠密+稀疏混合召回。
-
-从 query_functions 收编而来：``search_by_vectors`` 为「向量 → 检索」纯函数，
-``search_by_query`` 在其之上补 embedding 生成，供快速路径使用；深度路径
-直接用 ``search_by_vectors`` 复用一次批量 embedding 的产物。
-"""
+"""向量混合检索：``search_by_vectors`` 接收已算好的向量，``search_by_query`` 附带 embedding 生成。"""
 
 from __future__ import annotations
 
@@ -20,22 +15,7 @@ async def search_by_vectors(
     chapter: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
-    """用预生成的 dense/sparse 向量在教材集合执行混合检索（可选章节过滤）。
-
-    不生成 embedding，接收调用方已算好的向量，供深度路径对 query/hyde 两路
-    共享一次批量 embedding 的结果。
-
-    Args:
-        textbook_name: 教材名（须已登记）。
-        dense_vec: 查询稠密向量（单条）。
-        sparse_vec: 查询稀疏向量（单条）。
-        chapter: 限定章节名（可选，转义后作为 Milvus 过滤表达式），缺省全书检索。
-        limit: 融合后返回的最大命中数，缺省 5（生产快速路径）；深度路径评测
-            扩候选池时传更大值。
-
-    Returns:
-        检索到的 TOP 文本片段列表。
-    """
+    """用已算好的 dense/sparse 向量做混合检索（可选章节过滤），不生成 embedding。"""
     collection_name = get_collection_by_name(textbook_name)
     if not collection_name:
         raise ValueError(f"教材未登记: {textbook_name}")
@@ -54,17 +34,7 @@ async def search_by_query(
     chapter: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
-    """根据检索问句进行向量混合搜索（可选按章节过滤）。
-
-    Args:
-        textbook_name: 教材名。
-        search_query: 检索问句（由 agent 结合对话历史组织的自包含问句）。
-        chapter: 限定章节名（可选），缺省全书检索。
-        limit: 融合后返回的最大命中数，缺省 5。
-
-    Returns:
-        检索到的 TOP 文本片段。
-    """
+    """先编码检索问句，再做向量混合搜索（可选章节过滤）。"""
     if not search_query:
         raise ValueError("检索问句为空")
     # 生成问题向量（异步派发到线程池，避免阻塞事件循环）
@@ -79,4 +49,3 @@ async def search_by_query(
     )
 
 
-# 冒烟测试已迁移至 tests/study_agent/query_functions/test_embedding_search.py

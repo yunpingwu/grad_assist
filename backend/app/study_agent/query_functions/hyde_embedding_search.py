@@ -1,9 +1,4 @@
-"""HyDE 假设文档检索工具函数：供 search_textbook 深度路径做第二路召回。
-
-从 query_functions 收编而来：``hyde_doc_generate`` 生成假设文档，``hyde_doc_search``
-将其向量化后检索——检索部分复用 ``embedding_search.search_by_vectors``，与
-query 路共享同一次批量 embedding 的产物。
-"""
+"""HyDE 假设文档检索：生成假设文档并复用 ``search_by_vectors`` 做第二路召回。"""
 
 from __future__ import annotations
 
@@ -17,14 +12,7 @@ from app.study_agent.query_functions.embedding_search import search_by_vectors
 
 
 async def hyde_doc_generate(search_query: str) -> str:
-    """借助 LLM 生成假设性回答文档（HyDE）。
-
-    Args:
-        search_query: 检索问句（由 agent 组织的自包含问句）。
-
-    Returns:
-        假设性文档（纯文本）。
-    """
+    """用 LLM 生成假设性回答文档（HyDE）。"""
     if not search_query:
         raise ValueError("检索问句为空")
     template = load_prompt("hyde_doc_generate")
@@ -49,17 +37,7 @@ async def hyde_doc_search(
     textbook_name: str,
     limit: int = 5,
 ) -> list[dict]:
-    """将假设性文档向量化后进行查询。
-
-    Args:
-        hyde_doc: 生成的假设性文档。
-        search_query: 检索问句（与 hyde_doc 拼接后向量化）。
-        textbook_name: 教材名，用于定位检索集合。
-        limit: 融合后返回的最大命中数，缺省 5；深度路径评测扩候选池时传更大值。
-
-    Returns:
-        检索到的 TOP 文本片段。
-    """
+    """把假设文档与检索问句拼接后向量化，再做第二路召回。"""
     if not hyde_doc:
         raise ValueError("假设性文档为空")
     if not search_query:
@@ -75,4 +53,3 @@ async def hyde_doc_search(
     )
 
 
-# 冒烟测试已迁移至 tests/study_agent/query_functions/test_hyde_embedding_search.py

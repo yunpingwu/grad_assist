@@ -1,9 +1,4 @@
-"""FastAPI 应用装配与启动入口。
-
-应用实例、生命周期、CORS 与 uvicorn 启动都收在这里；路由汇总见
-``app/api/main.py``。这样 ``app.api`` 只承担 API 装配，运行入口不再混在路由包里，
-``python -m app.main`` 是唯一启动方式。
-"""
+"""FastAPI 应用装配与启动入口（``python -m app.main``）；路由汇总见 ``app/api/main.py``。"""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

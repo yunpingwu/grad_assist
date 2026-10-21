@@ -6,10 +6,7 @@ from typing_extensions import TypedDict
 
 
 class TextBookState(TypedDict):
-    """教材摄入流水线（load_textbook → split_contents → split → parse_to_md → split_text_and_store）的状态。
-
-    仅保留摄入所需字段；检索/对话相关字段已随检索图（retrieval graph）迁移。
-    """
+    """教材摄入流水线的状态：load_textbook → split_contents → split → parse_to_md → split_text_and_store。"""
 
     # ===== 入口路由 =====
     # 是否已有教材在向量库中，由上层编排决定走摄入流程还是检索流程

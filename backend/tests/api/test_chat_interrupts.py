@@ -1,9 +1,4 @@
-"""写盘确认中断的恢复计数：决定数必须与挂起的工具调用数一一对应。
-
-真机 2026-10-15：模型一轮内发出两个 edit_file（同一个中断里挂起两起写盘），而恢复时按
-graph task 数（恒为 1）发决定 → HITL 中间件抛 "Number of human decisions (1) does not
-match number of hanging tool calls (2)"，线程卡死，下一轮模型调用跟着 400。
-"""
+"""写盘确认中断的恢复计数：决定数必须与挂起的工具调用数一一对应。"""
 
 from types import SimpleNamespace
 

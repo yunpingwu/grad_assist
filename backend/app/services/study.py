@@ -1,8 +1,4 @@
-"""统一教材助手的应用编排层。
-
-路由层（``app/api/routes/study.py``）只负责 HTTP 参数与响应；本模块承载
-SSE 事件生成、HITL 续跑判定、会话/历史/产物读取，URL 与 SSE 事件协议保持不变。
-"""
+"""统一教材助手的应用编排层：SSE 事件流、HITL 续跑与会话/产物查询。"""
 
 from __future__ import annotations
 
@@ -52,11 +48,8 @@ async def prepare_chat(
 ) -> tuple[dict | Command, dict, str]:
     """判定线程是否停在中断，生成本轮图输入与运行配置。
 
-    写盘确认与澄清反问的续跑语义都在这里：传入 response 时以 ``Command(resume=...)``
-    推进同一线程；停在中断却发来新问题时先自动解锁（拒绝写盘 / 取消澄清），再按新问题跑。
-
-    Returns:
-        ``(agent_input, config, session_id)``；session_id 缺省时在服务层生成。
+    续跑用 ``Command(resume=...)`` 推进同一线程；停在中断却发来新问题时先自动解锁再重跑。
+    返回 ``(agent_input, config, session_id)``。
     """
     session_id = session_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
@@ -140,21 +133,10 @@ async def chat_events(agent_input: dict | Command, config: dict, session_id: str
 
 
 async def stream_agent(agent_input: dict | Command, config: dict, session_id: str):
-    """以 SSE 事件流消费统一 agent 的一轮执行（消息级 + 断点续跑共用）。
+    """以 SSE 事件流消费 agent 的一轮执行（新会话与断点续跑共用）。
 
-    事件协议（按前端展示规则）：
-    - ``thought``：模型在调工具前后的思考/推理内容（能看清大模型的思路），单独推送；
-    - ``token``：仅最终回答正文；
-    - ``tool``：工具执行结果（name + content），全部推送，前端按时间线穿插展示；
-    - ``ask_confirm`` / ``done``：写盘确认 / 收尾。
-
-    Args:
-        agent_input: 本轮输入（新会话传 state 字典；续跑传 Command(resume=...)）。
-        config: 含 thread_id 的运行时配置。
-        session_id: 会话 ID，随 done / ask_confirm 回传。
-
-    Yields:
-        形如 {"type": "thought"|"token"|"tool"|"ask_confirm"|"done", ...} 的事件字典。
+    事件协议：``thought``（思考）、``token``（回答正文）、``tool``（工具结果）、
+    ``ask_confirm`` / ``done``（写盘确认 / 收尾）。
     """
     t0 = time.perf_counter()
     first_token = False
@@ -265,17 +247,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
 
 
 def _dump_messages(messages: list) -> list[dict]:
-    """把线程消息抽成可读结构，供调试查看 agent 与 LLM 的多轮交互。
-
-    每种消息保留关键字段：type（human/ai/tool）、content（全量）、tool_calls（模型要调的工具）、
-    tool_call_id（工具回填对应哪个调用）、name（工具名）。字段不存在则不出现。
-
-    Args:
-        messages: 线程状态里的 messages 列表（LangChain BaseMessage）。
-
-    Returns:
-        结构化的消息字典列表。
-    """
+    """把线程消息抽成可读结构（type/content/tool_calls 等），供调试查看。"""
     out: list[dict] = []
     for m in messages:
         item: dict = {"type": m.type, "content": str(m.content)}
@@ -300,12 +272,9 @@ def _dump_messages(messages: list) -> list[dict]:
 
 
 def _hanging_write_count(snapshot: Any) -> int:
-    """挂起的写盘调用数 = 各中断 payload 里 ``action_requests`` 的总和（无快照时兜底 1）。
+    """挂起的写盘调用数 = 各中断 payload 的 ``action_requests`` 总和（无快照时兜底 1）。
 
-    HITL 中间件把一轮内**所有**待确认的工具调用打包进同一个 interrupt；resume 的 decisions
-    数必须等于挂起的调用数，否则中间件直接抛 "Number of human decisions (n) does not match
-    number of hanging tool calls (m)"。数 graph task 数（恒为 1）在模型一次发多起写盘时会踩这条：
-    真机 2026-10-15 上模型一次发出两个 edit_file，恢复被拒后线程卡死，下一轮调用直接 400。
+    HITL 把一轮所有待确认调用打包进同一个 interrupt；resume 的 decisions 数必须与之一致。
     """
     count = 0
     for task in getattr(snapshot, "tasks", ()):
@@ -329,12 +298,7 @@ def files(task_id: str, textbook_name: str) -> list[dict]:
 
 
 def read_file(task_id: str, textbook_name: str, path: str) -> dict:
-    """读取一份文件内容（前端预览用），路径校验与 tools/files.py 同一策略。
-
-    Raises:
-        ValueError: 路径非法（绝对路径 / ``..`` / symlink 逃逸）。
-        FileNotFoundError: 目标文件不存在。
-    """
+    """读取文件内容供前端预览；路径校验与 ``tools/files.py`` 同一策略。"""
     root = (MATERIAL_ROOT / textbook_name / task_id).resolve()
     # 路径防线：拒绝绝对路径 / `..` 逃逸 / symlink 逃逸（与 tools/files.py 同一策略）
     if not path or "\x00" in path or Path(path).is_absolute():
@@ -388,14 +352,9 @@ async def sessions(textbook_name: str, user_id: str) -> list[dict]:
 
 
 def build_history(messages: list) -> list[dict]:
-    """把线程消息列表整成前端回显结构：只留「用户 + 最终回答」，思考与工具结果按真实顺序折进 steps。
+    """把线程消息整成前端回显结构：用户 + 最终回答，思考与工具结果折进 steps。
 
-    工具一步优先取 ``artifact["content"]``：往轮的检索原文在轮首被回收成一句占位写回 state
-    （那条只给模型看），原文随消息进 checkpoint 但不进请求，回显靠它保住原文。
-
-    会话压缩注入的整篇回顾（``is_summary_message``）直接跳过：它是 HumanMessage，
-    不挡的话会以「用户」身份出现在前端气泡里（压缩一触发，回显就多一条用户没说过的长消息）。
-    被压掉的历史仍在这里回显——压缩只裁模型视图，不删 state（见 study_agent/compaction.py）。
+    工具步骤优先取 ``artifact`` 原文；压缩回顾跳过，被压掉的历史仍照常回显。
     """
     items: list[dict] = []
     pending_steps: list[dict] = []

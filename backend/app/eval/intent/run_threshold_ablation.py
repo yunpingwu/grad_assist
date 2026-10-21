@@ -1,26 +1,6 @@
-"""embedding 档路由判据消融：例句池 top-3 均值分布上扫「绝对阈值 A × 次冠差 B」网格，离线模拟漏斗路由。
+"""意图 embedding 判据消融：扫「绝对阈值 × 次冠差」网格，离线模拟漏斗路由。
 
-原理：三档漏斗里受判据影响的是第 2 档「高置信直判」与第 1 档的池核验。新打分（INTENT_EXAMPLES
-池的 top-3 均值，见 intent_detection）下，直判条件为 ``top1 >= A 且 top1-top2 >= B``：
-绝对阈值管「够不够像」，次冠差管「赢没赢干净」——0.86 把错题整理判成 quiz 那类自信误判
-正是「过线但没拉开」的形态。关键词档与生产同口径：命中还须 **池冠=关键词意图** 才直返，
-否则视同未命中续走漏斗。探测阶段对每条样本拿到与判据无关的三样事实：①关键词档结果、
-②五池完整得分（推出 top1/margin/argmax，关键词命中样本同样要编码供核验）、③LLM 档判定。
-**LLM 探测覆盖全部非关键词直返样本**（含被核验降级者与 margin 档位下高 top1 低 margin 的
-样本，否则无法模拟其下沉走向）。之后任意 (A,B) 的预测都由纯函数 route_predict 推演，
-比较 36 个档位无需重复烧 LLM 调用。
-
-选点口径 pick_best：准确率 ≥ _ACC_FLOOR 的档位里取 embedding 直判占比最大者（分流越多、
-LLM 越省）；若无档位过线，退回「最高准确率、同分少花 LLM」。
-
-用法（项目根目录，需要 embedding 服务与 LLM 中转可用）::
-
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_threshold_ablation
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_threshold_ablation --leak-check   # 只查例句池与评测集的泄漏
-    .venv\\Scripts\\python.exe -m app.eval.intent.run_threshold_ablation --include-anchors
-
-输出：top1/margin 分布分位数、各档位 准确率 / embedding 直判量 / 下沉 LLM 量 对照表、
-推荐点错例明细；结果 JSON 写入 data/eval/intent/threshold_ablation.json。
+先采集与判据无关的事实，再由纯函数推演各档位，避免重复 LLM 调用。
 """
 
 from __future__ import annotations

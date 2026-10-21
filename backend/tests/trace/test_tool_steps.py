@@ -1,12 +1,7 @@
 """工具执行留痕测试：工具步带 args/结果/meta，工具内 LLM 靠上下文挂回工具体。
 
-这些用例钉住的是实测过的框架行为，升 langchain 先跑这里：
-- 同步回调默认走线程池（copy_context），``run_inline=True`` 后 ContextVar 才传得进工具体——
-  ``test_tool_internal_llm_links_by_context_not_parent_run`` 是这条的防回归；
-- ``prompt | llm | parser`` 的 chat run 直接父级是链 run 而不是工具 run，所以关联只能走上下文，
-  不能靠 ``parent_run_id`` 单跳；
-- 直调工具（``tool.ainvoke``，测试与 eval 的用法）同样触发回调——工具采集因此能统一走回调，
-  不必依赖图装配的中间件。
+钉住三条框架行为：回调需 ``run_inline=True`` 才能传 ContextVar；chat run 的父级是链 run，
+不能靠 ``parent_run_id``；直调工具同样触发回调。
 """
 
 import asyncio

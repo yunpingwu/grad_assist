@@ -1,8 +1,4 @@
-"""
-MinIO 客户端
-
-负责上传/下载/列举文件，用于存储 MinerU 提取的图片等静态资源。
-"""
+"""MinIO 客户端：上传/下载/列举文件，用于存储 MinerU 提取的图片等静态资源。"""
 
 from pathlib import Path
 

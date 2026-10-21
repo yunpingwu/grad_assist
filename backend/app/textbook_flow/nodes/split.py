@@ -227,4 +227,3 @@ async def split(state: TextBookState, *, writer: StreamWriter) -> dict:
     return state
 
 
-# 集成测试已迁移至 tests/textbook_flow/nodes/test_split.py

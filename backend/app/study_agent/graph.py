@@ -1,22 +1,7 @@
-"""教材知识学习 Agent 图：create_agent 单层 ReAct（方案 A：单层循环 + 护栏）。
+"""教材学习 Agent 图：create_agent 单层 ReAct，middleware 承担前置理解与护栏。
 
-不再手写 StateGraph 包装——create_agent 本身即编译好的图对象
-（CompiledStateGraph），内部已编排 model ⇄ tools 循环与终止条件；
-收尾（扫描落盘、登记清单）为图外的业务函数，见 service/API 层。
-
-动态提示词与前置 query 理解通过 langchain.agents 的 middleware 机制接入：
-- ``@before_agent``：作为入口节点，每轮对话只执行一次，依次做意图识别（失败回退默认行为块，
-  不阻断本轮）、会话压缩（超窗口半数才压，且只裁模型视图）、把「本轮指令」落进 state、
-  把往轮检索原文回收成一句占位并写回 state；
-- ``@dynamic_prompt``：渲染 system prompt，**只装全局静态壳**（教材名/意图/任务目标一律不进，为的是前缀缓存）。
-
-「本轮指令」（教材名 + 意图行为块 + 意图预判 + 任务目标）在轮首作为 SystemMessage 追加到
-历史之后一次，轮内各次调用共用同一条——每轮变动的内容留在 system prompt 里会切断历史前缀，
-每次调用重贴则会在轮内切断（详见 ``record_turn_instruction``）。
-
-检索问句不再前置重写：模型在 ReAct 循环里看得见完整对话（历史用户问题 + 回答），
-由它自己组织自包含的 ``search_textbook(query=...)``；缺省回退本轮原问题（requirement）。
-跨轮消歧所需的历史改喂给意图识别的 LLM 兜底层（那里才是真的缺上下文判不准的地方）。
+装配顺序见 ``build_graph`` 的 middleware 列表。动态提示词只装全局静态壳，本轮指令由
+``record_turn_instruction`` 在轮首追加到历史之后，以保住前缀缓存。
 """
 
 from __future__ import annotations
@@ -88,12 +73,9 @@ def _render_turn_instruction(state: dict) -> str:
 
 @before_agent(state_schema=StudyState)
 async def record_turn_instruction(state: StudyState, runtime: Runtime) -> dict:
-    """把「本轮指令」作为 SystemMessage 落进 state，**一轮只落一次**。
+    """把本轮指令作为尾部 SystemMessage 落进 state，一轮只落一次。
 
-    放尾部而不是 system prompt 里，是为了让每轮变动的教材名/意图/任务目标不切断历史前缀；
-    落进 state 而不是每次模型调用重贴，是为了轮内前缀单调增长——重贴时第 2 次起消息变成
-    ``[历史, AI1, tool1, 指令]``，与第 1 次存下的 ``[历史, 指令]`` 在那个位置分叉。
-    内容一致即视为本轮已落定（resume 回同一线程时不重复追加）。
+    放尾部而非 system prompt，避免每轮变动的内容切断历史前缀；内容一致时不重复追加。
     """
     content = _render_turn_instruction(state)
     messages = state.get("messages") or []
@@ -114,22 +96,9 @@ async def record_turn_instruction(state: StudyState, runtime: Runtime) -> dict:
 
 @before_agent(state_schema=StudyState)
 async def understand_query(state: StudyState, runtime: Runtime) -> dict:
-    """前置「query 理解」（before_agent 入口节点）：三档漏斗意图识别。
+    """轮首意图识别，产物写入 ``state.intent`` 供动态提示词选行为块。
 
-    每轮对话只执行一次（resume 不重跑），产物写入 state.intent，供 dynamic_prompt
-    选行为块。对话历史一并交给它——兜底层靠历史消解跨轮指代与省略。
-
-    整节点包在 try 里：这一步只是「选哪个行为块」的增强，判不出还有 explain 兜着，
-    不值得为它让本轮对话直接失败，故异常一律告警后回退默认块（``logger.warning`` 保证
-    线上可见，不做静默吞掉）。``except Exception`` 不拦 BaseException，
-    取消信号（asyncio.CancelledError）照常向上传播。
-
-    Args:
-        state: 当前图状态（含 messages 完整历史与新 query）。
-        runtime: 运行时上下文。
-
-    Returns:
-        state 更新字典（intent）；识别链路异常时为默认意图。
+    识别失败只告警并回退默认意图，不阻断本轮；取消信号照常向上传播。
     """
     try:
         requirement = state.get("requirement") or ""
@@ -159,14 +128,7 @@ async def understand_query(state: StudyState, runtime: Runtime) -> dict:
 
 
 def build_graph(checkpointer=None):
-    """构建教材知识学习 Agent（create_agent 单层 ReAct）。
-
-    Args:
-        checkpointer: 状态持久化器（断点续跑），传 MongoDBSaver。
-
-    Returns:
-        编译后的 CompiledStateGraph，可直接 stream / invoke。
-    """
+    """构建教材学习 Agent（create_agent 单层 ReAct），返回编译后的图。"""
     # 护栏：会话成本预算（BUDGET_ENABLED=false 时整体不装）。必须排在列表最后：
     # after_model 逆注册序执行，最后注册的先跑——被 HITL interrupt 掐断的调用也能先折叠成本
     budget_guard = [SessionBudgetMiddleware()] if budget_config.enabled else []

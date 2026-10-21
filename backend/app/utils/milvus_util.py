@@ -1,8 +1,6 @@
-"""
-Milvus 教材域工具
+"""Milvus 教材域工具：注册表、集合名分配与教材检索逻辑。
 
-封装教材注册表、集合名分配等教材业务逻辑，供节点调用。
-底层通用 Milvus 操作（连接、建表、插入、检索）见 clients/milvus_client.py。
+底层通用 Milvus 操作见 ``clients/milvus_client.py``。
 """
 
 import hashlib
@@ -51,9 +49,7 @@ RETRY_SEARCH = dict(attempts=3, base_delay=0.4, max_delay=3.0, exceptions=RETRYA
 
 
 # ── 进程级缓存（教材域）──────────────────────────────────────
-# 教材名 → 集合名的映射短缓存：映射仅在重摄入 register_textbook 时变化，
-# 60s TTL + 显式失效兜底，避免每次检索都打一次 Milvus 注册表查询。
-# （cachetools TTLCache 内部无锁，本项目所有访问均发生在 uvicorn 事件循环单一线程内）
+# 教材名 → 集合名：60s TTL + 注册时显式失效；访问都在 uvicorn 事件循环单线程内。
 _COLLECTION_CACHE_TTL = 60.0
 _collection_cache = TTLCache(maxsize=1024, ttl=_COLLECTION_CACHE_TTL)
 
@@ -113,13 +109,7 @@ def deterministic_collection_name(textbook_name: str) -> str:
 
 
 def register_textbook(textbook_name: str, collection_name: str, chunk_count: int) -> None:
-    """将教材登记到注册表（教材名 → 集合名）。
-
-    Args:
-        textbook_name: 教材完整名（主键）。
-        collection_name: 数据集合名，如 tb_01。
-        chunk_count: 入库的文本块数量。
-    """
+    """把教材登记到注册表（教材名 → 集合名），并失效该教材的进程缓存。"""
     ensure_registry()
     client = milvus_client.get_client()
     client.upsert(
@@ -137,14 +127,9 @@ def register_textbook(textbook_name: str, collection_name: str, chunk_count: int
     )
     client.flush(REGISTRY_COLLECTION)
     # 登记即数据变更提交点：失效该教材的映射与章节结构缓存，检索侧即刻可见
-    _invalidate_textbook_caches(textbook_name)
-    logger.info(f"注册教材: {textbook_name} → {collection_name}（{chunk_count} chunk）")
-
-
-def _invalidate_textbook_caches(textbook_name: str) -> None:
-    """失效教材维度的进程缓存（重摄入后调用，保证检索侧新鲜）。"""
     _collection_cache.pop(textbook_name, None)
     _chapters_cache.pop(textbook_name, None)
+    logger.info(f"注册教材: {textbook_name} → {collection_name}（{chunk_count} chunk）")
 
 
 def escape_expr_value(value: str) -> str:
@@ -182,16 +167,7 @@ def get_collection_by_name(textbook_name: str) -> str | None:
 
 
 def list_textbooks(page: int = 1, page_size: int = 20) -> dict:
-    """分页列出注册表中的教材（前端教材下拉列表/书架用）。
-
-    Args:
-        page: 页码，从 1 开始。
-        page_size: 每页条数。
-
-    Returns:
-        {"items": [...], "total": int, "page": int, "page_size": int}，
-        items 元素含 textbook_name/collection_name/chunk_count/created_at。
-    """
+    """分页列出注册表中的教材，返回 ``{"items", "total", "page", "page_size"}``。"""
     ensure_registry()
     client = milvus_client.get_client()
     total = client.get_collection_stats(REGISTRY_COLLECTION).get("row_count", 0)
@@ -207,23 +183,7 @@ def list_textbooks(page: int = 1, page_size: int = 20) -> dict:
 
 
 def list_chapters(textbook_name: str) -> list[dict]:
-    """列出教材的章节结构（chapter/section 聚合去重，按首次出现顺序）。
-
-    供复习资料生成 Agent 了解教材骨架、决定按章检索的范围。
-
-    缓存策略（全表扫描结果，教材入库后不变）：进程级 10 分钟 TTL 缓存，
-    命中即返回；MISS 才 query_iterator 全表扫描并回填。
-
-    Args:
-        textbook_name: 教材名（须已登记）。
-
-    Returns:
-        形如 [{"chapter": "第1章 绪论", "sections": ["1.1 概述", ...]}, ...] 的列表；
-        无 section 的聚合块 sections 为空列表。
-
-    Raises:
-        ValueError: 教材未登记。
-    """
+    """列出教材章节结构（按首次出现顺序去重），结果做进程级 10 分钟 TTL 缓存。"""
     cached = _chapters_cache.get(textbook_name)
     if cached is not None:
         return cached
@@ -287,18 +247,7 @@ def create_hybrid_search_requests(
     limit: int = 10,
     expr: str | None = None,
 ) -> list[AnnSearchRequest]:
-    """构造 dense + sparse 混合检索请求列表（供 MilvusClient.hybrid_search 使用）。
-
-    Args:
-        dense_vector: 查询的稠密向量（单条，如 BGE-M3 的 dense_vecs[0]）。
-        sparse_vector: 查询的稀疏向量（单条，{token_id: weight} 字典）。
-        limit: 单路底层检索返回的最大结果数（供 ranker 融合重排）。
-        expr: 标量过滤表达式，如 ``textbook_name == "C语言"``，缺省不过滤。
-
-    Returns:
-        两个 AnnSearchRequest：dense 路（COSINE）+ sparse 路（IP），
-        顺序与 ranker 权重列表一一对应。
-    """
+    """构造 dense（COSINE）+ sparse（IP）两路混合检索请求，顺序与权重一一对应。"""
     if not dense_vector:
         raise ValueError("dense_vector 不能为空")
     if not sparse_vector:
@@ -336,23 +285,9 @@ def hybrid_search(
     weights: tuple[float, float] = (0.8, 0.2),
     output_fields: list[str] | None = None,
 ) -> list[dict]:
-    """用预生成的 dense/sparse 向量在指定集合执行混合检索，返回 TOP 命中列表。
+    """用已算好的 dense/sparse 向量做混合检索，返回 TOP 命中列表。
 
-    与 ``create_hybrid_search_requests`` 配套：接收已算好的向量，忽略 embedding 生成，
-    便于多路检索共享一次批量 embedding 的产物（见 search_textbook 深度路径）。
-
-    Args:
-        dense_vector: 查询的稠密向量（单条）。
-        sparse_vector: 查询的稀疏向量（单条）。
-        collection_name: 教材数据集合名。
-        expr: 标量过滤表达式（如章节过滤），缺省不过滤。
-        limit: 融合后返回的最大命中数。
-        weights: WeightedRanker 的 (dense, sparse) 权重，默认 (0.8, 0.2)；
-                 消融实验通过该参数做权重扫描。
-        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
-
-    Returns:
-        混合检索的 TOP 命中列表（``res[0]``），元素含 id/entity/distance。
+    ``weights`` 是 WeightedRanker 的 (dense, sparse) 权重，消融实验借此扫权重。
     """
     reqs = create_hybrid_search_requests(
         dense_vector=dense_vector,
@@ -384,18 +319,7 @@ def dense_search(
     limit: int = 5,
     output_fields: list[str] | None = None,
 ) -> list[dict]:
-    """仅用稠密向量做单路检索（COSINE），供消融实验对比 dense-only 基线的排序质量。
-
-    Args:
-        dense_vector: 查询的稠密向量（单条）。
-        collection_name: 教材数据集合名。
-        expr: 标量过滤表达式，缺省不过滤。
-        limit: 返回的最大命中数。
-        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
-
-    Returns:
-        TOP 命中列表（``res[0]``），元素含 id/entity/distance。
-    """
+    """仅用稠密向量做单路检索（COSINE），供 dense-only 基线对比。"""
     if not dense_vector:
         raise ValueError("dense_vector 不能为空")
     client = milvus_client.get_client()
@@ -420,18 +344,7 @@ def sparse_search(
     limit: int = 5,
     output_fields: list[str] | None = None,
 ) -> list[dict]:
-    """仅用稀疏（词面）向量做单路检索（IP），供消融实验对比 sparse-only 基线的排序质量。
-
-    Args:
-        sparse_vector: 查询的稀疏向量（单条，{token_id: weight}）。
-        collection_name: 教材数据集合名。
-        expr: 标量过滤表达式，缺省不过滤。
-        limit: 返回的最大命中数。
-        output_fields: 返回字段，缺省用 ``SEARCH_OUTPUT_FIELDS``。
-
-    Returns:
-        TOP 命中列表（``res[0]``），元素含 id/entity/distance。
-    """
+    """仅用稀疏（词面）向量做单路检索（IP），供 sparse-only 基线对比。"""
     if not sparse_vector:
         raise ValueError("sparse_vector 不能为空")
     client = milvus_client.get_client()
@@ -453,17 +366,7 @@ def query_section_codes(
     section: str,
     limit: int = 20,
 ) -> list[dict]:
-    """查询某 (chapter, section) 下的代码块记录，供召回后补全正文配码。
-
-    Args:
-        collection_name: 教材数据集合名。
-        chapter: 章节名。
-        section: 小节名。
-        limit: 最多返回的代码块条数。
-
-    Returns:
-        [{id, text, chapter, section, block_type}, ...]，无则返回空列表。
-    """
+    """查询某 (chapter, section) 下的代码块记录，供召回后补全正文配码。"""
     client = milvus_client.get_client()
     safe_chapter = escape_expr_value(chapter)
     safe_section = escape_expr_value(section)

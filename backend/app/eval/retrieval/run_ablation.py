@@ -1,29 +1,6 @@
-"""检索侧消融实验入口：dense/sparse/权重扫描/HyDE/RRF/rerank 逐项对比。
+"""检索侧消融入口：dense/sparse/权重/HyDE/RRF/rerank 逐项对比。
 
-用法（在项目根目录）::
-
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_ablation             # 默认评测集（见下方 _DEFAULT_DATASET_PATH 常量）
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_ablation "data/eval/数据结构 (陈越、何钦铭、徐镜春、魏宝刚、杨枨编)/qa_set.json"  # 换评测集
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_ablation "data/eval/C语言程序设计（第五版）_(谭浩强)/qa_set.json"  # C语言困难集
-
-结果同时打印到控制台，并写入评测集所在目录下的 ``results.json``
-（例如 ``data/eval/XXX/qa_set.json`` 的结果写到 ``data/eval/XXX/results.json``，
-结果文件名可改下方 ``_RESULT_FILENAME`` 常量）。
-
-配置链（同一评测集、同一教材集合上跑）：
-- dense       : 单路稠密检索（= 权重 1.0/0.0 的极端）
-- sparse      : 单路稀疏/词面检索（= 权重 0.0/1.0 的极端）
-- hyb_50/70/80/90 : dense+sparse 加权混合，权重 (0.5,0.5)/(0.7,0.3)/(0.8,0.2)/(0.9,0.1)
-- rrf_hyde      : 混合召回 + HyDE 第二路 → RRF(k=60) 融合后截断
-- rerank        : 对 rrf_hyde 融合候选池（每路 limit=20）做交叉编码精排后截断
-
-由此可直接读出：dense vs sparse vs 混合、0.8/0.2 是否最优、HyDE+RRF 增益、
-rerank 前后命中率变化，以及各配置平均检索延迟。
-
-注意点：
-- 正式跑题前会先 ``_warmup`` 预热 BGE-M3 / BGE-Reranker 冷加载，避免模型
-  首次数秒加载污染第一个配置（dense）的耗时统计；
-- 深度路径的候选池远大于生产（生产 limit=5 融合池 ≤10），精排候选空间更大。
+结果打印到控制台，并写入评测集所在目录的 ``results.json``。
 """
 
 from __future__ import annotations

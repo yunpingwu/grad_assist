@@ -35,4 +35,3 @@ async def load_textbook(state: TextBookState, *, writer: StreamWriter) -> dict:
     return state
 
 
-# 集成测试已迁移至 tests/textbook_flow/nodes/test_load_textbook.py

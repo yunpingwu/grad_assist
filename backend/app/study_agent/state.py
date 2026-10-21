@@ -1,8 +1,4 @@
-"""复习资料生成 Agent 的状态定义。
-
-单层 ReAct 方案：状态即 create_agent（LangChain Agent）的输入输出，
-附加任务信息与收尾产物字段，风格与 query_functions/QueryState 保持一致。
-"""
+"""教材助手 Agent 的状态定义：create_agent 输入输出 + 任务信息与收尾产物字段。"""
 
 from typing import Annotated, NotRequired, TypedDict
 
@@ -13,14 +9,7 @@ from pydantic import BaseModel
 
 
 class Material(BaseModel):
-    """一份已落盘的复习资料。
-
-    Attributes:
-        title: 资料标题（文件首个一级标题，缺省回退文件名）。
-        filename: 文件名，如 第3章-知识点总结.md。
-        rel_path: 相对沙箱根 materials/{textbook_name}/{task_id}/ 的路径。
-        size: 字节数。
-    """
+    """一份已落盘的复习资料：标题、文件名、相对路径与字节数。"""
 
     title: str
     filename: str

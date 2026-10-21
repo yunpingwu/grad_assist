@@ -1,20 +1,6 @@
-"""文件工具：在本任务专属的沙箱目录内落盘/读取/修改文本文件（推荐 Markdown）。
+"""文件工具：在 ``MATERIAL_ROOT/{教材名}/{task_id}/`` 沙箱内读写、修改文本文件。
 
-安全设计（对齐开源 agent 实践，context7 调研确认）：
-
-- 沙箱根 `study/{textbook_name}/{task_id}/`：目录级任务隔离；
-- 路径防线：拒绝绝对路径、`..` 逃逸、symlink 逃逸（对齐 OpenCode read 工具策略）；
-- 原子写：临时文件 + os.replace（对齐 DeepSeek Harness writeFileAtomic 思路）；
-- 先读后改：edit_file 要求本进程内先 read_file 过该文件（对齐 OpenCode edit 约束）；
-- edit_file 的 old_string 默认要求唯一命中（对齐 DeepSeek Harness edit 语义）。
-
-失败处理：模型能自己纠正的情况（文件不存在、没先读过、old_string 不匹配）直接**返回一句指引**
-——括号提示不是故障，模型照做即可，也不会白触发一次重试；只有路径越界这类真错误才抛异常，
-由图上的官方 ToolRetryMiddleware 兜成说明文本。
-
-路径约定：文件根目录为模块常量 `MATERIAL_ROOT`（默认 `./study`），各工具内部自行解析
-「沙箱根 = MATERIAL_ROOT / 教材名 / 任务 id」并校验路径，不依赖配置注入；改动落盘根只需改
-本文件顶部常量。
+拒绝绝对路径、``..`` 与 symlink 逃逸；模型可自愈的错误返回一句指引，真故障才抛异常。
 """
 
 from __future__ import annotations
@@ -46,19 +32,7 @@ _locks_guard = threading.Lock()
 
 
 def _resolve(textbook_name: str | None, task_id: str | None, filename: str) -> Path:
-    """解析并校验沙箱内目标路径，逐级拒绝逃逸。
-
-    Args:
-        textbook_name: 教材名（沙箱第一级目录）。
-        task_id: 任务 ID（沙箱第二级目录）。
-        filename: 相对文件名，可含子目录。
-
-    Returns:
-        校验通过的绝对路径（不保证文件存在）。
-
-    Raises:
-        ValueError: 文件名非法或路径越出任务沙箱（模型极少犯，重试代价可忽略）。
-    """
+    """解析沙箱内目标路径；文件名非法或越出任务目录时抛 ValueError。"""
     root = (MATERIAL_ROOT / (textbook_name or "") / (task_id or "")).resolve()
     if not filename or "\x00" in filename or Path(filename).is_absolute():
         raise ValueError(f"文件名非法（filename 只能用任务目录内的相对路径，如「第3章/总结.md」）: {filename!r}")
@@ -85,18 +59,7 @@ async def write_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """创建或整体覆盖一个文本文件（建议 Markdown，自动建父目录）——仅当用户要求把资料保存成文件时使用。
-
-    Args:
-        filename: 相对文件名，可含子目录，如「第3章/知识点总结.md」。
-        content: 文件完整内容（UTF-8）。
-
-    Returns:
-        写入成功说明（含文件路径与字节数）。
-
-    Raises:
-        ValueError: 文件名非法或路径越出任务沙箱（见 :func:`_resolve`）。
-    """
+    """创建或整体覆盖文本文件（自动建父目录），仅当用户要求保存资料时使用。"""
     path = _resolve(textbook_name, task_id, filename)
     path.parent.mkdir(parents=True, exist_ok=True)
     # 「临时文件 + os.replace」原子落盘（同目录保证同文件系统 rename）
@@ -118,18 +81,7 @@ async def append_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """续写已有资料时用：向文件末尾追加内容（长文档分段写入用，避免整文重写）。
-
-    Args:
-        filename: 相对文件名（必须已由 write_file 创建）。
-        content: 追加的文本。
-
-    Returns:
-        追加结果（文件新大小）；文件不存在或路径非法时返回一句指引。
-
-    Raises:
-        ValueError: 路径非法（见 :func:`_resolve`）。
-    """
+    """向已创建的文本文件末尾追加内容，长文档分段写入时用。"""
     path = _resolve(textbook_name, task_id, filename)
     if not path.is_file():
         return f"（文件不存在：{filename}——先 write_file 建好这个文件，再 append_file 续写）"
@@ -150,19 +102,7 @@ async def read_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """查看资料内容：按行范围分页读取沙箱内文件（写前检查、续写定位、edit 前必读）。
-
-    Args:
-        filename: 相对文件名。
-        offset: 起始行号（从 1 开始，默认 1）。
-        limit: 每页最大行数（默认 100）。
-
-    Returns:
-        带行号的页面内容与总行数；文件不存在或行号越界时返回一句指引（正常结果，非失败）。
-
-    Raises:
-        ValueError: 路径非法（见 :func:`_resolve`）。
-    """
+    """按行范围分页读取沙箱内文件（写前检查、续写定位、edit 前必读）。"""
     path = _resolve(textbook_name, task_id, filename)
     if not path.is_file():
         return f"（文件不存在：{filename}——先用 list_files 看本任务已有哪些文件，或按用户要求新建）"
@@ -190,20 +130,7 @@ async def edit_file(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     task_id: Annotated[str, InjectedState("task_id")] = None,
 ) -> str:
-    """修改已生成资料：对已知内容文件做精确文本替换（须先 read_file 读过，或本任务内 write_file 写过）。
-
-    Args:
-        filename: 相对文件名。
-        old_string: 要被替换的原文，须与文件内容完全一致；默认要求文件中唯一出现。
-        new_string: 替换后的文本，传空字符串表示删除。
-        replace_all: True 时替换全部匹配（默认 False）。
-
-    Returns:
-        替换结果（命中次数与替换处上下文）；前置不满足时返回一句指引，模型照做即可自愈。
-
-    Raises:
-        ValueError: 路径非法（见 :func:`_resolve`）。
-    """
+    """对已读过的文件做精确文本替换；old_string 默认要求唯一命中，空 new_string 表示删除。"""
     path = _resolve(textbook_name, task_id, filename)
     if not path.is_file():
         return f"（文件不存在：{filename}——先 write_file 建好该文件，再编辑）"
@@ -260,4 +187,3 @@ async def list_files(
     return "\n".join(lines)
 
 
-# 冒烟测试已迁移至 tests/study_agent/tools/test_files.py

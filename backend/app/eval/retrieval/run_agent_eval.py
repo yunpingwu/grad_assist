@@ -1,15 +1,4 @@
-"""通过真实 studyservice Agent 流程并发评测 C 语言问答集。
-
-用法（项目根目录）：
-
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_agent_eval
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.run_agent_eval \
-        "data/eval/C语言程序设计（第五版）_(谭浩强)/qa_set.json" \
-        --url http://127.0.0.1:8000/study/chat --concurrency 4
-
-服务需要先启动。脚本消费 ``/study/chat`` 的 SSE 流，保存每题最终回答、
-实际检索到的有序 chunk ID，以及基于评测集 gold_chunk_ids 的检索指标。
-"""
+"""通过已启动服务的 ``/study/chat`` SSE 并发评测回答与检索。"""
 
 from __future__ import annotations
 

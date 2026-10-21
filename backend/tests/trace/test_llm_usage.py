@@ -1,10 +1,4 @@
-"""LLM 采集回调测试：每条 LLM 步要带输入视图、输出与耗时（假模型走真实回调链路，不打网络）。
-
-角色靠调用点的 config tags 传递：tags 能被 ``on_chat_model_start`` 收到这一点在生产链路上
-实测过，本文件把它钉住——探针的前后对比只读 agent 首次调用，读错调用就等于读噪声。
-耗时同理要验到 ``on_llm_new_token`` 真能被流式调用触发：首屏归因全靠它把一次调用切成
-prefill 等待与生成两段，事件收不到就是收到 0 次，不能假设框架会送。
-"""
+"""LLM 采集回调测试：每条 LLM 步带输入视图、输出与耗时（假模型走真实回调链路）。"""
 
 import asyncio
 from collections.abc import Iterator

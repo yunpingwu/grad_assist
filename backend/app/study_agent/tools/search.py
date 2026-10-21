@@ -1,12 +1,4 @@
-"""search_textbook 工具：叠加强化检索（多路召回 + 精排），供 agent 自主调用。
-
-将 query_functions 的核心能力折叠进单一检索工具，最终回答统一由 agent 模型生成，本工具只返回检索片段：
-- 检索问句取模型显式传入的 ``query``，缺省回退本轮用户原问题（``requirement``）；
-  跨轮指代由模型自己结合对话历史补全为自包含问句（检索侧无状态，不读历史）；
-- ``deep=False`` 快速路径：混合召回（稠密+稀疏）后直接返回 TOP-K，适合反复取素材；
-- ``deep=True`` 深度路径：再叠加 HyDE 假设文档召回 → RRF 融合 → 交叉编码精排
-  （精排分数与 RRF 分数加权融合，只微调排序而非覆盖，适合严谨作答）。
-"""
+"""search_textbook 工具：快速路径做混合召回，深度路径叠加 HyDE → RRF → 精排。"""
 
 from __future__ import annotations
 
@@ -35,14 +27,7 @@ from app.utils import (
 _FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
 
 def _collect_hit_images(hit: dict) -> dict[str, str]:
-    """提取单个片段附带的图片映射：简介(正文【图】标记 alt) → MinIO url。
-
-    Args:
-        hit: 检索引擎返回的单条 hit（实体须含 ``metadata_json`` 字段）。
-
-    Returns:
-        {简介: url} 映射；无图片或缺 url 返回空 dict。
-    """
+    """提取片段附带的图片映射：正文图标记的简介 → MinIO url。"""
     entity = hit.get("entity") or hit
     meta_raw = entity.get("metadata_json")
     if not meta_raw:
@@ -62,15 +47,7 @@ def _collect_hit_images(hit: dict) -> dict[str, str]:
 
 
 def _render_text_entity(entity: dict, url_by_desc: dict[str, str]) -> str:
-    """回绑图片 url 到正文图标记并返回正文文本。
-
-    Args:
-        entity: 单条 hit 的 entity（含 text 字段）。
-        url_by_desc: 简介 → url 映射（来自 metadata_json.images）。
-
-    Returns:
-        回绑后的正文文本。
-    """
+    """把图片 url 回绑到正文的「【图: 简介】」标记处。"""
     text = (entity.get("text") or "").strip()
     if url_by_desc:
         def _replace(m: re.Match) -> str:
@@ -84,20 +61,7 @@ def _render_text_entity(entity: dict, url_by_desc: dict[str, str]) -> str:
 
 
 def _format_hits(chunks: list[dict]) -> str:
-    """将 hit 列表格式化为编号的 TOP-K 片段文本。
-
-    处理顺序：
-    1. 渲染文本片段（含图片 url 回绑到「【图: 简介】」标记处），记录各
-       (chapter, section) 对应的片段位置；
-    2. 将代码块（block_type="code"）拼回同 (chapter, section) 的正文片段末尾，
-       无对应正文时作为独立片段展示（标注「代码」）。
-
-    Args:
-        chunks: 检索引擎返回的 hit 列表（含 entity 或扁平字段）。
-
-    Returns:
-        编号的片段文本（章节 + 小节 + 正文，代码块已拼回所属小节）。
-    """
+    """把 hit 列表格式化为编号片段；代码块拼回同一章节的正文片段末尾。"""
     parts: list[str] = []
     section_to_part: dict[tuple[str, str], int] = {}
     code_entities: list[tuple[str, dict]] = []
@@ -185,18 +149,7 @@ _MAX_CODE_CHARS = 2000        # 单个代码块超长时截断
 
 
 def _enrich_hits_with_section_codes(textbook_name: str, hits: list[dict]) -> list[dict]:
-    """正文命中后，按 (chapter, section) 二次补拉该节代码块，实现粗粒度代码协同召回。
-
-    只补拉正文 hit 所在节、且 primary 召回中未出现的代码块（按 id 去重）；
-    任一步失败都降级为仅返回原 hits，不阻断主流程。
-
-    Args:
-        textbook_name: 教材名（须已登记）。
-        hits: 检索引擎返回的 hit 列表（含 id 与 entity）。
-
-    Returns:
-        原 hits + 补拉的代码块 hit（结构一致，entity.block_type="code"）。
-    """
+    """按命中片段所在节补拉未出现的代码块；失败时原样返回 hits。"""
     if not hits:
         return hits
 
@@ -273,24 +226,10 @@ async def search_textbook(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
     requirement: Annotated[str, InjectedState("requirement")] = None,
 ) -> tuple[str, dict]:
-    """取教材依据：回答基于教材的问题或整理资料前，先按语义检索相关知识点片段。
+    """取教材依据：回答教材问题或整理资料前，先按语义检索相关片段。
 
-    检索侧是无状态的，不读对话历史，只按传入问句匹配教材原文——因此 query 必须自包含：
-    把「它」「这一章」「再来十道」这类指代结合上文补全为具体对象（如「C 语言指针常量的用途」）。
-    不传 query 时回退用户本轮的原问题。
-
-    走快检索还是深度召回（HyDE + 精排）由用户在本轮请求上决定，不由你选择；召回为空或不够时，
-    换一种问法、放宽 chapter 或如实说明没查到。
-
-    Args:
-        query: 自包含的检索问句（多轮追问时务必把指代补全），缺省用用户本轮原问题。
-        chapter: 限定章节名（可选），与 list_chapters 返回的 chapter 完全一致时才传。
-
-    Returns:
-        ``(发给模型的编号片段文本, 随消息落库但不上线的 artifact)``；召回为空时 artifact 为空字典。
-
-    Raises:
-        RuntimeError: 检索链路不可用；空召回是正常结果，不走这里。
+    query 必须自包含（把「它」「这一章」等指代结合上文补全），缺省回退本轮原问题；
+    快检索还是深度召回由请求决定，不由你选择。召回为空或不够时，换问法或如实说明没查到。
     """
     textbook_name = textbook_name or ""
     try:
@@ -357,4 +296,3 @@ async def search_textbook(
     return wrap_untrusted(content, "教材"), _build_artifact(textbook_name, search_query, deep, hits, content)
 
 
-# 冒烟测试已迁移至 tests/study_agent/tools/test_search.py

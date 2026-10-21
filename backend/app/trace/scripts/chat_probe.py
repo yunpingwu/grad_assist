@@ -1,20 +1,6 @@
-"""多会话对话探针：按问题集跑若干段真机多轮对话，把每段的落盘记录汇总成可读数据。
+"""多会话对话探针：按问题集跑多轮对话，汇总缓存命中、压缩事件与输入峰值。
 
-问题集在 ``probe_questions.json``（每段一条独立线程，textbook 为教材名子串），换题只改那个文件。
-每轮发完 SSE 后从 ``logs/<日期>/metrics.log`` 切出本会话记录，最后打三张表：逐轮明细、
-会话汇总、跨会话的「第 N 轮命中率」曲线——加上压缩事件与峰值输入，够回答「上下文治理有没有效果」。
-
-想要压缩事件出现在探针里，得把服务用**小窗口**起（触发线 = 窗口 × 50%）：
-
-    DEEPSEEK_CONTEXT_WINDOW=20000 uv run python -m app.main
-
-默认 50w 窗口的触发线在 25w，十来轮的探针撞不到它；小窗口只是把同一条代码路径的触发点提前。
-
-用法（服务需已启动）::
-
-    uv run python -m app.trace.scripts.chat_probe                  # 全部会话
-    uv run python -m app.trace.scripts.chat_probe --only 1,3 --turns 5
-    uv run python -m app.trace.scripts.chat_probe --timeline --report out.txt
+服务需已启动；想看压缩事件需用小窗口启动服务（触发线 = 窗口 × 50%）。
 """
 
 from __future__ import annotations
@@ -360,13 +346,7 @@ def _turn_rows(records: list[dict[str, Any]]) -> list[str]:
 
 
 def build_report(named_stats: list[tuple[int, str, dict[str, Any]]], timeline: bool, total: int | None = None) -> str:
-    """三张表 + 压缩事件 + 命中率曲线。
-
-    Args:
-        named_stats: ``(序号, 名字, session_stats)`` 列表，按执行顺序。
-        timeline: 是否附上每轮的 steps 时间线（很长，默认不打）。
-        total: 本轮计划的会话数；比实际完成的多时在报告开头点明缺了几段。
-    """
+    """生成三张表、压缩事件与跨会话命中率曲线。"""
     if not named_stats:
         return "没有可汇总的会话：全部被跳过或没跑成（控制台里有各段的 [!] 原因）。"
     out: list[str] = []

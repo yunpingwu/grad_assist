@@ -1,9 +1,4 @@
-"""多用户评测的延迟计时口径测试：区分排队等待、纯服务耗时与首 token 延迟。
-
-背景：旧实现把 ``started`` 放在 ``async with semaphore`` 之前，``latency_ms`` 含
-并发排队时间；50 会话抢 10 槽时实测该值约为真实服务耗时的 4 倍，导致评测报告
-把排队误读成 Agent 慢。
-"""
+"""多用户评测的延迟计时口径测试：区分排队等待、纯服务耗时与首 token 延迟。"""
 
 import argparse
 import asyncio

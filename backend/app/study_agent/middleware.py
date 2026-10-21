@@ -1,25 +1,7 @@
-"""会话成本预算护栏：把 app/trace 采到的 token/缓存数据变成 per-session 约束。
+"""会话成本预算护栏：按 trace 的加权口径累计会话用量，超限后降级。
 
-现有护栏都是「次数/体积」维度（步数 20 / 窗口半数的压缩阈值 / 写盘 HITL），本中间件补上成本维度：
-用 trace 的加权口径（``app/trace/llm_usage.weighted_cost``）累计整个会话的用量，超限即降级
-——禁 deep 检索、停澄清反问、提前收尾并说明，直到会话结束（标记随 checkpoint 持久）。
-
-四个钩子各自的位置与理由：
-
-- ``aafter_model``：把当轮 trace 读数折叠进 ``session_cost``。选 after_model 而不是轮末，
-  是因为写盘确认/澄清的 interrupt 会终止本轮、轮末钩子不保证跑到（本中间件装配在 HITL 之后，
-  after_model 链逆注册序执行，最后注册的先跑——被掐断的那次调用也能先折叠）；按 request_id
-  重新基线，是因为 trace 计数器是请求级对象，跨请求从 0 重启；
-- ``abefore_model``：越线时写 ``deep=False``（search_textbook 经 InjectedState 读取）与
-  ``budget_exhausted`` 标记；
-- ``awrap_model_call``：越线时把 ``ask_clarification`` 从模型可见工具表摘掉——这只是模型侧
-  建议（实证：模型仍发出调用时工具体照样执行），并在消息末尾追加一条转瞬即逝的收尾说明
-  （不落历史、不动 system 静态壳，前缀缓存不破）；
-- ``awrap_tool_call``：真闸门——模型若仍发出澄清调用（工具表变更前的在途调用等），
-  短路返回一行说明文本，不进入 interrupt。
-
-钩子只实现 async 版本：本应用全程 astream 驱动，且成本读数来自 ContextVar，在事件循环内最稳
-（与 graph.py 既有中间件同一约定）。
+降级动作：禁深度检索、停澄清反问、追加一条转瞬即逝的收尾说明；预算标记随
+checkpoint 持久到会话结束。四个钩子的分工见类内方法。
 """
 
 from __future__ import annotations
@@ -51,10 +33,10 @@ def _tool_name(tool: Any) -> str:
 
 
 class SessionBudgetMiddleware(AgentMiddleware[StudyState]):
-    """per-session 加权 token 预算：越线后降级（禁 deep / 停追问 / 收尾说明）。
+    """per-session 加权 token 预算：越线后禁深度检索、停澄清并收尾。
 
     Args:
-        cost_fn: 当前请求已发生成本的读取函数（测试注入用）；缺省读 trace 计数器。
+        cost_fn: 当前请求成本的读取函数（测试注入用）；缺省读 trace 计数器。
     """
 
     state_schema = StudyState

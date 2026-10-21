@@ -1,15 +1,6 @@
-"""请求级观测指标实体：字段定义与落库视图。
+"""请求级观测实体：LLMStep / ToolStep / RequestMetrics 的字段定义与落库视图。
 
-只放数据形状，不引包内其它模块，供 context / llm_usage / metrics 单向依赖。
-
-一次请求的逐次留痕收敛为**一条按发起顺序的 ``steps`` 时间线**：每次 LLM 调用一条
-``LLMStep``（输入 messages 视图 + 输出 + token/耗时），每次工具执行一条 ``ToolStep``
-（入参 + 结果摘要 + 状态 + 工具自定义 meta）。两类步骤用 ``tool_call_id``（与
-``AIMessage.tool_calls[].id`` 对齐）和 ``parent_id``（工具内部发起的调用挂在工具步下，
-如 hyde → search_textbook）互相关联，一条记录即可复现 agent 这一轮的内部过程。
-
-消息与工具结果的正文保真度由 ``trace_config.payload`` 三档控制（digest/preview/full），
-见 app/trace/payload.py——实体本身只承接构造好的视图，不做文本处理。
+只放数据形状、不引包内其它模块；正文视图由 ``payload.py`` 构造。
 """
 
 from __future__ import annotations

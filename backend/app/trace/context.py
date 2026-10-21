@@ -1,9 +1,4 @@
-"""请求级观测上下文：一次请求的指标对象与阶段计时埋点。
-
-``RequestMetrics`` 通过 ``ContextVar`` 存其**引用**（而非值）贯穿一次请求：LangGraph 用
-``asyncio.create_task`` 驱动节点时 context 被复制但引用不变，故各任务写入的是同一个实例，
-跨任务可累加——这是 OpenTelemetry 同类方案的标准做法。
-"""
+"""请求级观测上下文：用 ContextVar 存 RequestMetrics 的引用，跨 task 共享同一实例。"""
 
 from __future__ import annotations
 
@@ -21,15 +16,7 @@ _current: ContextVar[RequestMetrics | None] = ContextVar("grad_assist_req_metric
 
 
 def start_request(session_id: str, query: str) -> RequestMetrics:
-    """开启一次请求观测：生成 request_id，创建并挂载指标与 LLM 计数上下文。
-
-    Args:
-        session_id: 会话 ID（裸 ID）。
-        query: 用户原始问题。
-
-    Returns:
-        新建的指标对象（调用方持有引用，收尾读取聚合结果）。
-    """
+    """开启一次请求观测：创建指标对象并挂载 LLM 采集上下文。"""
     metrics = RequestMetrics(
         request_id=str(uuid.uuid4()),
         session_id=session_id,
@@ -53,16 +40,7 @@ def get_metrics() -> RequestMetrics | None:
 
 
 def mark_stage(name: str, cost_ms: float) -> None:
-    """累加某阶段耗时（无上下文时静默跳过）。
-
-    路由规则：在工具步内触发的阶段（如检索内部的 ``hyde_ms`` / ``rerank_ms``）记进**该工具步**
-    的 ``meta.phases``——同轮多次检索各自归因，不互相混加；工具外的请求级阶段（总耗时/首事件/
-    首 token/intent 等）仍落 ``stage_ms`` 整请求合计。
-
-    Args:
-        name: 阶段名，如 ``hyde_ms`` / ``embedding_ms``。
-        cost_ms: 本次耗时（毫秒）。
-    """
+    """累加阶段耗时：工具步内触发的记进该步 ``meta.phases``，否则落请求级 ``stage_ms``。"""
     step = current_tool_step()
     if step is not None:
         phases = step.meta.setdefault("phases", {})

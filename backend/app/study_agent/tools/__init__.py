@@ -1,8 +1,4 @@
-"""教材知识学习 Agent 的工具集：汇总导出，供图构建一次绑定。
-
-这里是**唯一**的工具清单来源：图构建直接引用 AGENT_TOOLS，避免"两份清单各自漂移"。
-工具失败的兜底与限流不在这里——它们是官方的 ToolRetryMiddleware / ToolCallLimitMiddleware，装在图侧（见 graph.py）。
-"""
+"""Agent 工具集：``AGENT_TOOLS`` 是工具清单的唯一来源，护栏统一装在图侧。"""
 
 from app.study_agent.tools.chapters import list_chapters
 from app.study_agent.tools.clarify import ask_clarification

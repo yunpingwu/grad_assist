@@ -1,8 +1,4 @@
-"""
-MongoDB 客户端
-
-负责连接管理（惰性单例）与默认库/集合访问。
-"""
+"""MongoDB 客户端：惰性单例连接与默认库/集合访问。"""
 
 from pymongo import MongoClient
 from pymongo.collection import Collection

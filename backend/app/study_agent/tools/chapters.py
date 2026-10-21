@@ -16,14 +16,9 @@ from app.utils.milvus_util import list_chapters as _list_chapters
 async def list_chapters(
     textbook_name: Annotated[str, InjectedState("textbook_name")] = None,
 ) -> str:
-    """按需列出教材章节结构（章节 + 小节）。
+    """列出教材「章 → 节」结构，供目录查询或按章规划检索范围。
 
-    仅用于目录/章节结构查询、跨章节学习计划，或需要先确定整章/多章范围的任务。
-    单个知识点问答应直接调用 search_textbook；search_textbook 不传 chapter 时可检索全书。
-    如果要按章节过滤，chapter 参数必须使用本工具返回的原文。
-
-    Returns:
-        教材「章 → 节」结构清单。
+    单个知识点问答应直接调用 search_textbook；chapter 过滤参数必须使用本工具返回的原文。
     """
     try:
         chapters = _list_chapters(textbook_name or "")

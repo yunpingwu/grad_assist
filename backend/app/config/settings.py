@@ -1,18 +1,6 @@
-"""统一配置中心：基于 pydantic-settings 的 BaseSettings 聚合。
+"""统一配置中心：pydantic-settings 聚合，环境变量名经 ``validation_alias`` 映射。
 
-取代原先 7 个「dataclass + os.getenv + load_dotenv」散落配置模块：
-
-- 各域配置类继承 BaseSettings，通过 ``validation_alias`` 映射到既有的扁平环境变量名，
-  保持 ``.env`` / ``.env.example`` 不变；
-- 环境变量仅在模块顶部 ``load_dotenv()`` 一次，各子类从 ``os.environ`` 读取；
-- 字段声明即文档，自带类型校验（``"1024"`` → int、``"false"`` → bool），
-  默认值内聚在字段定义上，不再散落在各文件的 ``os.getenv`` 调用里。
-
-用法::
-
-    from app.config import llm_config, settings
-    llm_config.model   # 读 MODEL
-    settings.milvus.uri
+settings 在 import 时实例化一次；运行时改值请 monkeypatch 域对象属性。
 """
 
 from __future__ import annotations
@@ -49,13 +37,7 @@ class LLMSettings(BaseSettings):
 
 
 class DeepSeekSettings(BaseSettings):
-    """DeepSeek 官方平台配置（``LLM_PROVIDER=deepseek`` 时启用）。
-
-    与百炼的两处口径差异：① 平台侧思考模式**默认开启**（effort=high），要关得显式传
-    ``thinking={"type": "disabled"}``；② 模型名是 deepseek-v4-pro / deepseek-v4-flash
-    （旧的 deepseek-chat / deepseek-reasoner 已按官方公告下线）。base_url 走不带 ``/v1``
-    的官方地址即可（OpenAI 兼容）。
-    """
+    """DeepSeek 官方平台配置（``LLM_PROVIDER=deepseek`` 时启用）。"""
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -191,21 +173,7 @@ class TraceSettings(BaseSettings):
 
 
 class Settings(BaseModel):
-    """顶层配置聚合，实例化一次后按域访问。
-
-    Attributes:
-        llm: 大语言模型配置。
-        deepseek: DeepSeek 官方平台配置。
-        embedding: 嵌入模型配置。
-        milvus: Milvus 配置。
-        mineru: MinerU 配置。
-        minio: MinIO 配置。
-        mongo: MongoDB 配置。
-        web_search: 联网搜索配置。
-        rerank: 重排序模型配置。
-        budget: 会话成本预算护栏配置。
-        trace: 观测落盘保真度配置。
-    """
+    """顶层配置聚合：实例化一次后按域访问。"""
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
     deepseek: DeepSeekSettings = Field(default_factory=DeepSeekSettings)

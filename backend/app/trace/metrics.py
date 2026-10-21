@@ -1,13 +1,4 @@
-"""观测聚合与落库：合并请求上下文指标与调用侧聚合读数，追加写入按天隔离的 ``logs/<日期>/metrics.log``。
-
-逐次留痕（LLM 调用步与工具执行步）由 ``llm_usage`` 的回调直接写进 ``metrics.steps``（共享同一
-列表），这里只补齐请求级聚合读数与派生标记，再落盘。
-
-本包分层（依赖单向，禁止反向引 app.core 门面）：
-``entities``（数据形状与落库视图）← ``context``（请求上下文/阶段计时）/ ``llm_usage``（调用侧采集），
-``metrics`` 是同时读这两者的编排与落盘点，对外入口在 ``app/trace/__init__.py``。
-落盘入口收敛在 ``_write_record`` 一处（换存储只需要改它）。
-"""
+"""观测聚合与落库：补齐请求级读数后追加写入 ``logs/<日期>/metrics.log``。"""
 
 from __future__ import annotations
 
@@ -52,14 +43,9 @@ def flush_metrics() -> None:
 
 
 def _mark_resolved(metrics: RequestMetrics) -> None:
-    """给每个 LLM 步的 tool_calls 标 ``resolved``：本请求内是否有对应工具步真正执行过。
+    """给 agent 主体调用的 tool_calls 标 ``resolved``：本请求内是否有对应工具步执行过。
 
-    ``false`` 的来路：HITL 写盘确认被拦在本轮（续跑在下一请求才执行）、ToolCallLimit/预算
-    中间件短路返回人造消息、模型发出了但请求中断。被拦的调用没有工具步可入，只能这样留痕；
-    续跑那轮的执行步在**另一条请求记录**里（同 tool_call_id），跨记录对照才看得到落点。
-
-    只标 agent 主体调用（role 为空）：intent 这类非 agent 调用走结构化输出，其 "tool_calls"
-    是 function_calling 的载荷、不经过工具执行链路，标 resolved 只会误导读者。
+    被 HITL / 限流 / 中断拦下的调用会留下 false，续跑的执行步在另一条请求记录里。
     """
     executed = {
         step.tool_call_id for step in metrics.steps if getattr(step, "tool_call_id", None)

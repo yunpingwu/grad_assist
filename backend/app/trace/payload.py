@@ -1,12 +1,6 @@
-"""steps 时间线的正文视图构造：把 message / LLM 响应 / 工具输出压成落盘形状。
+"""steps 时间线的正文视图构造：按 digest/preview/full 三档保真度压缩落盘内容。
 
-单独成叶子模块（只依赖 ``trace_config``）：``llm_usage`` 只管回调簿记、不掺文本处理，
-``entities`` 只承接构造好的视图。三档保真度（digest/preview/full）只作用于**输入侧的
-message 与工具结果正文**；模型输出（content/reasoning）体积小、信息密度最高，恒定全量落。
-
-防御点（都是回调链路上实测会遇到的形态）：``message.content`` 可能是多模态块列表；
-``on_tool_end`` 的 output 在直调工具时是裸 str、经 ToolNode 才是 ToolMessage；
-``usage_metadata`` 可能整块缺失（服务端没报用量）。
+三档只作用于输入侧 message 与工具结果；模型输出恒定全量落。
 """
 
 from __future__ import annotations

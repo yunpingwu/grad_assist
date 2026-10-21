@@ -55,19 +55,7 @@ def cut_toc_pages(toc_dir: Path, pdfs: list[Path], toc_pages: int = 30) -> list[
 async def mineru_upload_and_poll(
     toc_files: list[Path], toc_dir: Path, max_retries: int = 2
 ) -> list[str | None]:
-    """利用 mineru 解析 pdf 文件，对解析失败的文件进行有限次重试。
-
-    完整流程：
-    1. POST /api/v4/file-urls/batch 获取预签名上传URL和batch_id
-    2. PUT 上传每个文件到对应URL（系统自动提交解析任务）
-    3. GET /api/v4/extract-results/batch/{batch_id} 轮询直到全部完成
-
-    对 state=failed 的文件最多重试 max_retries 次，仍失败的以 None 占位返回，
-    由下载环节跳过（既不 raise 中断整批，也不因丢项导致下载错位）。
-
-    Returns:
-        与 toc_files 一一对应的 full_zip_url 列表，失败项为 None。
-    """
+    """上传 PDF 到 MinerU 并轮询解析结果；失败项重试后以 None 占位返回。"""
     token = mineru_config.token
     base_url = mineru_config.url
     header = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
@@ -217,14 +205,7 @@ async def mineru_download_and_extract(
 # 主节点
 @log_node
 async def split_contents(state: TextBookState, *, writer: StreamWriter) -> dict:
-    """处理教材目录。
-
-    Args:
-        state: 当前工作流状态，含 textbook_path / task_id。
-
-    Returns:
-        更新后的状态（写入 extracted_contents_dirs）。
-    """
+    """处理教材目录，解析结果写入 ``extracted_contents_dirs``。"""
     textbook_path = Path(state.get("textbook_path"))
     output_dir = textbook_path / "mineru_toc"
 
@@ -280,4 +261,3 @@ async def _emit_toc_events(textbook_path: Path, writer: StreamWriter) -> None:
         writer({"type": "toc", **toc})
 
 
-# 集成测试已迁移至 tests/textbook_flow/nodes/test_split_contents.py

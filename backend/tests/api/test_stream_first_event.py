@@ -1,9 +1,4 @@
-"""test_stream_first_event.py — 首屏埋点：首个可见事件与首个正文 token 分开计时（假图，不触达 Mongo）。
-
-``llm_first_token_ms`` 只认正文，回答前先出 thought 或工具结果的请求一律不记，于是这批请求的
-体感等待在指标里是空的；``llm_first_event_ms`` 补的就是这一段——两条一起才说清「屏幕上有字」
-与「开始答正文」相差多久。
-"""
+"""首屏埋点测试：首个可见事件与首个正文 token 分开计时（假图，不触达 Mongo）。"""
 
 import asyncio
 from types import SimpleNamespace

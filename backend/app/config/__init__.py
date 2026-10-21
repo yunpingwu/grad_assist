@@ -1,17 +1,10 @@
-"""统一配置入口。
-
-实例化一次 Settings，导出各域配置对象。为保持既有调用方式不变，
-导出的对象名与旧版一致（``llm_config`` / ``milvus_config`` 等），
-调用方无需改动 ``llm_config.model`` 之类的属性访问。
-
-同时直接导出 ``settings``（顶层聚合对象），供需要整体访问的场景使用。
-"""
+"""统一配置入口：实例化一次 Settings，并扁平导出各域配置对象。"""
 
 from app.config.settings import Settings
 
 settings = Settings()
 
-# 兼容旧版扁平导出：各域配置对象（属性与旧 dataclass 一致）
+# 扁平导出各域配置对象（llm_config / milvus_config 等）
 llm_config = settings.llm
 deepseek_config = settings.deepseek
 embedding_config = settings.embedding

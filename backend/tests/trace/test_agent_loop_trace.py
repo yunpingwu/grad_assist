@@ -1,9 +1,6 @@
-"""真实 agent 循环里的留痕集成：假模型 + 假工具走 create_agent 真图（不打网络）。
+"""真实 agent 循环里的留痕集成（假模型 + 假工具，不打网络）。
 
-钉住的是实测过的框架行为，升 langchain 先跑这里：
-- 一次「模型 → 工具 → 模型」跑完，时间线按发起顺序排列、两步用 tool_call_id/parent_id 互相挂住；
-- 工具重试是**新的 tool run**：失败那次只发 ``on_tool_error`` 不发 ``on_tool_end``，
-  于是留下「error + ok」两条同 ``tool_call_id`` 的步（读的时候别当重复记账）。
+钉住：时间线按发起顺序、用 tool_call_id/parent_id 关联；工具重试会留下 error + ok 两条步。
 """
 
 import asyncio

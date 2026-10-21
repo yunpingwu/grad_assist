@@ -1,14 +1,6 @@
-"""会话压缩：把「模型看得到的历史」收成一份回顾 + 最近若干轮，**state 原文一条不动**。
+"""会话压缩：把模型视图收成「最新回顾 + 最近若干轮」，state 原文一条不动。
 
-不用官方 ``SummarizationMiddleware``：它挂在 ``before_model``（触发会落进一轮中间，把本轮指令
-一起折进回顾）、用 ``RemoveMessage`` 整段删 state（``/history`` 回显当场塌掉）、失败时还把报错
-当回顾写回去。本模块挂 ``before_agent``（轮边界，排在 ``record_turn_instruction`` 之前），
-只追加回顾 + 推进水位线 ``compacted_upto``，再由 ``awrap_model_call`` 按水位线裁请求视图——
-与往轮原文回收（``tool_history.py``）同一条线：**state 是台账，视图才是给模型的**。
-
-触发线 = 模型窗口 × ``TRIGGER_RATIO``；读数取 provider 上报的 ``total_tokens``，字符估算只作
-兜底（中文实测 1.3 字符/token，按 chars/4 折算会低估约 3 倍）且生效时告警。摘要失败或产出为空
-一律返回 None，state 原样保留、下轮再试。
+只追加回顾并推进 ``compacted_upto`` 水位线；摘要失败或产出为空时 state 原样保留。
 """
 
 from __future__ import annotations
@@ -107,11 +99,8 @@ class HistoryCompactionMiddleware(AgentMiddleware[StudyState]):
     """轮边界压缩：超线才动、压完只追加、失败不写。
 
     Args:
-        llm: 摘要调用用的模型（测试注入用）；缺省取主模型并**关思考**（摘要是机械的信息抽取，
-            与 intent/hyde 同一口径），带 ``trace_role:summary`` 标签供观测区分。
+        llm: 摘要模型；缺省取主模型并关思考（带 ``trace_role:summary`` 标签）。
         context_window: 模型窗口（token）；缺省按当前供应商配置取。
-        trigger_ratio: 触发线占窗口的比例。
-        keep_turns: 压缩后视图里保留的最近轮数。
     """
 
     state_schema = StudyState
@@ -162,7 +151,11 @@ class HistoryCompactionMiddleware(AgentMiddleware[StudyState]):
         if not summary:
             return None
 
-        new_bookmark = self._bookmark_of(dropped) or bookmark
+        # 新水位线 = 被压掉消息里最后一条**真实消息**的 id（回顾不占水位线）
+        new_bookmark = next(
+            (str(message.id) for message in reversed(dropped) if not is_summary_message(message) and message.id),
+            None,
+        ) or bookmark
         logger.info(
             f"会话压缩（{trigger['source']} {trigger['tokens']} ≥ {self.threshold}）：压掉 {len(dropped)} 条"
             f"（≈{dropped_tokens} token），保留最近 {len(kept)} 条；原文留在 checkpoint，只裁模型视图"
@@ -232,15 +225,6 @@ class HistoryCompactionMiddleware(AgentMiddleware[StudyState]):
             logger.warning(f"会话压缩调用失败，本轮保留完整历史（下轮再试）: {exc!r}")
             return ""
         return str(getattr(response, "text", "") or "").strip()
-
-    @staticmethod
-    def _bookmark_of(dropped: list[AnyMessage]) -> str | None:
-        """新水位线 = 被压掉消息里最后一条**真实消息**的 id（回顾不占水位线）。"""
-        for message in reversed(dropped):
-            if not is_summary_message(message) and message.id:
-                return str(message.id)
-        return None
-
 
 __all__ = [
     "CHARS_PER_TOKEN",

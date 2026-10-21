@@ -37,4 +37,3 @@ def build_graph(checkpointer=None) -> StateGraph:
     return builder.compile(checkpointer=checkpointer)
 
 
-# 集成测试已迁移至 tests/textbook_flow/test_graph.py

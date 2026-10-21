@@ -1,8 +1,4 @@
-"""教材摄入的应用编排层。
-
-路由层（``app/api/routes/textbook.py``）只负责 HTTP 参数与响应；本模块承载
-上传落盘、断点续跑判定、SSE 事件流与教材列表查询，URL 与事件协议保持不变。
-"""
+"""教材摄入的应用编排层：上传落盘、断点续跑与 SSE 事件流。"""
 
 from __future__ import annotations
 
@@ -24,7 +20,7 @@ from app.core import logger
 from app.textbook_flow.cache import toc_cache
 from app.textbook_flow.graph import build_graph
 from app.textbook_flow.state import TextBookState
-from app.utils import list_textbooks
+from app.utils import list_textbooks as list_textbooks  # 显式再导出：路由经服务层取教材列表
 
 
 class MissingTextbookPath(ValueError):
@@ -94,11 +90,7 @@ async def prepare_resolve(
 ) -> ResolvePlan:
     """判定本次 resolve 是首次解析、偏移确认续跑还是断点续跑。
 
-    校验放在这里（而非事件流里），HTTP 层才能在建立 SSE 响应之前正确返回 400/404。
-
-    Raises:
-        MissingTextbookPath: 无历史状态且未提供 textbook_path。
-        TextbookPathNotFound: textbook_path 指向的目录不存在。
+    校验放在事件流之前，HTTP 层才能在建 SSE 响应前返回 400/404。
     """
     # 任务标识：缺省则新建；传入则复用（用于断线重连/续跑）
     task_id = task_id or str(uuid.uuid4())
@@ -195,8 +187,3 @@ async def resolve_events(plan: ResolvePlan) -> AsyncIterator[str]:
         toc_cache.pop_tocs(plan.task_id)
         payload = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
         yield f"data: {payload}"
-
-
-def list_page(page: int, page_size: int) -> dict:
-    """分页获取教材（教材库全局共享，不按用户隔离）。"""
-    return list_textbooks(page=page, page_size=page_size)

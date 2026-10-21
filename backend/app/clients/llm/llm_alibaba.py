@@ -1,11 +1,4 @@
-"""阿里云百炼平台口径：模型/密钥/地址取 ``LLMSettings``，思考开关与控制方式都关在本文件里。
-
-- 思考开关写 ``extra_body={"enable_thinking": False}``（百炼混合思考型模型的关闭方式）；
-- 结构化输出支持 ``response_format=json_schema``，用 langchain 默认方式即可。
-
-契约（``llm.py`` 的门面按这四项消费，新增供应商照此实现）：
-``NAME`` / ``API_KEY_ENV`` / ``STRUCTURED_OUTPUT_METHOD`` / ``client_kwargs``。
-"""
+"""阿里云百炼平台口径：思考开关与结构化输出方式收在本文件。"""
 
 from __future__ import annotations
 

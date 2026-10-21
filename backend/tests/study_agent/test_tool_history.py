@@ -1,9 +1,6 @@
-"""历史工具原文降级测试：上一轮用过的工具原文在 state 里换成一句回收占位。
+"""历史工具原文降级测试：往轮工具原文在 state 里换成一句回收占位。
 
-三条实测前提支撑这套设计：ChatOpenAI 序列化请求只带 ``ToolMessage.content``（artifact 不上线，
-但随消息进 checkpoint），所以原文留在 artifact 里供回显与审计；``add_messages`` 按消息 id
-原位替换，所以降级不必删消息——留着壳，``AIMessage.tool_calls`` 与结果的配对才不破；回收判据
-是「体积过线 + artifact 里有干净原文」而不是工具名单，新工具把原文放进 artifact 即自动纳管。
+钉住：只换 content 不删消息；原文留在 artifact 供回显；判据是体积 + artifact，不是工具名单。
 """
 
 import asyncio

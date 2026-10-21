@@ -109,13 +109,7 @@ def test_search_textbook_prefers_agent_query(monkeypatch) -> None:
 
 
 def test_search_textbook_keeps_every_retrieval(monkeypatch) -> None:
-    """一次请求内多次检索各写各的工具步，后一次不得覆盖前一次（含失败那次）。
-
-    线上出现过 deep=False 却带 rerank 耗时的自相矛盾记录：旧实现把问句/深度/召回数
-    写成请求级标量，第二次检索（含入口写完就抛异常提前返回的路径）会污染第一次的读数。
-    现在每次检索独占一条工具步，meta 挂在各自的步上，天然互不覆盖；失败由 on_tool_error
-    落在同一条步的 status/error 上。
-    """
+    """多次检索各写各的工具步，后一次不得覆盖前一次；失败由 on_tool_error 落在同一步。"""
     fast_calls = {"n": 0}
 
     async def _fast_or_boom(textbook_name: str, query_arg: str, chapter: str | None = None) -> list[dict]:

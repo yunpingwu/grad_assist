@@ -1,13 +1,6 @@
-"""LLM 与工具的调用侧采集：回调处理器、工具观测上下文与成本折算。
+"""LLM 与工具调用的自动采集：回调处理器、工具观测上下文与成本折算。
 
-经 ``register_configure_hook(inheritable=True)`` 全局注入，每次 LLM 调用与工具执行自动挂上该
-handler：覆盖 create_agent 内部调用、检索工具内部的 hyde 调用，以及直调工具（测试/eval 里的
-``tool.ainvoke``）——工具侧因此不加中间件，全部调用只有一个采集口径。
-
-``run_inline = True`` 是关键：默认同步回调经线程池 ``copy_context()`` 执行，在 ``on_tool_start``
-里 set 的 ContextVar 传不回工具体（工具内的 hyde 调用就读不到「我在哪个工具里」）；inline 后
-回调在触发它的 task 内同步执行，顺带消掉逐 token 回调的线程池提交。约束也随之而来：回调里
-只做 sha1 与字符串切片这类轻活，塞 I/O 会直接卡事件循环。
+回调以 ``run_inline=True`` 执行（ContextVar 要传进工具体），只能做轻活、不能塞 I/O。
 """
 
 from __future__ import annotations
@@ -38,23 +31,9 @@ _current_tool: ContextVar[ToolStep | None] = ContextVar("grad_assist_current_too
 
 
 class LLMMetricsCallbackHandler(BaseCallbackHandler):
-    """统一采集 LLM 调用与工具执行：逐次留痕写入共享的 ``steps`` 时间线，token 聚合供预算护栏读数。
+    """统一采集 LLM 调用与工具执行，逐次写入共享的 ``steps`` 时间线。
 
-    LLM 侧：
-    - ``on_chat_model_start``：拿到本次真正发给模型的完整 messages，开一条 ``LLMStep``
-      （角色按 tags 认领、parent_id 指向当前工具步）；非 chat 模型只触发 ``on_llm_start``，
-      走同一内核但拿不到 messages——两条路径按 run_id 去重，同一调用只开一条；
-    - ``on_llm_new_token``：只在流式调用上触发，记下该调用收到首个 chunk 的时刻——
-      这是把「prefill 慢」与「decode 慢」分开的唯一依据（intent/hyde/summary 走 ``ainvoke``
-      收不到，其 ``first_ms`` 落 None）；
-    - ``on_llm_end``：取 content/reasoning/tool_calls 与 ``usage_metadata``；没有 usage 也照落
-      output（异常路径同样要留下模型说了什么），token 三键缺省取 None，不编 0；
-    - ``on_llm_error``：关步并记异常类名（流式取消也走这里）。
-
-    工具侧：``on_tool_start`` 开 ``ToolStep`` 并把工具步挂进 ``_current_tool``；
-    ``on_tool_end`` 用 ToolMessage 的 ``tool_call_id`` 精确回填关联（覆盖 start 时的认领猜测）；
-    ``on_tool_error`` 关步记错（实测工具重试是新的 run、失败那次只发 error 不发 end，
-    故一次重试会留下「error + ok」两条同 ``tool_call_id`` 的步）。
+    每次调用开一条 LLMStep / ToolStep；工具重试会产生新的 run，失败与成功各留一条步。
     """
 
     # 同步回调改在触发它的 task 内执行（理由见模块 docstring：ContextVar 传递 + 免线程池开销）

@@ -35,15 +35,10 @@ _SECTION_SPLIT = re.compile(r"(?=^## )", re.MULTILINE)
 
 
 def _extract_images_and_code(text: str) -> tuple[str, list[dict], list[dict]]:
-    """从文本中提取图片引用和代码块，返回(清理后文本, 图片列表, 代码列表)。
+    """提取图片与代码块，返回 (清理后文本, 图片列表, 代码列表)。
 
-    - 图片项: {path, description, offset},description 取自富化副本的 alt(视觉模型
-      简介,富化时已用文件名兜底,故始终非空);offset 为「【图: 简介】」标记在
-      clean_text 中的字符偏移,供超长小节硬切时把图片精确归属到标记所在子块。
-    - 图片行原位替换为「【图: 简介】」文本(而非删除),让简介与引导句、后续解释
-      处于同一 chunk 向量,检索绑定更紧;metadata 的 {url, description} 供回答注入。
-    - 代码块从正文删除,但副本中紧随其后的「> 代码说明: …」行不在代码块内,
-      会自然保留在清理后的正文里,供语义类问题感知代码存在。
+    图片行原位替换为「【图: 简介】」并记录 offset，供硬切时归属到正确子块；
+    代码块从正文删除，紧随其后的「> 代码说明」行保留。
     """
     images = [{"path": m.group(2), "description": m.group(1).strip()} for m in _IMAGE_PATTERN.finditer(text)]
 
@@ -121,14 +116,6 @@ def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
             current_group = [c]
     groups.append(current_group)
 
-    def _combine(a: dict, b: dict) -> dict:
-        return {
-            **a,
-            "content": a["content"] + "\n" + b["content"],
-            "images": a["images"] + b["images"],
-            "codes": a["codes"] + b["codes"],
-        }
-
     merged = []
     for group in groups:
         i = 0
@@ -140,7 +127,13 @@ def _merge_small_chunks(chunks: list[dict]) -> list[dict]:
                 and len(cur["content"]) + len(group[i + 1]["content"]) <= CHUNK_SIZE
             ):
                 # 合并到 group[i]，删除 group[i+1]
-                group[i] = _combine(cur, group[i + 1])
+                nxt = group[i + 1]
+                group[i] = {
+                    **cur,
+                    "content": cur["content"] + "\n" + nxt["content"],
+                    "images": cur["images"] + nxt["images"],
+                    "codes": cur["codes"] + nxt["codes"],
+                }
                 del group[i + 1]
                 # 合并后若仍较小（< 1500），i 不变继续贪心合并下一个
                 if len(group[i]["content"]) >= MERGE_TARGET:
@@ -171,22 +164,10 @@ def _renumber_chunks(chunks: list[dict]) -> None:
 
 
 def chunk_textbook(textbook_name: str, chapter_dirs: list[str]) -> list[dict]:
-    """对一本教材的所有章节做文本切割。
+    """对一本教材的所有章节做文本切割，返回 chunk 列表。
 
-    策略：
-    - 读取富化副本 full_captioned.md(图片行 alt=视觉简介、代码块带说明行);
-      缺副本的章节目录直接跳过
-    - 按 ## 小节标题自然分割
-    - 小节 ≤ 2000 字符：直接作为一个 chunk
-    - 小节 > 2000 字符：按字符数硬切（overlap=200）
-    - 公式保留在文本中不单独处理
-    - 图片引用提取后原位替换为「【图: 简介】」文本,简介随正文参与向量检索;
-      同时携带 object_name / url / description 存入 images 字段(回答注入用)
-    - 代码块提取后存入 codes 字段(独立记录),其说明行保留在正文
-
-    返回每个 chunk 包含:
-        content, textbook_name, chapter, section,
-        chunk_index, total_chunks, images, codes
+    读取富化副本 ``full_captioned.md``（缺副本的章节跳过），按 ``##`` 小节切分；
+    超长小节按字符硬切，图片与代码块分别存入 ``images`` / ``codes`` 字段。
     """
     all_chunks: list[dict] = []
 
@@ -280,20 +261,9 @@ _EMBED_BATCH_SIZE = 64
 
 
 async def embed_and_store(textbook_name: str, chunks: list[dict]) -> bool:
-    """将切割好的 chunks 向量化后存入 Milvus。
+    """把 chunks 向量化后写入该教材的独立 collection，并登记注册表。
 
-    策略：
-    - BGE-M3 生成 dense + sparse 双向量（混合检索）
-    - 每本教材独立 collection（tb_XX），并登记到注册表
-    - 文本块以 block_type="text" 入库
-    - 代码块以 block_type="code" 单独入库，有独立 embedding
-    - 图片引用存入 metadata_json，不单独建向量
-
-    幂等性：
-    - 注册表中已登记该教材 → 直接跳过，不重复向量化
-
-    Returns:
-        True 表示入库成功（或已入库跳过）
+    已登记的教材直接跳过（幂等）；文本块与代码块分别以 text / code 类型入库。
     """
     if not chunks:
         logger.warning(f"[{textbook_name}] chunks 为空，跳过入库")
@@ -457,4 +427,3 @@ async def split_text_and_store(state: TextBookState, *, writer: StreamWriter) ->
     return state
 
 
-# ==================== 集成测试已迁移至 tests/textbook_flow/nodes/test_split_text_and_store.py ====================

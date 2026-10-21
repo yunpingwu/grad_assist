@@ -1,21 +1,6 @@
-"""意图识别：三档漏斗（关键词 → embedding 语义路由 → LLM 兜底），query 理解前置步骤。
+"""意图识别：关键词 → embedding 例句池 → LLM 三级漏斗，每个 query 只执行一次。
 
-在 agent 工具循环之前（before_agent 入口节点）每个 query 只执行一次，产出带置信度的
-意图（IntentResult），供 system prompt 动态选择行为/输出块。
-
-三档设计（按延迟/成本递增，命中即停）：
-1. 关键词快车道：只对「行为类」强信号词做保守判定，歧义/未命中不硬判；命中后还须经
-   例句池 top1 核验（池冠意图与关键词意图一致才放行）——「生成树」「CRC多项式测试」这类
-   词面巧合黑名单写不完，核验不过即视同未命中续走漏斗，宁可多沉一档也不带着疑点直返；
-2. embedding 语义路由：query 与各意图例句池比对取 top-3 均值（复用 BGE-M3），高相似直接
-   定、低相似判「领域外」（多轮时例外，见下），中等置信交下一档；
-3. LLM 结构化兜底：最终判定，白名单校验防越界；单独收紧超时（拿不到就回退安全默认「讲解」，
-   绝不为一个只影响行为块选择的判定等满客户端默认 120s 重试）。
-
-对话历史只在第 3 档进入输入：前两档是「当前问句 vs 意图例句」的比对，混入历史只会
-稀释语义；而多轮的「那再来十道」「这个怎么证」必须靠历史才能判准，故兜底层按
-【历史问题】+【最新问题】两段喂给 LLM。低相似且存在历史时不在第 2 档判死，下沉到
-第 3 档消歧（无历史的低相似仍是「领域外」，不为闲聊多花一次 LLM 调用）。
+按延迟/成本递增、命中即停；历史只参与第三档，用于多轮指代与省略消歧。
 """
 
 from __future__ import annotations
@@ -44,11 +29,8 @@ INTENT_ORDER = ("explain", "generate", "quiz", "plan", "chat")
 UNCLEAR = "unclear"
 VALID_INTENTS = frozenset({*INTENT_ORDER, UNCLEAR})
 
-# 各意图的例句池：embedding 路由把 query 与池内例句算 cosine、取 top-3 均值作为该意图
-# 得分（业内 semantic-router 的动态评分模式）。相比单条长描述：①短句问法不再被百字定义
-# 的相似度基线压分；②top-3 均值天然抗个别离群例句。起草约束：不放 unclear（拒识区靠
-# _EMBED_LOW 兜底）、避开关键词快车道已拦截的措辞、不与评测集 query 重复（泄漏检查见
-# app/eval/intent/run_threshold_ablation.py 的 --leak-check）。
+# 各意图的例句池：query 与池内例句算 cosine、取 top-3 均值作为该意图得分。
+# 池里不放 unclear（拒识靠 _EMBED_LOW），避开关键词已拦截的措辞，且不得与评测集重复。
 INTENT_EXAMPLES: dict[str, tuple[str, ...]] = {
     "explain": (
         "指针到底是什么，它到底有什么用",
@@ -98,8 +80,7 @@ _KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-# embedding 语义路由的直判判据（例句池 top-3 均值分布；BGE-M3 稠密向量已 L2 归一化，
-# 点积即 cosine）。2026-09-26 例句池消融定标（app/eval/intent/run_threshold_ablation.py。
+# embedding 语义路由的直判判据（例句池 top-3 均值；BGE-M3 稠密向量已 L2 归一化，点积即 cosine）。
 _EMBED_HIGH = 0.55  # top1 达到且与次冠池差 ≥ _EMBED_MARGIN 才高置信直判
 _EMBED_MARGIN = 0.05  # top1 与 top2 的最小领先量，防两池并列时的强行定夺
 _EMBED_LOW = 0.3  # 单轮低于即判「领域外」；多轮短句易落在此处，下沉 LLM 层用历史消歧
@@ -114,9 +95,7 @@ _LLM_TIMEOUT_S = 8
 _LLM_MAX_RETRIES = 0
 
 # ── 意图例句向量的预计算缓存 ─────────────────────────────────
-# 例句池是常量（约 26 条），但每次语义路由若连 query 一起编码，绝大多数算力花在
-# 重复的例句上。这里在进程内预计算一次（懒加载，仅首个请求触发一批编码），后续
-# 路由只编码 query 单条。例句文案或模型变更后随进程重启自动重建，无需磁盘持久化。
+# 例句池是常量，进程内懒加载编码一次；之后的路由只编码 query 单条。
 _precomputed_example_vectors: list[list[list[float]]] | None = None
 _example_vectors_lock = asyncio.Lock()
 
@@ -163,30 +142,13 @@ def _pool_scores(query_vec: list[float], pools: list[list[list[float]]]) -> list
 
 
 def format_history(messages: list[AnyMessage]) -> str:
-    """将 LangChain 消息列表转为历史用户问题纯文本（供兜底层消歧）。
-
-    会话压缩注入的整篇回顾（``is_summary_message``）会被排除：它是模型自产的回顾，
-    不是用户问题，喂进来只会把兜底层的 input 撑大。
-
-    Args:
-        messages: 对话消息列表（取除最新一条外的历史用户问题）。
-
-    Returns:
-        纯文本的历史用户问题，每行「用户: …」；无历史返回空字符串。
-    """
+    """把历史消息转成「用户: …」纯文本；压缩回顾会被排除。"""
     questions = [f"用户: {m.content}" for m in messages[:-1] if m.type == "human" and not is_summary_message(m)]
     return "\n".join(questions)
 
 
 def _classify_by_keyword(text: str) -> IntentResult | None:
-    """关键词快车道：仅当命中集中在单一意图时直接定，否则返回 None 交下一档。
-
-    Args:
-        text: 用户 query 原文。
-
-    Returns:
-        唯一命中且高置信时返回结果；无命中或多个意图并列（歧义）返回 None。
-    """
+    """关键词快车道：唯一命中时直判，无命中或歧义返回 None。"""
     # 布尔命中：只关心「是否命中任一强信号词」，避免包含关系（如「练习题」同时算
     # 「练习题」「习题」）造成的计数虚高
     scores = {intent: 0 for intent in INTENT_ORDER}
@@ -202,19 +164,9 @@ def _classify_by_keyword(text: str) -> IntentResult | None:
 
 
 async def _classify_by_embedding(text: str, multi_turn: bool = False, scores: list[float] | None = None) -> IntentResult | None:
-    """embedding 语义路由：query 与各意图例句池比对，得分取池内 top-3 相似度均值。
+    """embedding 语义路由：池内 top-3 均值；高置信直判，中等置信交 LLM。
 
-    例句向量为常量，已在进程内预计算（见 _get_intent_example_vectors），
-    每次只编码 query 单条。多轮场景（multi_turn=True）下低相似不判死：
-    「那再来十道」这类省略句本就难与例句对齐，交 LLM 层用历史消歧。
-
-    Args:
-        text: 当前用户 query 原文（不含历史，历史会稀释语义比对）。
-        multi_turn: 是否存在对话历史，决定低相似时判「领域外」还是下沉 LLM。
-        scores: 已算好的各意图池得分（关键词档池核验时编过一次码，透传下来避免重复编码）。
-
-    Returns:
-        高置信或「领域外」时返回结果；中等置信或多轮低相似返回 None 交 LLM 兜底。
+    多轮场景下低相似不判死，下沉到 LLM 用历史消歧。
     """
     if scores is None:
         pools = await _get_intent_example_vectors()
@@ -232,12 +184,7 @@ async def _classify_by_embedding(text: str, multi_turn: bool = False, scores: li
 
 
 async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
-    """LLM 结构化分类兜底：唯一能看到对话历史的一档，按「历史 + 最新问题」判定。
-
-    Args:
-        text: 当前用户 query 原文。
-        history: 历史用户问题纯文本（``format_history`` 产物），首轮为空。
-    """
+    """LLM 结构化兜底：按「历史 + 最新问题」判定，输出越界时收敛为 unclear。"""
     # 结构化输出方式按供应商挑（官方平台不支持 json_schema，见 bind_structured_output 注释）
     llm = bind_structured_output(
         get_llm_client(enable_thinking=False, timeout=_LLM_TIMEOUT_S, max_retries=_LLM_MAX_RETRIES),
@@ -258,18 +205,7 @@ async def _classify_by_llm(text: str, history: str = "") -> IntentResult:
 
 
 async def detect_intent(text: str, history: str = "") -> IntentResult:
-    """三档漏斗识别用户意图（query 理解前置步骤，每个 query 只调一次）。
-
-    整段漏斗计入 ``intent_ms``：兜底层是实测主路径（多数 query 落在中等相似度区间），
-    它在 agent 首次模型调用之前串行执行，时延直接算进首轮响应。
-
-    Args:
-        text: 当前用户 query 原文；意图要看真实诉求，不传入检索问句。
-        history: 历史用户问题纯文本（仅第 3 档 LLM 兜底使用），首轮传空。
-
-    Returns:
-        带置信度与来源的意图结果；source=fallback 表示降级，intent 为安全兜底。
-    """
+    """三档漏斗识别意图；source=fallback 表示降级到安全默认。"""
     async with astage("intent_ms"):
         query = (text or "").strip()
         if not query:
@@ -309,4 +245,3 @@ async def detect_intent(text: str, history: str = "") -> IntentResult:
             return IntentResult("explain", 0.0, "fallback")
 
 
-# 冒烟测试已迁移至 tests/study_agent/query_functions/test_intent_detection.py

@@ -1,9 +1,6 @@
-"""Milvus 通用 MCP 服务器：对外暴露集合的元数据与数据查询能力。
+"""Milvus 通用 MCP 服务器：集合元数据与数据查询。
 
-环境变量：
-    MILVUS_URI      必填，Milvus 服务地址，如 http://localhost:19530
-    MILVUS_TOKEN    可选，鉴权 token
-    MILVUS_DB_NAME  可选，目标数据库名
+环境变量：MILVUS_URI（必填）、MILVUS_TOKEN、MILVUS_DB_NAME。
 """
 
 import os
@@ -139,15 +136,7 @@ def query_collection(
     offset: int = 0,
     output_fields: list[str] | None = None,
 ) -> dict:
-    """查询指定集合的数据，默认只返回标量字段（自动排除向量字段）。
-
-    Args:
-        collection_name: 集合名称。
-        filter: Milvus 布尔表达式，如 `chapter == "第一章"`，空串表示不过滤。
-        limit: 返回条数上限（默认 20）。
-        offset: 分页偏移量。
-        output_fields: 显式指定返回字段；缺省按 schema 自动推断。
-    """
+    """查询集合数据，默认只返回标量字段（自动排除向量字段）。"""
     client = get_client()
     if not client.has_collection(collection_name):
         raise ValueError(f"集合不存在: {collection_name}")
@@ -218,13 +207,7 @@ def export_chunks(
     section: str | None = None,
     block_type: str | None = None,
 ) -> dict:
-    """稳定分页导出教材 chunks，供构建评测集使用。
-
-    与 query_collection 不同，本工具使用 query_iterator 全表扫描，因此不会因为
-    Milvus query 的 offset/limit 实际返回量变化而漏数据。offset 是扫描结果中的
-    逻辑偏移；返回 next_offset 供下一页继续读取。可按 chapter、section、block_type
-    过滤，返回字段包含 id、text、章节定位和 chunk 索引。
-    """
+    """用 query_iterator 全表扫描并分页导出 chunks，避免 offset/limit 漏数据。"""
     if offset < 0 or limit < 1 or limit > 1000 or batch_size < 1 or batch_size > 1000:
         raise ValueError("offset 需非负，limit/batch_size 需在 1~1000 之间")
     if not get_client().has_collection(collection_name):

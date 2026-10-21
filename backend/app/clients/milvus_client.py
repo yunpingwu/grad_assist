@@ -1,10 +1,6 @@
-"""
-Milvus 客户端
+"""Milvus 客户端：连接、集合/索引管理与通用读写检索。
 
-负责连接、建表、建索引、批量插入、检索等通用操作。
-基于 MilvusClient（pymilvus 3.x 推荐 API，替代已废弃的 ORM Collection API）。
-
-教材注册表、集合名分配等教材领域逻辑见 utils/milvus_util.py。
+教材注册表、集合名分配等领域逻辑见 ``utils/milvus_util.py``。
 """
 
 from pymilvus import (

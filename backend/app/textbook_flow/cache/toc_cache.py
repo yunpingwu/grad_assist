@@ -1,12 +1,4 @@
-"""目录树进程内缓存：按 task_id 缓存展示载荷，miss 时从磁盘懒重建，终态删除。
-
-设计要点：
-- 目录树是 mineru_toc/*/full.md 的纯派生物，缓存只是省一次重读磁盘；
-  进程重启后凭 task_id 重进时 miss → 懒重建，正确性不依赖缓存存活。
-- 生命周期：get_tocs 填充，pop_tocs 在 done/error 终态删除；TTL 兜底回收。
-- cachetools TTLCache 内部无锁，本项目所有访问均发生在 uvicorn 事件循环单一线程内
-  （与 app/utils/milvus_util.py 的既有缓存同一约定）。
-"""
+"""目录树进程内缓存：按 task_id 缓存展示载荷，miss 时从磁盘懒重建，终态删除。"""
 
 from pathlib import Path
 

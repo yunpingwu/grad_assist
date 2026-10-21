@@ -1,16 +1,6 @@
-"""转储教材 chunk（id + 章节 + 文本），供构建评测集 / 核对 gold_chunk_ids。
+"""转储教材全部 chunk（id/章节/文本），供构建评测集与核对 gold_chunk_ids。
 
- gold_chunk_ids 直接写死入库时的稳定主键（包含章节定位和正文哈希）。本脚本把某本教材的全部 chunk 落盘，
-便于人工逐条对齐“问题 → 黄金 chunk”时直接复制真实 id。
-
-用法（在项目根目录）::
-
-    .venv\\Scripts\\python.exe -m app.eval.retrieval.dump_chunks "C语言程序设计"
-
-- ``pattern`` 为教材名子串（大小写不敏感），命中注册表中的一本教材；
-- 输出 ``data/eval/chunks/{collection_name}.json``：
-  ``{"textbook": ..., "collection": ..., "chapters": [...], "chunks": [...]}``
-  chunk 元素含 id / chapter / section / block_type / text。
+用法：``python -m app.eval.retrieval.dump_chunks "教材名子串"``。
 """
 
 from __future__ import annotations

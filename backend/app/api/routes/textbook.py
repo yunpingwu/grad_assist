@@ -36,15 +36,7 @@ async def resolve_textbooks(
     user_id: str = Depends(get_user_id),
     offsets: list[dict] | None = Body(default=None),
 ) -> StreamingResponse:
-    """解析教材：在 /upload 返回的独立目录下执行摄入流水线（支持断点续跑）。
-
-    任务在请求协程内执行，实时推送进度事件（message 进度 / done 终态 / error 异常），
-    checkpointer 持久化状态。durability="sync" 使每个节点完成后同步落盘，进程/连接中断后可恢复。
-
-    断点续跑：传入已存在的 task_id（断线重连时复用），后台利用 checkpoint 内置能力
-    （aget_state 判定中断、astream(None, ...) 从上次完成节点续跑），无需自建任务表。
-    停在偏移确认时不带 offsets 的重连视为「重看」：重放并重新发出 ask_offset，供前端再次弹出确认面板。
-    """
+    """解析教材并以 SSE 推送进度；传入已有 task_id 即断点续跑。"""
     try:
         plan = await textbook_service.prepare_resolve(
             textbook_path=textbook_path,
@@ -69,4 +61,4 @@ async def get_all_textbooks(
     page_size: int = Query(8, ge=1, le=100, description="每页条数"),
 ):
     """分页获取教材"""
-    return JSONResponse(textbook_service.list_page(page=page, page_size=page_size))
+    return JSONResponse(textbook_service.list_textbooks(page=page, page_size=page_size))

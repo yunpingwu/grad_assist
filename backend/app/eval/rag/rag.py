@@ -1,29 +1,7 @@
-"""被测系统接缝：检索 + 生成。四个指标的输入全从这里出。
+"""被测系统接缝：检索 + 生成，四个指标的输入都从这里出。
 
-本包（`app/eval/rag/`）**自足**：只依赖生产链路与基础设施，不 import
-`app/eval/retrieval/`——那个包将来整体删除。检索实现直接复用生产代码
-（`app/study_agent/query_functions/`），评测测的就是线上真正跑的那条路径。
-
-## 两个配置
-
-| 配置 | 含义 | 检索路径 |
-| --- | --- | --- |
-| `hyb_50` | 非深度（快速路径） | 混合召回（dense/sparse 各 0.5 加权）取 top-5 |
-| `rerank` | 深度，**对齐 `tools/search.py` 的 deep 分支** | 混合召回 + HyDE 两路各扩到候选池 → RRF 融合 → 交叉编码精排（与 RRF 分数加权融合） |
-
-`hyb_50` 与线上默认的 `hyb_80` 实测 top-5 重合度 0.968（50 题无一条完全不同），
-所以选它不影响与线上行为的可比性；`hyb_50` 是 2026-09-18 报告推荐优先验证的候选。
-
-## 落盘：题集与样本分离
-
-题集（`datasets/`）config 无关；答案与它那一轮的上下文是 config 相关的产物，落在
-`samples/<config>/<key>.json`。**两者必须成对**——Faithfulness 判的是「答案里每句话
-能不能在**它那一轮的上下文**里找到依据」，拿 A 配置的答案配 B 配置的上下文没有意义。
-
-命令行（给某配置补齐样本）：
-
-    uv run python -m app.eval.rag.rag hyb_50            # 缺的才生成，可断点续跑
-    uv run python -m app.eval.rag.rag rerank --force    # 全部重生成
+配置：``hyb_50``（快速路径）与 ``rerank``（深度，对齐 search_textbook）；
+题集在 ``datasets/``，答案与上下文按配置落在 ``samples/<config>/``。
 """
 
 from __future__ import annotations
@@ -91,16 +69,7 @@ def _hits(raw: list[dict]) -> list[Hit]:
 
 
 async def retrieve(question: str, textbook: str, config: str = "hyb_50") -> list[Hit]:
-    """按配置跑一次检索，返回 top-k 命中。
-
-    Args:
-        question: 自包含问句（评测输入不带对话历史）。
-        textbook: 教材名（Milvus 注册名，即数据集里的 `textbook` 字段）。
-        config: `hyb_50` 或 `rerank`。
-
-    Raises:
-        ValueError: 配置未知 / 教材未注册 / 检索无结果。
-    """
+    """按配置（``hyb_50`` / ``rerank``）跑一次检索，返回 top-k 命中。"""
     if config not in CONFIGS:
         raise ValueError(f"未知配置: {config!r}（可用：{' / '.join(CONFIGS)}）")
     collection = get_collection_by_name(textbook)
@@ -124,11 +93,7 @@ async def retrieve(question: str, textbook: str, config: str = "hyb_50") -> list
 
 
 async def _retrieve_deep(question: str, textbook: str) -> list[dict]:
-    """深度路径，逐行对齐 `app/study_agent/tools/search.py` 的 deep 分支。
-
-    那里对精排失败有降级回退（回退 RRF 融合结果），这里**不降级而直接抛出**——
-    评测要的是真实配置的分数，静默降级会让人以为测的是精排。
-    """
+    """深度路径；精排失败直接抛出，不静默降级（评测要的是真实配置的分数）。"""
     hyde_doc = await hyde_doc_generate(question)
     # 一次批量算 query 与 hyde 的向量，省一次模型前向（与生产同口径）
     embeddings = await agenerate_embeddings([question, hyde_doc + question])
@@ -146,14 +111,7 @@ async def _retrieve_deep(question: str, textbook: str) -> list[dict]:
 
 
 def fetch_contexts(textbook: str, chunk_ids: list[str]) -> dict[str, str]:
-    """按 chunk id 从 Milvus 取正文（评测时把落盘的 id 还原成上下文）。
-
-    只存 id 不存正文是为了避免在样本里放语料副本；取回时校验覆盖完整性，
-    语料被重灌能立刻发现。
-
-    Raises:
-        ValueError: 教材未注册，或某个 id 在库里查不到。
-    """
+    """按 chunk id 从 Milvus 取回正文；缺 id 时抛 ValueError（语料重灌可立即发现）。"""
     collection = get_collection_by_name(textbook)
     if not collection:
         raise ValueError(f"教材未在 Milvus 注册: {textbook}")

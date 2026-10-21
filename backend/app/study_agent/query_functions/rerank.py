@@ -1,11 +1,4 @@
-"""Rerank 精排工具函数：对 RRF 融合后的候选片段做交叉编码重排序，截取 TOP-K。
-
-从 query_functions 收编而来：仅保留纯函数 rerank_chunks（原节点封装已移除）。
-
-- 打分由 ``app.ml.reranker_util.compute_rerank_scores`` 提供（BGE-Reranker），
-  模型单例在 util 模块内部维护，本函数只拿分数、不接触模型实例；
-- 候选仅 ≤10 条，本地 CPU 精排约 0.5~2s，CUDA 更快；任何失败由调用方降级回退。
-"""
+"""Rerank 精排：对 RRF 融合后的候选做交叉编码重排序并截取 TOP-K。"""
 
 from __future__ import annotations
 
@@ -34,12 +27,6 @@ def _rank_and_truncate(chunks: list[dict], scores: list[float], top_k: int) -> l
     return ranked[:top_k]
 
 
-def _minmax(rrf_scores: list[float]) -> tuple[float, float]:
-    """求 RRF 分数最小/最大值（避免除零：全等时返回 0/1 占位）。"""
-    lo, hi = min(rrf_scores), max(rrf_scores)
-    return (0.0, 1.0) if hi == lo else (lo, hi)
-
-
 def _fuse_and_truncate(
     chunks: list[dict],
     rerank_scores: list[float],
@@ -52,13 +39,15 @@ def _fuse_and_truncate(
     final = alpha * rerank(已 sigmoid 归一化) + (1-alpha) * minmax(rrf)
     alpha 越大越信任精排，越小越信任 RRF 融合序。
     """
-    lo, hi = _minmax(rrf_scores)
+    lo, hi = min(rrf_scores), max(rrf_scores)
+    if hi == lo:  # 全等时用 0/1 占位，避免除零
+        lo, hi = 0.0, 1.0
     fused = []
     for hit, rs, rr in zip(chunks, rerank_scores, rrf_scores, strict=True):
         item = dict(hit)  # 浅拷贝
         item["rerank_score"] = float(rs)
         item["rrf_score"] = float(rr)
-        norm_rrf = (rr - lo) / (hi - lo) if hi > lo else 0.0
+        norm_rrf = (rr - lo) / (hi - lo)
         item["fusion_score"] = alpha * float(rs) + (1.0 - alpha) * norm_rrf
         fused.append(item)
     fused.sort(key=lambda h: h["fusion_score"], reverse=True)
@@ -66,19 +55,7 @@ def _fuse_and_truncate(
 
 
 def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
-    """用交叉编码模型对候选片段精排。
-
-    Args:
-        query: 检索问句（与召回的语义对齐）。
-        chunks: RRF 融合后的候选 hit 列表。
-        top_k: 精排后保留的 TOP-K 片段数。
-
-    Returns:
-        按精排分数降序的 TOP-K hit 列表（附 rerank_score）。
-
-    Raises:
-        ValueError: 无候选或模型不可用。
-    """
+    """交叉编码精排，返回按分数降序的 TOP-K（附 rerank_score）。"""
     if not chunks:
         raise ValueError("无候选片段可精排")
     if not query:
@@ -91,19 +68,7 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
 
 
 async def arerank_chunks(query: str, chunks: list[dict], top_k: int) -> list[dict]:
-    """异步精排：打分走动态攒批器（``arerank_scores``），避免阻塞事件循环。
-
-    多个并发 deep 检索的交叉编码请求会被攒成一批 (query, text) 对，一次前向，
-    再由 drainer 按各请求候选数拆回分数。耗时埋点由调用方在协程层用 ``astage`` 记录。
-
-    Args:
-        query: 检索问句。
-        chunks: RRF 融合后的候选 hit 列表。
-        top_k: 精排后保留的 TOP-K 片段数。
-
-    Returns:
-        按精排分数降序的 TOP-K hit 列表。
-    """
+    """异步精排：打分走动态攒批器，避免阻塞事件循环。"""
     if not chunks:
         raise ValueError("无候选片段可精排")
     if not query:
@@ -121,20 +86,7 @@ def rerank_chunks_weighted(
     top_k: int,
     alpha: float,
 ) -> list[dict]:
-    """用交叉编码模型打分后与 RRF 分数加权融合（同步版）。
-
-    merged 必须是 ``rrf_merge`` 的产物（每项含 ``rrf_score`` 与 ``hit``），
-    解决"精排把多路共识的正确 chunk 挤掉"的问题：只做排序微调而非覆盖。
-
-    Args:
-        query: 检索问句。
-        merged: RRF 融合结果列表（项含 rrf_score / hit）。
-        top_k: 融合后保留的 TOP-K 片段数。
-        alpha: 精排分权重（0~1），越大越信精排，越小越信 RRF。
-
-    Returns:
-        按融合分降序的 TOP-K hit 列表（附 rerank_score / rrf_score / fusion_score）。
-    """
+    """精排分数与 RRF 分数加权融合后截取 TOP-K；merged 须为 ``rrf_merge`` 的产物。"""
     if not merged:
         raise ValueError("无候选片段可精排")
     if not query:
