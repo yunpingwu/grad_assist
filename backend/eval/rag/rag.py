@@ -15,12 +15,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from app.clients import llm as llm_facade
-from app.clients import milvus_client
 from app.config import llm_config, rerank_config
 from app.core import logger
 from app.core.load_prompt import load_prompt
 from app.core.safety import wrap_untrusted
+from app.infra import llm as llm_facade
+from app.infra import milvus_client
 from app.ml.embedding import agenerate_embeddings
 from app.retrieval.dense import search_by_vectors
 from app.retrieval.fusion import rrf_merge

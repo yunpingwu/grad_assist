@@ -5,8 +5,8 @@ from __future__ import annotations
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.clients.llm import get_llm_client
 from app.core import load_prompt, logger
+from app.infra.llm import get_llm_client
 from app.ml.embedding import agenerate_embeddings
 from app.retrieval.dense import search_by_vectors
 

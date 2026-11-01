@@ -34,7 +34,7 @@ async def _warmup_local_models() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：初始化 PostgreSQL checkpoint 与本地模型，退出时释放外部连接。"""
-    from app.clients import postgres_client
+    from app.infra import postgres_client
     from app.services import study as study_service
     from app.services import textbook as textbook_service
 
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
         await _warmup_local_models()
         yield
     finally:
-        from app.clients import milvus_client, minio_client
+        from app.infra import milvus_client, minio_client
 
         milvus_client.disconnect_milvus()
         minio_client.disconnect_minio()

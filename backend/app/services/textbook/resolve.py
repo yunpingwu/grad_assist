@@ -12,9 +12,9 @@ from pathlib import Path
 from langgraph.types import Command
 
 from app.core import logger
+from app.ingestion.cache import toc_cache
+from app.ingestion.state import TextBookState
 from app.services.textbook.lifecycle import get_graph
-from app.textbook_flow.cache import toc_cache
-from app.textbook_flow.state import TextBookState
 
 
 class MissingTextbookPath(ValueError):

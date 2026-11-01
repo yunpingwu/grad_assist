@@ -109,7 +109,7 @@
 
 这一条推翻了本方案早先的一个假设，单列出来：
 
-- collections 指标**只接受现代 `InstructorLLM`**。传别的（包括 `LangchainLLMWrapper`）构造时就 `ValueError: Collections metrics only support modern InstructorLLM. Found: … Use: llm_factory('gpt-4o-mini', client=openai_client)`。所以**不能**复用 `app/clients/llm.py` 的 `get_llm_client`，得另起一条构造路径。
+- collections 指标**只接受现代 `InstructorLLM`**。传别的（包括 `LangchainLLMWrapper`）构造时就 `ValueError: Collections metrics only support modern InstructorLLM. Found: … Use: llm_factory('gpt-4o-mini', client=openai_client)`。所以**不能**复用 `app/infra/llm/llm.py` 的 `get_llm_client`，得另起一条构造路径。
 - `llm_factory(model, client=...)` 的 **`client` 是必填**（`ValueError: llm_factory() requires a client instance. Text-only mode has been removed.`）。
 - **必须是 async client**：四个指标的 `ascore` 都只调 `llm.agenerate`，而 Agenerate 在同步 client 下直接 `TypeError`。所以用 `AsyncOpenAI`。
 - 供应商走 OpenAI 兼容端点即可：`AsyncOpenAI(base_url=llm_config.base_url, api_key=llm_config.api_key)` + `llm_factory(model, client=client)`（provider 默认走 `openai`）。百炼与 DeepSeek 都是兼容端点，**但这条组合只做到"机制上成立"，未实测**——接的时候先拿一条样本打通。
@@ -274,7 +274,7 @@ rag_eval/                     # 独立项目脚手架
 
 | 官方 | 我们的落点 | 理由 |
 | --- | --- | --- |
-| `rag.py`（被测应用） | `eval/rag/rag.py` | 应用是现成的 `app/study_agent/`，这里只能做**适配层**：把 8 个检索配置收敛成**一个函数**（`retrieve(question, textbook, config) → RetrievalResult`）。配置从"架构"降级为"参数" |
+| `rag.py`（被测应用） | `eval/rag/rag.py` | 应用是现成的 `app/agent/`，这里只能做**适配层**：把 8 个检索配置收敛成**一个函数**（`retrieve(question, textbook, config) → RetrievalResult`）。配置从"架构"降级为"参数" |
 | `evals.py`（评测工作流） | `eval/rag/evals.py` | 装配指标 → 采集 → 评估 → 落 experiment。**唯一 CLI 入口** |
 | `evals/datasets/` | `eval/rag/datasets/`（**已迁入，随代码入库**） | 旧位置 `data/eval/` 被 `.gitignore` 忽略，评测集看不到、改不了、review 不了。格式同步统一为 v2，见 [eval-dataset-schema.md](./eval-dataset-schema.md) |
 | `evals/experiments/` | `data/eval_rag/<run_id>/`（新） | **本方案最重要的结构改进**，见 5.3 |
@@ -318,7 +318,7 @@ async def retrieve(question: str, textbook: str, config: str) -> RetrievalResult
 - `eval.retrieval.metrics.recall_at_k / mean_reciprocal_rank_at_k`：① 的对照实现与 ② 的实现。
 - `app.ml.reranker` / 底层模型单例：预热。
 
-**⛔ 硬约束**：`eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/study_agent` 的导入路径上**。服务进程在 lifespan 里 `build_graph` + 连 PostgreSQL（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
+**⛔ 硬约束**：`eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/agent` 的导入路径上**。服务进程在 lifespan 里 `build_graph` + 连 PostgreSQL（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
 
 ### 5.3 experiment 升为一等公民
 
@@ -500,7 +500,7 @@ data/eval_rag/
 | `IDBasedContextRecall` 不在 `ragas.metrics.collections`，旧路径在 0.4 起带 deprecation 告警、v1.0 可能移除 | 确定性护栏口径可能失效 | 指标装配收敛在 `metrics.py` 一张表里，换实现只改一处；备选是自定义 metric 复制同样口径（15 行）或退到 `NonLLMContextRecall` |
 | LLM 主口径按配置数线性花钱（`ContextPrecision` 是 **len(contexts) 次/样本**） | 8 配置全跑 6 教材 ≈ **4.3 万次**调用 | 硬约束：LLM 口径只跑 2 个代表配置（≈1.1 万次），其余配置靠确定性护栏；样本落盘使换模型/重算不重跑检索 |
 | `abatch_score` / `@experiment` 都是**无上限全量并发**，且失败条目被静默吞掉 | 撞限流、结果缺行而不知 | 自写分批（Semaphore）而不是直接用 `abatch_score`；每轮结束**核对返回行数 == 输入行数**，缺行要显式列出 |
-| collections 指标只能用 `llm_factory` + `AsyncOpenAI`，不能复用 `app/clients/llm.py` | 评审模型的构造与线上不一致，参数（如思考开关）要另配 | 单起一条构造路径，参数从 `llm_config` 读；先拿一条样本打通再批量 |
+| collections 指标只能用 `llm_factory` + `AsyncOpenAI`，不能复用 `app/infra/llm/llm.py` | 评审模型的构造与线上不一致，参数（如思考开关）要另配 | 单起一条构造路径，参数从 `llm_config` 读；先拿一条样本打通再批量 |
 | LLM 评审与题集作者可能同族 → 相关性偏差 | 语义指标偏乐观 | 评审模型选与建集不同的模型/供应商；报告里标明；LLM 口径永远与确定性口径**并列**读，不单独下结论 |
 | `AnswerRelevancy` 对短答案的偏差：**本方案早先说它"已知系统性偏低"，核源码后不成立**——公式是 `cosine_sim.mean() * int(not all_noncommittal)`，没有长度项，`strictness` 恒为 3。旧版 docstring 只有一句"信息不完整/冗余会被惩罚"，与长度无关 | 无（原判断撤回） | v2 实测分数分布后再下结论，别先按"短答案低分"解读 |
 | 改攒批器触碰线上热路径 | 并发吞吐回退 | 默认窗口值不变、线上入口签名不变；`*_nowait` 是新名字不是改旧名；有单测钉行为 |

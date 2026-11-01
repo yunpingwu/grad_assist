@@ -14,8 +14,8 @@ from langgraph.types import Command
 from app.core import logger
 from app.core.safety import detect_prompt_leak, strip_boundary
 from app.services.study.lifecycle import get_graph
-from app.study_agent.state import StudyState
-from app.study_agent.tools.clarify import CANCEL_MARKER
+from app.agent.state import StudyState
+from app.agent.tools.clarify import CANCEL_MARKER
 from app.trace import end_request, flush_metrics, get_metrics, mark_stage, start_request
 
 

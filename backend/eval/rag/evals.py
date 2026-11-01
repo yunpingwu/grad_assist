@@ -25,9 +25,9 @@ from ragas.metrics.collections import (
     Faithfulness,
 )
 
-from app.clients.llm import llm_alibaba, llm_deepseek
 from app.config import llm_config
 from app.core import logger
+from app.infra.llm import llm_alibaba, llm_deepseek
 from app.ml.embedding import agenerate_embeddings, generate_embeddings
 from eval.rag import rag
 
@@ -36,7 +36,7 @@ RESULTS_DIR = Path(__file__).resolve().parent / "results"
 CONCURRENCY = 8
 # judging 长上下文时输出很长（逐句/逐条 verdict），必须给足，否则 IncompleteOutputException
 JUDGE_MAX_TOKENS = 8192
-# 供应商模块注册表（与 app/clients/llm.py 的 _PROVIDERS 同源，用于复用思考开关口径）
+# 供应商模块注册表（与 app/infra/llm/llm.py 的 _PROVIDERS 同源，用于复用思考开关口径）
 _PROVIDER_MODULES = {"alibaba": llm_alibaba, "deepseek": llm_deepseek}
 # AnswerRelevancy 反生成问题的条数（每多 1 条多一次 LLM 调用）
 ANSWER_RELEVANCY_STRICTNESS = 3

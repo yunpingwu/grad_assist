@@ -10,8 +10,8 @@ from langgraph.types import Command
 from pypdf import PdfWriter
 
 from app.api.routes import textbook as route
+from app.ingestion.cache import toc_cache
 from app.services import textbook as svc
-from app.textbook_flow.cache import toc_cache
 
 CANDIDATES = [{"textbook_name": "机器学习", "offset": 10}]
 

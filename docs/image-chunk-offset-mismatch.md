@@ -11,9 +11,9 @@
 
 - 正文内嵌的图标记 `【图: 简介】`(切块时由图片行原位替换而来,参与向量检索);
 
-- `metadata_json.images = [{url, description}]`(供召回端按简介把 url 回绑成可引用图片,见 `app/study_agent/tools/search.py` 的 `_collect_hit_images` / `_FIGURE_MARK_PATTERN`)。
+- `metadata_json.images = [{url, description}]`(供召回端按简介把 url 回绑成可引用图片,见 `app/agent/tools/search.py` 的 `_collect_hit_images` / `_FIGURE_MARK_PATTERN`)。
 
-**根因**:[split\_text\_and\_store.py](app/textbook_flow/nodes/split_text_and_store.py) 的 `chunk_textbook` 在超长小节按字符硬切(`_char_split`,chunk\_size=2000, overlap=200)时,`images` 与 `codes` **只挂** **`idx == 0`** **的子块**(见 `chunk_textbook` 中 `"images": images if idx == 0 else []`);而 `【图: 简介】` 文本由 `_char_split` 硬切,可能落在 `idx > 0` 的子块。
+**根因**:[split\_text\_and\_store.py](app/ingestion/nodes/split_text_and_store.py) 的 `chunk_textbook` 在超长小节按字符硬切(`_char_split`,chunk\_size=2000, overlap=200)时,`images` 与 `codes` **只挂** **`idx == 0`** **的子块**(见 `chunk_textbook` 中 `"images": images if idx == 0 else []`);而 `【图: 简介】` 文本由 `_char_split` 硬切,可能落在 `idx > 0` 的子块。
 
 ## 2. 错位场景与后果
 

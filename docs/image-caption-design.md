@@ -204,7 +204,7 @@ load_textbook → split_contents → split → parse_to_md → caption_images(�
 
 | 文件 | 改动 |
 |---|---|
-| `app/clients/llm.py` | 新增 `get_visual_llm_client()`(VISUAL_MODEL) |
+| `app/infra/llm/llm.py` | 新增 `get_visual_llm_client()`(VISUAL_MODEL) |
 | `app/textbook_agent/graph.py` | 插入 `caption_images` 节点 |
 | `app/textbook_agent/nodes/split_text_and_store.py` | `chunk_textbook` 读副本优先;content 拼「【本节图片】」;images 补 description |
 | `app/query_agent/nodes/generate_answer.py` | context 注入「图片候选」段 |

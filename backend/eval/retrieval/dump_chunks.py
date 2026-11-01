@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from app.clients import milvus_client
+from app.infra import milvus_client
 from app.retrieval.store import list_textbooks
 
 _OUT_DIR = Path(__file__).resolve().parents[2] / "data" / "eval" / "chunks"

@@ -1,6 +1,6 @@
 """Milvus 教材域工具：注册表、集合名分配与教材检索逻辑。
 
-底层通用 Milvus 操作见 ``clients/milvus_client.py``。
+底层通用 Milvus 操作见 ``infra/milvus_client.py``。
 """
 
 import hashlib
@@ -24,9 +24,9 @@ from pymilvus.exceptions import (
 )
 from pymilvus.milvus_client.index import IndexParams
 
-from app.clients import milvus_client
 from app.core import logger
 from app.core.decorators import retry
+from app.infra import milvus_client
 
 # collection 名前缀
 COLLECTION_PREFIX = "tb"
@@ -233,7 +233,7 @@ def _scan_chapters(textbook_name: str) -> list[dict]:
 
 # ── 混合检索 ──────────────────────────────────────────────
 
-# 向量字段名（与 clients/milvus_client.py 的 create_collection 保持一致）
+# 向量字段名（与 infra/milvus_client.py 的 create_collection 保持一致）
 DENSE_FIELD = "embedding"
 SPARSE_FIELD = "sparse_embedding"
 

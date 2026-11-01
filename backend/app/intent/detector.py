@@ -10,9 +10,9 @@ import asyncio
 from langchain_core.messages import AnyMessage
 from langchain_core.prompts import PromptTemplate
 
-from app.clients.llm import bind_structured_output, get_llm_client
 from app.core import load_prompt, logger
 from app.core.message_sources import is_summary_message
+from app.infra.llm import bind_structured_output, get_llm_client
 from app.intent.entities import IntentResult, _IntentDecision
 from app.ml import agenerate_embeddings
 from app.trace import astage

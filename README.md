@@ -20,13 +20,13 @@
 
 ```mermaid
 flowchart LR
-  subgraph ingest [教材摄入流水线 textbook_flow]
+  subgraph ingest [教材摄入流水线 ingestion]
     PDF[扫描版 PDF] --> MinerU[MinerU 解析]
     MinerU --> Enrich[图片/代码语义富化<br/>视觉模型生成描述]
     Enrich --> Store[(Milvus + MinIO<br/>章节溯源元数据)]
   end
 
-  subgraph agent [问答 Agent study_agent]
+  subgraph agent [问答 Agent agent]
     Q[用户消息 SSE] --> Pre[前置理解<br/>意图三档漏斗，兜底层读历史]
     Pre --> Prompt[按意图动态加载 Prompt]
     Prompt --> React[ReAct 循环<br/>检索/读写/澄清工具编排]
@@ -132,13 +132,13 @@ backend/
 │   ├── main.py       # 应用装配、生命周期与 uvicorn 启动入口
 │   ├── api/          # HTTP 适配：router.py 汇总路由，routes/ 只做参数与响应
 │   ├── services/     # 应用编排：SSE 流式、HITL 续跑、会话/文件查询
-│   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、护栏
+│   ├── agent/  # 问答 Agent：graph 装配、工具、middleware、护栏
 │   ├── retrieval/    # 检索能力：向量召回、HyDE、RRF、精排、Milvus 教材存储
 │   ├── intent/       # 意图识别能力：三档漏斗与结果实体
-│   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
+│   ├── ingestion/ # 教材摄入流水线：解析、富化、切分入库
 │   ├── eval/         # 离线评测：数据集、指标、消融实验
 │   ├── prompts/      # 按意图动态加载的 system prompt
-│   ├── clients/      # Milvus / PostgreSQL / MinIO 适配
+│   ├── infra/      # Milvus / PostgreSQL / MinIO 适配
 │   ├── ml/           # BGE-M3 / Reranker 模型加载与动态攒批
 │   ├── core/         # 横切基础件：日志、提示词加载、安全边界、消息标记
 │   └── trace/        # 请求级观测

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from langchain_core.messages import AnyMessage
 
-# 会话压缩注入的回顾（由 tests/study_agent/test_message_sources.py 钉住）
+# 会话压缩注入的回顾（由 tests/agent/test_message_sources.py 钉住）
 SUMMARY_SOURCE = "summarization"
 # 本轮指令（教材名 + 意图行为块 + 任务目标），见 graph.record_turn_instruction
 TURN_INSTRUCTION_SOURCE = "turn_instruction"

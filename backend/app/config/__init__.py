@@ -22,7 +22,7 @@ def current_context_window() -> int:
     """当前供应商配的模型窗口（token）。
 
     两家平台各配各的（``MODEL_CONTEXT_WINDOW`` / ``DEEPSEEK_CONTEXT_WINDOW``），
-    消费方是随窗口走的护栏：会话压缩的触发线、轮内工具结果预算（见 ``study_agent/``）。
+    消费方是随窗口走的护栏：会话压缩的触发线、轮内工具结果预算（见 ``agent/``）。
     """
     return deepseek_config.context_window if llm_config.provider == "deepseek" else llm_config.context_window
 

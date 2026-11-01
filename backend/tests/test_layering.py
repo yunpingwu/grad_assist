@@ -16,18 +16,18 @@ EVAL_ROOT = BACKEND_ROOT / "eval"
 
 # app/ 左侧包不得 import 右侧包：能力层不依赖流水线，流水线之间互不依赖，接口层只经服务层
 FORBIDDEN = {
-    "retrieval": {"study_agent", "textbook_flow", "services", "api"},
-    "intent": {"study_agent", "textbook_flow", "services", "api"},
-    "study_agent": {"textbook_flow", "services", "api"},
-    "textbook_flow": {"study_agent", "services", "api"},
+    "retrieval": {"agent", "ingestion", "services", "api"},
+    "intent": {"agent", "ingestion", "services", "api"},
+    "agent": {"ingestion", "services", "api"},
+    "ingestion": {"agent", "services", "api"},
     "services": {"api"},
-    "api": {"study_agent", "textbook_flow"},
-    "clients": {"retrieval", "intent", "study_agent", "textbook_flow", "services", "api"},
-    "ml": {"retrieval", "intent", "study_agent", "textbook_flow", "services", "api"},
+    "api": {"agent", "ingestion"},
+    "infra": {"retrieval", "intent", "agent", "ingestion", "services", "api"},
+    "ml": {"retrieval", "intent", "agent", "ingestion", "services", "api"},
 }
 
 # eval/ 只读能力层与 infra，不得 import 任何运行时编排包
-EVAL_FORBIDDEN = {"study_agent", "textbook_flow", "services", "api"}
+EVAL_FORBIDDEN = {"agent", "ingestion", "services", "api"}
 
 
 def _imported_modules(path: Path) -> set[str]:

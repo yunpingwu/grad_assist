@@ -9,8 +9,8 @@ import asyncio
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 
+from app.agent.compaction import HistoryCompactionMiddleware
 from app.core.message_sources import SUMMARY_SOURCE, TURN_INSTRUCTION_SOURCE, is_summary_message
-from app.study_agent.compaction import HistoryCompactionMiddleware
 
 
 def test_compaction_output_is_recognized_as_summary() -> None:

@@ -38,7 +38,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 ```
 
 - **依赖变更必须 `uv lock` 并提交 `uv.lock`**，CI 用 `uv sync --locked` 会直接失败。CI 的 ruff/uv 版本钉死（`ruff==0.16.3` / `uv==0.11.16`，见 `.github/workflows/ci.yml`），本地版本更旧时 CI 仍可能报错。
-- CI 的 pytest job 起 `postgres:17-alpine` 并塞 `ALIBABA_API_KEY=dummy`：`tests/study_agent` 直接调用 `build_graph` 需要 dummy key；服务图的 `AsyncPostgresSaver` 改为在 FastAPI lifespan 内初始化，import 阶段不再连库。
+- CI 的 pytest job 起 `postgres:17-alpine` 并塞 `ALIBABA_API_KEY=dummy`：`tests/agent` 直接调用 `build_graph` 需要 dummy key；服务图的 `AsyncPostgresSaver` 改为在 FastAPI lifespan 内初始化，import 阶段不再连库。
 - 评测/探针（评测在 `backend/eval/`，探针在 `backend/tools/`，在 `backend/` 下全部 `python -m` 运行）：
   - **ragas 四指标（现行，见 `backend/eval/rag/README.md`）**：`eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
   - 旧自研指标（待退役）：`eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
@@ -49,8 +49,8 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 两条 LangGraph 流水线 + 一套存储（Milvus / PostgreSQL / MinIO / 本地盘），架构图与检索链路见 README。需要读多处代码才能拼出来的部分：
 
-- **问答 Agent**（`backend/app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
-- **教材摄入**（`backend/app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
+- **问答 Agent**（`backend/app/agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
+- **教材摄入**（`backend/app/ingestion/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
 - **观测**（`backend/app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
 - **能力层**（`backend/app/retrieval/`、`backend/app/intent/`）：检索（dense / HyDE / RRF / 精排 / Milvus 存储）与意图识别被 Agent 与 eval 共用；能力层不得反向 import 流水线层（`tests/test_layering.py` 钉住依赖方向）。
 - **开发探针**（`backend/tools/`）：`chat_probe` 等脚本不进入服务进程导入路径。
@@ -78,7 +78,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 - 请求级 `retrieved_chunk_ids` 由工具步 `meta.chunk_ids` 派生，别另存一份。
 - 落盘 `logs/<日期>/metrics.log`（缩进 JSON + 空行分隔，探针按此格式解析）。`TRACE_PAYLOAD=digest|preview|full` 控制正文保真度，chars/sha1 恒定全量计算。
 
-### 3. 工具失败处理分层（`app/study_agent/tools/`）
+### 3. 工具失败处理分层（`app/agent/tools/`）
 
 - **模型能自愈的**（文件不存在、没先读过、old_string 不匹配）→ 返回一句括号指引，不抛异常（不白耗一次重试）。
 - **真故障**（路径越界、检索链路挂）→ 抛异常，交给图上的官方 `ToolRetryMiddleware` 兜成说明文本。
@@ -87,7 +87,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 ### 4. 配置与 LLM 供应商
 
 - `app/config/settings.py` 是唯一配置源：pydantic-settings，环境变量名写在 `validation_alias`；各域对象经 `app.config` 扁平导出（`llm_config` / `budget_config` / `trace_config`…），新增变量要同步补 `.env.example`。settings 在 import 时实例化一次，**运行时改值只能 monkeypatch 域对象属性**（测试即此法）。
-- `app/clients/llm.py` 是供应商门面：`get_llm_client(provider=...)`、`bind_structured_output(...)`。供应商差异（思考开关写法、结构化输出方式）各自关在 `llm_<供应商>.py`，契约是 `NAME / API_KEY_ENV / STRUCTURED_OUTPUT_METHOD / client_kwargs`。
+- `app/infra/llm/llm.py` 是供应商门面：`get_llm_client(provider=...)`、`bind_structured_output(...)`。供应商差异（思考开关写法、结构化输出方式）各自关在 `llm_<供应商>.py`，契约是 `NAME / API_KEY_ENV / STRUCTURED_OUTPUT_METHOD / client_kwargs`。
 - `enrich_md` 固定 `provider="alibaba"`（视觉模型只有百炼有）；agent 主体 `enable_thinking=False`。
 
 ### 5. 线程、checkpoint 与 HITL
@@ -112,7 +112,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - 幂等判据是「目标产物**整组**存在 → 跳过」（目录/文件存在即完成，含 MinerU 下载的原子落盘），半成品会只补缺的那些。
 - **已登记教材不会重新向量化**（`textbook_registry` 集合命中即跳过）；同教材换了内容要重灌时需先删注册表行（集合名 `tb_<sha1(教材名)[:16]>`）。
-- chunk 主键含内容 hash（`app/textbook_flow/chunk_id.py`，`v1_tb_{...}_ch_{...}_sec_{...}_{block_type}_{idx}_{文本hash}`），改正文即新 ID——评测 gold 集因此能跨重灌保持稳定。
+- chunk 主键含内容 hash（`app/ingestion/chunk_id.py`，`v1_tb_{...}_ch_{...}_sec_{...}_{block_type}_{idx}_{文本hash}`），改正文即新 ID——评测 gold 集因此能跨重灌保持稳定。
 - 图片：二进制进 MinIO（`textbook/{教材}/{章}/images/`），正文内以 `【图: 简介】` 占位、`metadata_json.images` 带 URL，两者必须落在**同一个** chunk（检索侧 `search.py` 的 `_FIGURE_MARK_PATTERN` 负责回绑）。
 - 产物目录布局（`textbooks/pdf-<时间戳>-<随机>/` 下）：`mineru_toc/{pdf_stem}/`、`pdf_split/`、`mineru_split/{教材名}/{章 stem}/`（`full.md` / `full_captioned.md`）。
 
@@ -127,7 +127,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 - 官方假件：`GenericFakeChatModel`（可造 usage/reasoning）、`InMemorySaver`、`httpx.MockTransport` 假 SSE；文件与日志类用 `tmp_path` + patch 常量（`LOGS_DIR` / `MATERIAL_ROOT`）。
 - 带 lru_cache 的工厂（`get_llm_client`）要在用例前后 `cache_clear()`。
 - 断言写「机制」而非精确耗时（用比较/比例），失败信息用中文说明断的是什么。
-- 需要真实外部环境的一律 `@pytest.mark.integration` 并在缺前置条件时 `pytest.skip`；`tests/api`、`study_agent`、`trace`、`eval` **必须**能无外部服务跑过。
+- 需要真实外部环境的一律 `@pytest.mark.integration` 并在缺前置条件时 `pytest.skip`；`tests/api`、`agent`、`trace`、`eval` **必须**能无外部服务跑过。
 
 ## 文档现状（部分陈旧，别照抄）
 

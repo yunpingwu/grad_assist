@@ -7,7 +7,7 @@ from typing import Any
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg_pool import AsyncConnectionPool
 
-from app.textbook_flow.graph import build_graph
+from app.ingestion.graph import build_graph
 
 # 教材摄入图：独立 textbook schema，避免与对话图 thread_id 冲突；
 # thread_id = user_id:task_id，多用户任务天然隔离。

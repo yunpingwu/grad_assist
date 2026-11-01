@@ -86,7 +86,7 @@ eval/rag/datasets/
 
 ### 3.4 gold 正文怎么自证没被改过
 
-chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/textbook_flow/chunk_id.py`，归一化＝换行统一、`[ \t]+`→空格、3+ 换行折成 2、strip）。所以**正文与 id 互为校验**：加载时对每条 gold 重算哈希与 id 对账，就能证明正文没漂移——**不需要 Milvus，也不需要那份全量转储**。
+chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/ingestion/chunk_id.py`，归一化＝换行统一、`[ \t]+`→空格、3+ 换行折成 2、strip）。所以**正文与 id 互为校验**：加载时对每条 gold 重算哈希与 id 对账，就能证明正文没漂移——**不需要 Milvus，也不需要那份全量转储**。
 
 迁移时 302 条 gold 正文全部通过自校验；这也是允许把正文放进 git 的前提。
 
