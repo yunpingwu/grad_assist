@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.eval.intent.run_threshold_ablation import pick_best, route_predict
+from eval.intent.run_threshold_ablation import pick_best, route_predict
 
 
 def test_keyword_confirmed_by_pool_takes_precedence() -> None:

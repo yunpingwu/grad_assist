@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from app.eval.intent.run_eval import build_cases, filter_cases, load_extra, load_multi_anchor, load_single_anchor, resolve_majority
+from eval.intent.run_eval import build_cases, filter_cases, load_extra, load_multi_anchor, load_single_anchor, resolve_majority
 
 
 def _write(path: Path, payload: dict) -> Path:

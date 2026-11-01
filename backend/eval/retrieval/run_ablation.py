@@ -11,16 +11,16 @@ import sys
 from pathlib import Path
 
 from app.core import logger
-from app.eval.retrieval.channels import run_deep, run_dense, run_hybrid, run_hyde_rrf, run_sparse
-from app.eval.retrieval.dataset import gold_chunk_ids, load_dataset
-from app.eval.retrieval.metrics import compute_metrics
 from app.ml.embedding import agenerate_embeddings
 from app.ml.reranker import compute_rerank_scores
+from eval.retrieval.channels import run_deep, run_dense, run_hybrid, run_hyde_rrf, run_sparse
+from eval.retrieval.dataset import gold_chunk_ids, load_dataset
+from eval.retrieval.metrics import compute_metrics
 
 # ===== 评测集路径常量：改这里即可切换默认评测的套集 =====
-# 也可运行时传第一个位置参数（如 python -m app.eval.retrieval.run_ablation "data/eval/xxx/qa_set.json"）
+# 也可运行时传第一个位置参数（如 python -m eval.retrieval.run_ablation "data/eval/xxx/qa_set.json"）
 _DEFAULT_DATASET_PATH = (
-    Path(__file__).resolve().parents[3]
+    Path(__file__).resolve().parents[2]
     / "data" / "eval" / "操作系统：精髓与设计原理（第8版）_(斯托林斯)" / "qa_set.json"
 )
 

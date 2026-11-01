@@ -1,6 +1,6 @@
 # 评测集格式规范（v2）
 
-> 状态: **已迁移（2026-10-16，revision `2026-10-16.1`）** · 适用范围: `app/eval/rag/datasets/`
+> 状态: **已迁移（2026-10-16，revision `2026-10-16.1`）** · 适用范围: `eval/rag/datasets/`
 > 关联: [ragas-retrieval-eval-design.md](./ragas-retrieval-eval-design.md)（检索评测重构，消费本格式）
 >
 > 数据集从 `data/eval/`（被 `.gitignore` 忽略）迁到仓库内，**随代码入库**。六个短键
@@ -29,7 +29,7 @@
 
 | 消费者 | 需要什么 |
 | --- | --- |
-| 采集阶段（`app/eval/rag/rag.py`） | `question` + `textbook` + `collection` |
+| 采集阶段（`eval/rag/rag.py`） | `question` + `textbook` + `collection` |
 | ragas 样本构造（`samples.py`） | `question`→`user_input`；`gold_chunk_ids`→`reference_context_ids`；`reference_answer`→`reference`；`reference_contexts` 由 **chunk 快照**按 id 查（不在数据集里） |
 | 报告与逐题复盘 | `id` + `category`（分组）+ `question`（人眼读） |
 | v2 生成侧评测 | `reference_answer` + `answer_points` |
@@ -69,7 +69,7 @@
 ### 3.3 落盘布局：题集 + gold 正文，两份都入库
 
 ```
-app/eval/rag/datasets/
+eval/rag/datasets/
 ├── README.md
 ├── os.json                 # 题集：schema/textbook/collection/sha256/gold_policy/revision/questions
 ├── c.json  co.json  db.json  ds.json  net.json
@@ -82,7 +82,7 @@ app/eval/rag/datasets/
 - 两者**生命周期不同**——改题只动 `os.json`，教材重灌只动 `gold_contexts/os.json`，git diff 各归各的；
 - 题集里塞 gold 正文就是重蹈 `gold_evidence` 的覆辙（同一条正文两个来源）。
 
-`source_snapshot_sha256` 保留为**出处戳**（记录 gold 是对着哪一版语料快照校验的），运行时不再是硬门禁——因为 8.7MB 的全量 chunk 转储属派生产物（可由 `python -m app.eval.retrieval.dump_chunks` 从 Milvus 再生），不入库。
+`source_snapshot_sha256` 保留为**出处戳**（记录 gold 是对着哪一版语料快照校验的），运行时不再是硬门禁——因为 8.7MB 的全量 chunk 转储属派生产物（可由 `python -m eval.retrieval.dump_chunks` 从 Milvus 再生），不入库。
 
 ### 3.4 gold 正文怎么自证没被改过
 
@@ -90,7 +90,7 @@ chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/textbook_flow/chunk_id
 
 迁移时 302 条 gold 正文全部通过自校验；这也是允许把正文放进 git 的前提。
 
-> 302 是**去重后**的 chunk 数（300 题共 322 次引用，20 处是两题共用同一个 chunk）。展开见 [`app/eval/rag/datasets/README.md`](../app/eval/rag/datasets/README.md)。
+> 302 是**去重后**的 chunk 数（300 题共 322 次引用，20 处是两题共用同一个 chunk）。展开见 [`eval/rag/datasets/README.md`](../eval/rag/datasets/README.md)。
 
 加载器行为（**全部是硬失败，不是警告**）：
 
@@ -114,11 +114,11 @@ chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/textbook_flow/chunk_id
 
 - 两处判断可以推翻：`comparison`（42 题）若想单列，从 `multi_hop` 拆出来即可；`sql`（3 题）若嫌并进 `computation` 不妥，可随数据库特有维度单列。
 - 合并后最小类 32 题，分组分析仍有统计意义。
-- 词表落成代码里一个常量（`app/eval/rag/samples.py`），加载时校验取值合法。
+- 词表落成代码里一个常量（`eval/rag/samples.py`），加载时校验取值合法。
 
 ***
 
-## 4. 示例（`app/eval/rag/datasets/os.json`，操作系统第 1 题，取自现网数据）
+## 4. 示例（`eval/rag/datasets/os.json`，操作系统第 1 题，取自现网数据）
 
 ```json
 {
@@ -184,13 +184,13 @@ chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/textbook_flow/chunk_id
 | `manual_validation_candidate` | **删**（作者期流程记录） |
 | `reasoning_note` | **删**（作者的推理草稿，非评测输入） |
 
-> 删 `gold_evidence` 的代价：数据集不再自带 gold 正文，人工复核要看快照。补偿：`app/eval/rag/` 提供一个按 `query_id` 打印 gold 正文的小工具（快照查表，十几行）。**这个代价是值得付的**——现在两处正文不一致（截断）而没人发现，正是"副本模型"的典型失败。
+> 删 `gold_evidence` 的代价：数据集不再自带 gold 正文，人工复核要看快照。补偿：`eval/rag/` 提供一个按 `query_id` 打印 gold 正文的小工具（快照查表，十几行）。**这个代价是值得付的**——现在两处正文不一致（截断）而没人发现，正是"副本模型"的典型失败。
 
 ***
 
 ## 6. 迁移记录
 
-**已完成（2026-10-16）**。由 `scripts/unify_eval_sets.py`（一次性脚本）从 `data/eval/<教材>/qa_set.json` 生成，产物落在 `app/eval/rag/datasets/`。旧文件**不备份、不删除**（用户要求不管历史），它们仍在 `data/eval/` 下被尚未迁移的脚本读取。
+**已完成（2026-10-16）**。由 `scripts/unify_eval_sets.py`（一次性脚本）从 `data/eval/<教材>/qa_set.json` 生成，产物落在 `eval/rag/datasets/`。旧文件**不备份、不删除**（用户要求不管历史），它们仍在 `data/eval/` 下被尚未迁移的脚本读取。
 
 迁移校验（脚本内断言 + 独立复核，全部通过）：
 
@@ -203,7 +203,7 @@ chunk id 的末段是 `sha1(归一化正文)[:12]`（`app/textbook_flow/chunk_id
 | `gold_contexts` 与题集引用的 gold 集合完全吻合 | ✔ |
 | C语言、数据结构两本补上 `source_snapshot_sha256` 并与快照文件核对 | ✔ |
 
-**尚未做**：`app/eval/retrieval/dataset.py` 仍读旧路径旧格式。现有脚本（`run_agent_eval` / `run_multi_user_eval` / `run_ablation` / `intent/*`）因此都还在读 `data/eval/` 下的旧文件，**没有受影响**。等 `app/eval/rag/` 的加载器写出来后再统一切换；兼容性已核对，被删字段的依赖只有两处且都不受影响：
+**尚未做**：`eval/retrieval/dataset.py` 仍读旧路径旧格式。现有脚本（`run_agent_eval` / `run_multi_user_eval` / `run_ablation` / `intent/*`）因此都还在读 `data/eval/` 下的旧文件，**没有受影响**。等 `eval/rag/` 的加载器写出来后再统一切换；兼容性已核对，被删字段的依赖只有两处且都不受影响：
 
 - `run_agent_eval.py:225` 用 `question.get("answer_points", [])`（字段保留）；
 - `run_multi_user_eval.py:109` 的 `topic` 取的是**多轮会话**的 topic（`data/eval_multi_turn/qa_set.json`，另一份数据），不是题目级 topic。

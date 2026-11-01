@@ -39,10 +39,10 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - **依赖变更必须 `uv lock` 并提交 `uv.lock`**，CI 用 `uv sync --locked` 会直接失败。CI 的 ruff/uv 版本钉死（`ruff==0.16.3` / `uv==0.11.16`，见 `.github/workflows/ci.yml`），本地版本更旧时 CI 仍可能报错。
 - CI 的 pytest job 起 `postgres:17-alpine` 并塞 `ALIBABA_API_KEY=dummy`：`tests/study_agent` 直接调用 `build_graph` 需要 dummy key；服务图的 `AsyncPostgresSaver` 改为在 FastAPI lifespan 内初始化，import 阶段不再连库。
-- 评测/探针（评测在 `backend/app/eval/`，探针在 `backend/tools/`，在 `backend/` 下全部 `python -m` 运行）：
-  - **ragas 四指标（现行，见 `backend/app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
-  - 旧自研指标（待退役）：`app.eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
-  - 意图识别：`app.eval.intent.run_eval` / `run_threshold_ablation`。
+- 评测/探针（评测在 `backend/eval/`，探针在 `backend/tools/`，在 `backend/` 下全部 `python -m` 运行）：
+  - **ragas 四指标（现行，见 `backend/eval/rag/README.md`）**：`eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
+  - 旧自研指标（待退役）：`eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
+  - 意图识别：`eval.intent.run_eval` / `run_threshold_ablation`。
   - 日志探针：`tools.chat_probe`（按 `probe_questions.json` 跑多会话，读 `logs/<日期>/metrics.log` 汇总命中率曲线与压缩事件；想看压缩得用小窗口起服务，见其 docstring）。
 
 ## 架构总览
@@ -133,10 +133,10 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - `docs/image-caption-design.md`：承诺的「缺 `full_captioned.md` 时回退 `full.md`」**未实现**（缺富化副本的章节直接跳过）。
 - `docs/image-chunk-offset-mismatch.md`：图片偏移部分**已修**（Plan A），「非首个子块的代码块丢失」仍是未修项。
-- README 说的检索消融「显著性检验」在**旧的** `app/eval/retrieval/` 里不存在（只有均值对比）；`run_rewrite_ablation` 依赖已下线的重写链路，新日志样本数为 0。新的 `app/eval/rag/` 有配对 bootstrap 检验（见其 README 的实测结论）。
+- README 说的检索消融「显著性检验」在**旧的** `eval/retrieval/` 里不存在（只有均值对比）；`run_rewrite_ablation` 依赖已下线的重写链路，新日志样本数为 0。新的 `eval/rag/` 有配对 bootstrap 检验（见其 README 的实测结论）。
 - `docs/java-gateway-design.md` 是**设计中**（未实现）的方案。
-- `docs/ragas-retrieval-eval-design.md` 是评测重构的**设计过程稿**（含 ragas 0.4.3 的踩坑记录：`langchain-community` 必须钉 `<0.4`、collections 指标不能用 `aevaluate`、供应商吞吐顶棚等）；落地后的操作口径以 `app/eval/rag/README.md` 为准。
-- `docs/eval-dataset-schema.md` 是评测集格式规范（已落地，`app/eval/rag/datasets/`）。
+- `docs/ragas-retrieval-eval-design.md` 是评测重构的**设计过程稿**（含 ragas 0.4.3 的踩坑记录：`langchain-community` 必须钉 `<0.4`、collections 指标不能用 `aevaluate`、供应商吞吐顶棚等）；落地后的操作口径以 `eval/rag/README.md` 为准。
+- `docs/eval-dataset-schema.md` 是评测集格式规范（已落地，`eval/rag/datasets/`）。
 
 ## 仓库边界
 

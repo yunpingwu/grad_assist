@@ -12,7 +12,7 @@
 | 多轮会话评测 | **50 会话 × 200 轮全部通过** | 无会话串扰；检索触发率 88% → 99%，追问轮 hit@5 0.662 → 0.887 |
 | 跨轮缓存命中率 | 49% → **92%** | 13 轮会话逐次调用实测：静态壳 + 尾部本轮指令 + 往轮原文回收让断裂点只随轮首前移（数据口径见 `logs/<日期>/metrics.log` 的 `cached`/`input_digest`） |
 
-评测脚本与指标计算均在 [backend/app/eval/](backend/app/eval) 内，可离线复现（评测集与教材 PDF 因体积与版权未随仓库分发，见「评测复现」）。
+评测脚本与指标计算均在 [backend/eval/](backend/eval) 内，可离线复现（评测集与教材 PDF 因体积与版权未随仓库分发，见「评测复现」）。
 
 ## 架构
 
@@ -112,17 +112,17 @@ docker compose --env-file /home/ypw/docker/grad_assist/.env \
 cd backend
 
 # 检索离线消融：300 题（6 本教材 × 50），各配置 Recall/Hit/NDCG/MRR 对比 + 显著性检验
-uv run python -m app.eval.retrieval.run_ablation
+uv run python -m eval.retrieval.run_ablation
 
 # 问题重写消融（历史链路复现）：原问句 vs 当年重写问句单路替换 + 双路 RRF 融合
 # 前置重写已下线，此脚本只读旧 metrics.log 复现结论，新日志样本数为 0
-uv run python -m app.eval.retrieval.run_rewrite_ablation
+uv run python -m eval.retrieval.run_rewrite_ablation
 
 # 多用户多轮会话评测：50 会话 × 200 轮，含延迟/token/检索触发率统计
-uv run python -m app.eval.retrieval.run_multi_user_eval
+uv run python -m eval.retrieval.run_multi_user_eval
 ```
 
-> 评测依赖 `backend/data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [backend/app/eval/retrieval/dataset.py](backend/app/eval/retrieval/dataset.py) 的格式构造题目。
+> 评测依赖 `backend/data/` 下的题目集与已入库教材。教材 PDF 与评测集全量数据因版权和体积未上传；如需复现，可用自己的教材走 `/upload → /resolve` 摄入后，参照 [backend/eval/retrieval/dataset.py](backend/eval/retrieval/dataset.py) 的格式构造题目。
 
 ## 目录结构
 

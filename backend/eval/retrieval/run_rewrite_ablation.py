@@ -12,16 +12,16 @@ import statistics as st
 from collections import defaultdict
 from pathlib import Path
 
-from app.eval.retrieval.channels import run_fast
-from app.eval.retrieval.dataset import gold_chunk_ids
-from app.eval.retrieval.metrics import compute_metrics
 from app.ml.embedding import agenerate_embeddings
+from eval.retrieval.channels import run_fast
+from eval.retrieval.dataset import gold_chunk_ids
+from eval.retrieval.metrics import compute_metrics
 
 _DECODER = json.JSONDecoder()
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    root = Path(__file__).resolve().parents[3]
+    root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="问题重写离线检索消融")
     parser.add_argument("--metrics", type=Path, default=root / "logs" / "metrics.log")
     parser.add_argument(

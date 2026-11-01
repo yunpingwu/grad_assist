@@ -11,9 +11,6 @@ import json
 import sys
 from typing import Any
 
-from app.eval.intent.metrics import abstention_rate, accuracy, is_correct
-from app.eval.intent.run_eval import _parse_args as _eval_args
-from app.eval.intent.run_eval import build_cases, filter_cases
 from app.intent.detector import (
     _EMBED_LOW,
     INTENT_EXAMPLES,
@@ -25,6 +22,9 @@ from app.intent.detector import (
     logger,
 )
 from app.ml import agenerate_embeddings
+from eval.intent.metrics import abstention_rate, accuracy, is_correct
+from eval.intent.run_eval import _parse_args as _eval_args
+from eval.intent.run_eval import build_cases, filter_cases
 
 # 扫描网格：A 覆盖池均值的动态范围，B 含 0（退化为纯绝对阈值，兼容旧判据对照）
 _SWEEP_A = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75)

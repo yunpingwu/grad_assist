@@ -1,6 +1,6 @@
 """转储教材全部 chunk（id/章节/文本），供构建评测集与核对 gold_chunk_ids。
 
-用法：``python -m app.eval.retrieval.dump_chunks "教材名子串"``。
+用法：``python -m eval.retrieval.dump_chunks "教材名子串"``。
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 from app.clients import milvus_client
 from app.retrieval.store import list_textbooks
 
-_OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "eval" / "chunks"
+_OUT_DIR = Path(__file__).resolve().parents[2] / "data" / "eval" / "chunks"
 
 
 def _find_textbook(pattern: str) -> str | None:
@@ -89,7 +89,7 @@ def dump(textbook: str) -> dict:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        print("用法: python -m app.eval.retrieval.dump_chunks <教材名子串>")
+        print("用法: python -m eval.retrieval.dump_chunks <教材名子串>")
         raise SystemExit(1)
     textbook = _find_textbook(sys.argv[1])
     if not textbook:

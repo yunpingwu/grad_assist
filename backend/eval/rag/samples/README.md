@@ -46,4 +46,4 @@ samples/
 **只存 chunk id 不存正文**——正文取回时按 id 查 Milvus，可顺带校验；存副本就是被删掉的
 `gold_evidence` 那种做法。
 
-重跑：`uv run python -m app.eval.rag.rag <配置> [数据集键…]`（已有样本默认跳过，`--force` 覆盖）。
+重跑：`uv run python -m eval.rag.rag <配置> [数据集键…]`（已有样本默认跳过，`--force` 覆盖）。

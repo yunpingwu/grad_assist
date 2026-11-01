@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.eval.intent import metrics as im
+from eval.intent import metrics as im
 
 
 def _row(gold: list[str], intent: str, *, group: str = "g", source: str = "llm", ms: float | None = None) -> dict:

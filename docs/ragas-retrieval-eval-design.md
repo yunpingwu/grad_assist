@@ -1,7 +1,7 @@
 # RAG 检索评测重构方案（ragas 版）
 
 > 状态: 设计中(未实现) · 日期: 2026-10-15 · v0.2
-> 范围: **只重构检索侧离线评测**（现 `app/eval/retrieval/run_ablation.py` 这条线）。
+> 范围: **只重构检索侧离线评测**（现 `eval/retrieval/run_ablation.py` 这条线）。
 > 生成侧（faithfulness / 答案正确性）、Agent 端到端、多轮、意图识别**不在本版**，但第 5 节的数据产物为它们预留接缝。
 >
 > v0.2 变更：工程结构改为对齐 ragas 官方 `rag_eval/` 布局（第 5 节）；新增运行口径与攒批器实测（第 6 节）。
@@ -16,7 +16,7 @@
 | 数据集 | 沿用现有 6 教材 × 50 题 = 300 题，**不重建标注、不改题面**；格式先统一为 [eval-dataset-schema.md](./eval-dataset-schema.md) 的 v2（字段 8~10 → 4 必填 + 2 可选，体积 -79%） |
 | 指标 | 按标准四件套重排：**检索侧 2 个**（Context Precision / Context Recall，各配一条确定性护栏口径）在 v1；**生成侧 2 个**（Faithfulness / Answer Relevancy）留 v2，前置条件是补 `response` |
 | 工程结构 | 对齐官方布局：一个被测系统接缝 `rag.py` + 一个评测工作流 `evals.py`；**实验（一次运行）升为一等公民** |
-| 落点 | 代码进 `app/eval/rag/`（不建第二个项目），数据留在 `data/`（不入库） |
+| 落点 | 代码进 `eval/rag/`（不建第二个项目），数据留在 `data/`（不入库） |
 | 要不要 LLM | 确定性两指标不要（离线、可单测、可进 CI）；语义两指标要，但只在代表配置上跑 |
 | 攒批器 | 线上**保留**（实测并发 2.7× 收益）；离线串行是**纯税 22.8ms/次**，需加直通入口 |
 | 主要收益 | ① 精度维度第一次可测（绕开"gold 未穷举"）② 口径标准化、外部可比 ③ 采样产物直接喂下一版生成评测 |
@@ -30,7 +30,7 @@
 ### 2.1 三处硬冗余
 
 **① `mrr` 与 `mrr@5` 是同一个数。**
-`app/eval/retrieval/metrics.py:37` 的 `mean_reciprocal_rank` 遍历整个 `retrieved`；而 `app/eval/retrieval/channels.py` 返回的 `retrieved_ids` 长度不超过 `rerank_config.top_k`（=5，`dense/sparse/hybrid_search` 都按 `limit=top_k` 取），`mrr@5` 取的是 `retrieved[:5]`。长度 ≤ 5 时两者输入逐元素相同 → 逐题相等。
+`eval/retrieval/metrics.py:37` 的 `mean_reciprocal_rank` 遍历整个 `retrieved`；而 `eval/retrieval/channels.py` 返回的 `retrieved_ids` 长度不超过 `rerank_config.top_k`（=5，`dense/sparse/hybrid_search` 都按 `limit=top_k` 取），`mrr@5` 取的是 `retrieved[:5]`。长度 ≤ 5 时两者输入逐元素相同 → 逐题相等。
 消融链路里这个重复被 `run_ablation._compute_at5()` 的 `endswith("@5")` 过滤顺手丢掉了，但 `run_agent_eval` / `run_multi_user_eval` 走的是 `compute_metrics` 原样输出，那里两个字段并存。
 
 **② 单 gold 题上 `hit@k ≡ recall@k`。**
@@ -274,19 +274,19 @@ rag_eval/                     # 独立项目脚手架
 
 | 官方 | 我们的落点 | 理由 |
 | --- | --- | --- |
-| `rag.py`（被测应用） | `app/eval/rag/rag.py` | 应用是现成的 `app/study_agent/`，这里只能做**适配层**：把 8 个检索配置收敛成**一个函数**（`retrieve(question, textbook, config) → RetrievalResult`）。配置从"架构"降级为"参数" |
-| `evals.py`（评测工作流） | `app/eval/rag/evals.py` | 装配指标 → 采集 → 评估 → 落 experiment。**唯一 CLI 入口** |
-| `evals/datasets/` | `app/eval/rag/datasets/`（**已迁入，随代码入库**） | 旧位置 `data/eval/` 被 `.gitignore` 忽略，评测集看不到、改不了、review 不了。格式同步统一为 v2，见 [eval-dataset-schema.md](./eval-dataset-schema.md) |
+| `rag.py`（被测应用） | `eval/rag/rag.py` | 应用是现成的 `app/study_agent/`，这里只能做**适配层**：把 8 个检索配置收敛成**一个函数**（`retrieve(question, textbook, config) → RetrievalResult`）。配置从"架构"降级为"参数" |
+| `evals.py`（评测工作流） | `eval/rag/evals.py` | 装配指标 → 采集 → 评估 → 落 experiment。**唯一 CLI 入口** |
+| `evals/datasets/` | `eval/rag/datasets/`（**已迁入，随代码入库**） | 旧位置 `data/eval/` 被 `.gitignore` 忽略，评测集看不到、改不了、review 不了。格式同步统一为 v2，见 [eval-dataset-schema.md](./eval-dataset-schema.md) |
 | `evals/experiments/` | `data/eval_rag/<run_id>/`（新） | **本方案最重要的结构改进**，见 5.3 |
 | `evals/logs/` | `data/eval_rag/<run_id>/run.log` | ⚠️ **绝不落顶层 `logs/`**：那是 `app/trace` 的落盘区（`logs/<日期>/metrics.log`），混进去会让 `backend/tools/` 的探针把评测日志当请求日志解析 |
 | `pyproject.toml` | **不建** | 单一 uv 项目共享一份 `uv.lock`；另起项目要么上 workspace（改 CI 的 `uv sync --locked` 契约），要么维护第二份 lockfile。而评测代码本来就要 import `app.*`（channels / config / embedder），跨项目引用更别扭 |
-| `README.md` | `app/eval/rag/README.md` | 面向使用者：怎么跑、产物在哪。设计文档留在 `docs/`（本文件） |
-| `__init__.py` | `app/eval/rag/__init__.py` | 常规 |
+| `README.md` | `eval/rag/README.md` | 面向使用者：怎么跑、产物在哪。设计文档留在 `docs/`（本文件） |
+| `__init__.py` | `eval/rag/__init__.py` | 常规 |
 
 ### 5.2 模块划分
 
 ```
-app/eval/rag/
+eval/rag/
 ├── __init__.py
 ├── README.md        # 怎么跑、产物在哪
 ├── rag.py           # 被测系统接缝（唯一）：retrieve() → RetrievalResult
@@ -310,15 +310,15 @@ async def retrieve(question: str, textbook: str, config: str) -> RetrievalResult
     本版只实现检索；生成侧将来在同文件加 answer()，ragas 的 faithfulness 直接接上。"""
 ```
 
-它薄封装现成的 `app/eval/retrieval/channels.py`，**唯一必改**的是让底层带回 `retrieved_contexts`——Milvus hit 的 `entity["text"]` 里就有（`SEARCH_OUTPUT_FIELDS` 已含 `text`），不需要额外查询。
+它薄封装现成的 `eval/retrieval/channels.py`，**唯一必改**的是让底层带回 `retrieved_contexts`——Milvus hit 的 `entity["text"]` 里就有（`SEARCH_OUTPUT_FIELDS` 已含 `text`），不需要额外查询。
 
 **复用（import，不复制）**：
 
-- `app.eval.retrieval.channels.run_dense / run_sparse / run_hybrid / run_hyde_rrf / run_deep`：检索实现。
-- `app.eval.retrieval.metrics.recall_at_k / mean_reciprocal_rank_at_k`：① 的对照实现与 ② 的实现。
+- `eval.retrieval.channels.run_dense / run_sparse / run_hybrid / run_hyde_rrf / run_deep`：检索实现。
+- `eval.retrieval.metrics.recall_at_k / mean_reciprocal_rank_at_k`：① 的对照实现与 ② 的实现。
 - `app.ml.reranker` / 底层模型单例：预热。
 
-**⛔ 硬约束**：`app/eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/study_agent` 的导入路径上**。服务进程在 lifespan 里 `build_graph` + 连 PostgreSQL（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
+**⛔ 硬约束**：`eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/study_agent` 的导入路径上**。服务进程在 lifespan 里 `build_graph` + 连 PostgreSQL（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
 
 ### 5.3 experiment 升为一等公民
 
@@ -348,7 +348,7 @@ data/eval_rag/
   "schema_version": 1,
   "textbook": "...", "collection": "tb_xxxx", "config": "hyb_80", "k_default": 5,
   "captured_at": "2026-10-16T12:00:00+08:00",
-  "dataset": "app/eval/rag/datasets/os.json", "revision": "2026-10-16.1",   // 可追溯到题集版本
+  "dataset": "eval/rag/datasets/os.json", "revision": "2026-10-16.1",   // 可追溯到题集版本
   "retriever": {"top_k": 5, "candidate_pool": 20},
   "latency_ms": {"p50": …, "p90": …},     // ragas 不管延迟，见下
   "samples": [
@@ -370,7 +370,7 @@ data/eval_rag/
 
 - **文本来源（关键，有实测依据）**：
   - `retrieved_contexts`：取自**实时检索返回的 hit**（`entity["text"]`），因为那正是被测系统实际看到的东西。
-  - `reference_contexts`：取自 **`app/eval/rag/datasets/gold_contexts/<key>.json`**（随题集一起入库的 gold 正文），加载时逐条重算 `sha1(正文)[:12]` 与 chunk id 末段对账，**不需要 Milvus 也不需要全量语料转储**就能自证正文没被改过（见 [eval-dataset-schema.md](./eval-dataset-schema.md) 3.3 / 3.4）。题集里**不存** gold 正文副本——旧版的 `gold_evidence[].excerpt` 正是被删掉的那份：C语言与数据结构两本的 50/50 条曾被截断，而另四本没有，两份正文不一致且无人察觉。
+  - `reference_contexts`：取自 **`eval/rag/datasets/gold_contexts/<key>.json`**（随题集一起入库的 gold 正文），加载时逐条重算 `sha1(正文)[:12]` 与 chunk id 末段对账，**不需要 Milvus 也不需要全量语料转储**就能自证正文没被改过（见 [eval-dataset-schema.md](./eval-dataset-schema.md) 3.3 / 3.4）。题集里**不存** gold 正文副本——旧版的 `gold_evidence[].excerpt` 正是被删掉的那份：C语言与数据结构两本的 50/50 条曾被截断，而另四本没有，两份正文不一致且无人察觉。
 - **正文口径**：一律用**裸 chunk 正文**。检索侧不做 `safety.wrap_untrusted`（那是给模型看的东西，不是评测对象），也不要去掉 markdown 标题路径前缀——自己清洗会引入不可比的差异。
 - **边界**：**ragas 管质量，采集脚本管成本。** 延迟不进 ragas（它没有这个概念），由采集阶段用 `time.perf_counter()` 记录，落在 envelope 里单独报告。也不要为离线评测去接 `app/trace`：无请求上下文时 `mark_stage` 是静默 no-op，接了也没数据，反倒制造"这里有观测"的错觉。
 
@@ -461,7 +461,7 @@ data/eval_rag/
 
 | 步 | 动作 | 验收 | 状态 |
 | --- | --- | --- | --- |
-| -1 | 评测集迁到 `app/eval/rag/datasets/` 并统一为 v2 格式 | 300 题 / 302 条 gold 正文全部自校验通过（见 [eval-dataset-schema.md](./eval-dataset-schema.md) 第 6 节） | **已完成 2026-10-16** |
+| -1 | 评测集迁到 `eval/rag/datasets/` 并统一为 v2 格式 | 300 题 / 302 条 gold 正文全部自校验通过（见 [eval-dataset-schema.md](./eval-dataset-schema.md) 第 6 节） | **已完成 2026-10-16** |
 | 0 | `uv add ragas "langchain-community<0.4"` + `uv lock`，提交 `uv.lock` | CI `uv sync --locked` 过；**`import ragas` 必须成功**（这是唯一能发现 3.1 那个上游 import bug 的检查——解析通过不等于能 import）；CI 加一条 import 冒烟 | |
 | 1 | 攒批器改造：窗口参数化 + `*_nowait` 入口（第 6.2 节） | 线上入口行为零变化（默认窗口 10ms 不动）；`tests/ml/` 钉住"直通不等窗口、仍走同一 drainer" | |
 | 2 | `samples.py`：题集加载 + gold 正文索引 + 样本构造（纯函数） | 单测：`schema != 2` 拒收；gold id 缺失、正文哈希对不上、`gold_contexts` 与题集脱节，三者都要报错 | |
@@ -482,7 +482,7 @@ data/eval_rag/
 
 - `test_samples.py`：纯函数，**不依赖 ragas**。快照索引、切 k、id 归一化、envelope 字段、sha256 失败路径。
 - `test_metrics.py`：**用真实 ragas 的确定性指标跑小样本**（无 LLM、无网络、无 Milvus）钉住口径——特别是钉住 `IDBasedContextRecall` 与 `recall_at_k` 的等价性，以及自定义 `MRR@5` 与 `mean_reciprocal_rank_at_k` 的等价性。这是本方案最重要的一条测试。
-- `test_rag.py`：`rag.py` 的 8 配置注册表装配；检索函数用 `_Fake*` 桩掉（`monkeypatch` 打在 `app.eval.retrieval.channels` 里被引用的符号上）。
+- `test_rag.py`：`rag.py` 的 8 配置注册表装配；检索函数用 `_Fake*` 桩掉（`monkeypatch` 打在 `eval.retrieval.channels` 里被引用的符号上）。
 - 攒批器改造：`tests/ml/` 钉住窗口参数化的行为（nowait 不等窗口、并发仍合并、仍走同一 drainer）。
 - 语义指标：只测**装配**（哪些配置选中、样本字段齐不齐），不测 ragas 内部；LLM 用 `GenericFakeChatModel` 走通链路即可。
 - 需要真 Milvus/LLM/BGE 的端到端留一条 `@pytest.mark.integration`。

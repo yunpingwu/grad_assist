@@ -15,11 +15,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from app.eval.intent.metrics import evaluate, is_correct
 from app.intent.detector import detect_intent
 from app.ml import agenerate_embeddings
+from eval.intent.metrics import evaluate, is_correct
 
-_ROOT = Path(__file__).resolve().parents[3]
+_ROOT = Path(__file__).resolve().parents[2]
 
 # 检索评测集问句 → 意图锚点：全部是「讲解/答疑/对比/计算」，无生成/出题/规划诉求
 _ANCHOR_EXPECTED = ["explain"]

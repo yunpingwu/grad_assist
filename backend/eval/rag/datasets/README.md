@@ -63,7 +63,7 @@
 ## 入库与再生成
 
 - `*.json`（题集）与 `gold_contexts/*.json`（gold 正文）**都入库**。
-- 全量 chunk 转储不入库，需要时用 `python -m app.eval.retrieval.dump_chunks` 重新生成。
+- 全量 chunk 转储不入库，需要时用 `python -m eval.retrieval.dump_chunks` 重新生成。
 - 题集改动请**递增 `revision`**（`<YYYY-MM-DD>.<n>`）；教材重新摄入导致 gold 正文变化时，
   必须重跑 gold_contexts 抽取并确认自校验通过。
 

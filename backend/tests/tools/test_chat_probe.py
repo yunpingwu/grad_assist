@@ -192,7 +192,7 @@ def test_resolve_textbook_missing_raises_with_available_names() -> None:
 def test_shipped_question_set_textbooks_are_resolvable() -> None:
     """问题集的教材子串必须能唯一地落到真实库的命名上。
 
-    真机踩过：库里是「C语言程序设计（第五版）」，问题集里写的是「C程序设计」（那是 app/eval
+    真机踩过：库里是「C语言程序设计（第五版）」，问题集里写的是「C程序设计」（那是 eval/
     数据集里的旧名字），一段会话因此在 /list 匹配不到——这里把「子串必须出现在某个真实教材名里」
     钉住，库里的名字改了也能立刻发现。
     """

@@ -165,7 +165,7 @@ def load_samples(config: str, key: str) -> dict[str, dict]:
     """加载某配置的样本，返回 ``{题号: {"retrieved_chunk_ids": [...], "response": "..."}}``。"""
     path = samples_path(config, key)
     if not path.exists():
-        raise SystemExit(f"缺少样本 {path}，先跑 `python -m app.eval.rag.rag {config} {key}`")
+        raise SystemExit(f"缺少样本 {path}，先跑 `python -m eval.rag.rag {config} {key}`")
     data = json.loads(path.read_text(encoding="utf-8"))
     return {s["id"]: s for s in data["samples"]}
 

@@ -1,7 +1,7 @@
 # RAG 四指标评测
 
 用 [ragas](https://docs.ragas.io) 对「检索 + 生成」这条 RAG 链路做离线评测。包内自足，
-不依赖 `app/eval/retrieval/`（那个包是旧的自研指标，待删）；检索实现直接复用生产代码
+不依赖 `eval/retrieval/`（那个包是旧的自研指标，待删）；检索实现直接复用生产代码
 （`app/retrieval/`），测的就是线上真正跑的那条路径。
 
 ## 评什么
@@ -71,14 +71,14 @@ C语言精度涨 6 个点、组成原理反退 2.4 个点，其余基本不动�
 
 ```bash
 # 1. 给某配置生成样本（检索 → 单轮生成；可断点续跑，--force 覆盖重跑）
-uv run python -m app.eval.rag.rag hyb_50
-uv run python -m app.eval.rag.rag rerank
+uv run python -m eval.rag.rag hyb_50
+uv run python -m eval.rag.rag rerank
 
 # 2. 评测（指定配置）
-uv run python -m app.eval.rag.evals hyb_50
-uv run python -m app.eval.rag.evals rerank
-uv run python -m app.eval.rag.evals hyb_50 os --limit 5          # 先小样本
-uv run python -m app.eval.rag.evals rerank --judge-provider alibaba   # 换评审模型
+uv run python -m eval.rag.evals hyb_50
+uv run python -m eval.rag.evals rerank
+uv run python -m eval.rag.evals hyb_50 os --limit 5          # 先小样本
+uv run python -m eval.rag.evals rerank --judge-provider alibaba   # 换评审模型
 ```
 
 ⚠️ `--limit` 会**覆盖**该数据集的结果文件。小样本试跑前先把 `results/` 备份，或换一个配置名跑。
@@ -89,7 +89,7 @@ uv run python -m app.eval.rag.evals rerank --judge-provider alibaba   # 换评�
 ## 目录
 
 ```
-app/eval/rag/
+eval/rag/
 ├── rag.py       # 被测系统：retrieve() + answer()，以及生成样本的 CLI
 ├── evals.py     # 四个指标：评审模型装配、并发控制、汇总报告
 ├── prompts/     # 冻结的生成提示词（进 git，改它等于换一套答案）

@@ -1,7 +1,7 @@
 """ragas 四指标评测：Context Precision/Recall + Faithfulness/Answer Relevancy。
 
 并发由信号量控制；judge 默认取 ``LLM_PROVIDER``，建议与生成侧用不同模型。
-用法：``uv run python -m app.eval.rag.evals [数据集] [--limit N]``。
+用法：``uv run python -m eval.rag.evals [数据集] [--limit N]``。
 """
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ from ragas.metrics.collections import (
 from app.clients.llm import llm_alibaba, llm_deepseek
 from app.config import llm_config
 from app.core import logger
-from app.eval.rag import rag
 from app.ml.embedding import agenerate_embeddings, generate_embeddings
+from eval.rag import rag
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
