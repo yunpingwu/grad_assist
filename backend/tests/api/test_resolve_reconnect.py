@@ -72,7 +72,7 @@ def test_reconnect_at_offset_without_offsets_replays_ask_offset(monkeypatch) -> 
     """停在偏移确认、不带 offsets 的重连：重放 ask_offset 供前端重弹面板，不发 done。"""
     # 前快照停在偏移中断；重放后仍停在偏移中断
     fake = _FakeGraph([_offset_snap(), _offset_snap()], [{"type": "ask_offset", "offsets": CANDIDATES}])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     async def run():
         # 直调端点函数不走 FastAPI 参数解析，Body 默认值需显式传 None
@@ -92,7 +92,7 @@ def test_reconnect_at_offset_with_offsets_resumes(monkeypatch) -> None:
     """带 offsets 的续跑：以 Command(resume=...) 推进图，完成后发 done。"""
     done_snap = _Snap({"textbook_path": "/tmp/x", "ingestion_done": True}, [], None)
     fake = _FakeGraph([_offset_snap(), done_snap], [{"type": "message", "message": "切割完成"}])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     async def run():
         resp = await route.resolve_textbooks(task_id="t1", user_id="u1", offsets=CANDIDATES)
@@ -110,7 +110,7 @@ def test_reconnect_resumable_without_path_ok(monkeypatch) -> None:
     snap = _Snap({"textbook_path": "/tmp/x", "ingestion_done": False}, [], ["parse_to_md"])
     done_snap = _Snap({"textbook_path": "/tmp/x", "ingestion_done": True}, [], None)
     fake = _FakeGraph([snap, done_snap], [{"type": "message", "message": "继续解析"}])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     async def run():
         resp = await route.resolve_textbooks(task_id="t1", user_id="u1")
@@ -127,7 +127,7 @@ def test_unknown_task_without_path_still_400(monkeypatch) -> None:
     """无 task 状态又缺 textbook_path：维持原 400 校验。"""
     empty = _Snap({}, [], None)
     fake = _FakeGraph([empty], [])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(route.resolve_textbooks(task_id="t1", user_id="u1"))
@@ -166,7 +166,7 @@ def test_reconnect_info_frame_carries_tocs_and_done_pops_cache(monkeypatch, tmp_
     # 续跑至完成的流：带 offsets 提交后一路到 done
     done_snap = _Snap({"textbook_path": str(tmp_path), "ingestion_done": True}, [], None)
     fake = _FakeGraph([offset_snap, done_snap], [{"type": "message", "message": "入库完成"}])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     async def run():
         resp = await route.resolve_textbooks(task_id=task_id, user_id="u1", offsets=CANDIDATES)
@@ -186,7 +186,7 @@ def test_reconnect_info_frame_carries_tocs_and_done_pops_cache(monkeypatch, tmp_
 def test_first_run_info_without_toc_keeps_sse_path(monkeypatch, tmp_path) -> None:
     """首次解析：目录尚未产出，info 不带 tocs 键；树由 split_contents 的实时 toc 事件到达。"""
     fake = _FakeGraph([_Snap({}, [], None), _Snap({"ingestion_done": True}, [], None)], [])
-    monkeypatch.setattr(svc, "textbook_graph", fake)
+    monkeypatch.setattr(svc.lifecycle, "textbook_graph", fake)
 
     async def run():
         resp = await route.resolve_textbooks(textbook_path=str(tmp_path), user_id="u1", offsets=None)

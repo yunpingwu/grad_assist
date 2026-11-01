@@ -1,4 +1,4 @@
-"""教材摄入的应用编排层：上传落盘、断点续跑与 SSE 事件流。"""
+"""教材解析编排：首次/偏移续跑/断点续跑的判定与 SSE 推流。"""
 
 from __future__ import annotations
 
@@ -7,19 +7,13 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from fastapi import UploadFile
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
-from psycopg_pool import AsyncConnectionPool
 
 from app.core import logger
-from app.retrieval.store import list_textbooks as list_textbooks  # 显式再导出：路由经服务层取教材列表
+from app.services.textbook.lifecycle import get_graph
 from app.textbook_flow.cache import toc_cache
-from app.textbook_flow.graph import build_graph
 from app.textbook_flow.state import TextBookState
 
 
@@ -29,61 +23,6 @@ class MissingTextbookPath(ValueError):
 
 class TextbookPathNotFound(FileNotFoundError):
     """textbook_path 指向的目录不存在。"""
-
-
-# 教材根目录（本文件位于 app/services/ 下，项目根为 parents[2]）。
-# 每次上传在根目录下新建独立子目录（pdf-{特征值}），与测试数据 textbooks/pdf 隔离。
-TEXTBOOK_ROOT = Path(__file__).resolve().parents[2] / "textbooks"
-
-# 教材摄入图：独立 textbook schema，避免与对话图 thread_id 冲突；
-# thread_id = user_id:task_id，多用户任务天然隔离。
-# AsyncPostgresSaver 构造要求运行中的事件循环，图和 checkpointer 在 lifespan 内装配。
-checkpointer: AsyncPostgresSaver | None = None
-textbook_graph: Any | None = None
-
-
-def init_graph(pool: AsyncConnectionPool) -> None:
-    """在 lifespan 内装配摄入图。"""
-    global checkpointer, textbook_graph
-    checkpointer = AsyncPostgresSaver(pool)
-    textbook_graph = build_graph(checkpointer=checkpointer)
-
-
-async def setup_checkpointer() -> None:
-    """首次启动建 checkpoint 表（幂等；迁移里有并发建索引，连接必须是 autocommit）。"""
-    if checkpointer is None:
-        raise RuntimeError("textbook checkpointer 尚未初始化")
-    await checkpointer.setup()
-
-
-def _graph() -> Any:
-    """取已装配的图；未初始化时给出明确错误。"""
-    if textbook_graph is None:
-        raise RuntimeError("textbook_graph 尚未初始化（应在 FastAPI lifespan 中调用 init_graph）")
-    return textbook_graph
-
-
-def _new_textbook_dir() -> Path:
-    """在 textbooks/ 下创建本次上传的独立目录（pdf-{时间戳}-{随机}）。
-
-    每次上传都是干净目录，天然规避旧解析产物的幂等误判；
-    向量化入库后该目录可整体删除（当前保留，便于验证解析效果）。
-    """
-    feature = f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
-    textbook_dir = TEXTBOOK_ROOT / f"pdf-{feature}"
-    textbook_dir.mkdir(parents=True, exist_ok=False)
-    return textbook_dir
-
-
-async def save_uploads(files: list[UploadFile]) -> tuple[Path, int]:
-    """保存上传文件到独立目录，返回 ``(目录, 文件数)``。"""
-    textbook_dir = _new_textbook_dir()
-    saved = 0
-    for file in files:
-        with open(textbook_dir / file.filename, "wb") as f:
-            f.write(await file.read())
-        saved += 1
-    return textbook_dir, saved
 
 
 @dataclass
@@ -117,7 +56,7 @@ async def prepare_resolve(
     # 借助 checkpoint 判断线程所处状态：
     # - 停在 offset 人工确认中断（tasks 带 interrupts，value.type=="offset_review"）
     # - 因断线停在节点边界、尚未完成（next 非空）
-    snapshot = await _graph().aget_state(config)
+    snapshot = await get_graph().aget_state(config)
     prev = (snapshot.values or {}) if snapshot else {}
 
     pending_offset = any(
@@ -180,12 +119,12 @@ async def resolve_events(plan: ResolvePlan) -> AsyncIterator[str]:
             if tocs:
                 info["tocs"] = tocs
         yield f"data: {json.dumps(info, ensure_ascii=False)}\n\n"
-        async for event in _graph().astream(
+        async for event in get_graph().astream(
             plan.run_input, config=plan.config, stream_mode="custom", durability="sync"
         ):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         # 流结束后确认是否停在 offset 确认中断：停在中断不发 done，由 ask_offset 事件收尾
-        snap_after = await _graph().aget_state(plan.config)
+        snap_after = await get_graph().aget_state(plan.config)
         awaiting_offset = any(
             (getattr(i, "value", None) or {}).get("type") == "offset_review"
             for task in (getattr(snap_after, "tasks", None) or ())

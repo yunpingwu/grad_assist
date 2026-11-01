@@ -1,4 +1,4 @@
-"""统一教材助手的应用编排层：SSE 事件流、HITL 续跑与会话/产物查询。"""
+"""统一教材助手的对话编排：中断判定、SSE 事件流与一轮图执行。"""
 
 from __future__ import annotations
 
@@ -6,57 +6,17 @@ import json
 import time
 import uuid
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
-from psycopg_pool import AsyncConnectionPool
 
-from app.clients.postgres_client import list_thread_ids
 from app.core import logger
-from app.core.message_sources import is_summary_message
 from app.core.safety import detect_prompt_leak, strip_boundary
-from app.study_agent.graph import build_graph
+from app.services.study.lifecycle import get_graph
 from app.study_agent.state import StudyState
 from app.study_agent.tools.clarify import CANCEL_MARKER
-from app.study_agent.tools.files import MATERIAL_ROOT
 from app.trace import end_request, flush_metrics, get_metrics, mark_stage, start_request
-
-# AsyncPostgresSaver 构造时要求当前线程有运行中的事件循环，所以图和 checkpointer
-# 不能在 import 阶段创建；由 FastAPI lifespan 调用 init_graph 完成初始化与建表。
-checkpointer: AsyncPostgresSaver | None = None
-study_graph: Any | None = None
-
-
-def init_graph(pool: AsyncConnectionPool) -> None:
-    """在 lifespan 内装配图：独立 study schema，避免与摄入图 thread 冲突。"""
-    global checkpointer, study_graph
-    checkpointer = AsyncPostgresSaver(pool)
-    study_graph = build_graph(checkpointer=checkpointer)
-
-
-async def setup_checkpointer() -> None:
-    """首次启动建 checkpoint 表（幂等；迁移里有并发建索引，连接必须是 autocommit）。"""
-    if checkpointer is None:
-        raise RuntimeError("study checkpointer 尚未初始化")
-    await checkpointer.setup()
-
-
-def _graph() -> Any:
-    """取已装配的图；未初始化时给出明确错误，避免 None 上的属性错误。"""
-    if study_graph is None:
-        raise RuntimeError("study_graph 尚未初始化（应在 FastAPI lifespan 中调用 init_graph）")
-    return study_graph
-
-
-def _checkpointer() -> AsyncPostgresSaver:
-    if checkpointer is None:
-        raise RuntimeError("study checkpointer 尚未初始化")
-    return checkpointer
-
-CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
 
 
 async def prepare_chat(
@@ -86,7 +46,7 @@ async def prepare_chat(
     }
 
     # 判断线程是否停在中断（写盘确认 或 澄清反问）
-    snapshot = await _graph().aget_state(config)
+    snapshot = await get_graph().aget_state(config)
     pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
         task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
     )
@@ -110,7 +70,7 @@ async def prepare_chat(
             else:
                 # 停在澄清却发来新问题 → 自动取消本轮澄清（返回空答案解锁线程），再正常跑新问题
                 logger.info(f"session {session_id} 停在澄清反问但收到新问题，自动取消本轮澄清")
-                await _graph().ainvoke(Command(resume={CANCEL_MARKER: True}), config)
+                await get_graph().ainvoke(Command(resume={CANCEL_MARKER: True}), config)
                 agent_input = state
         elif decision in ("approve", "reject"):
             # 用户回应上轮确认：对该中断里全部挂起的写盘调用统一生效，续跑同一线程
@@ -118,7 +78,7 @@ async def prepare_chat(
         else:
             # 方案A：停在写盘确认却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
             logger.info(f"session {session_id} 停在写盘确认但收到新问题，自动拒绝本次写盘")
-            await _graph().ainvoke(
+            await get_graph().ainvoke(
                 Command(resume={"decisions": [{"type": "reject"}] * pending_count}), config
             )
             agent_input = state
@@ -172,7 +132,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
             mark_stage("llm_first_event_ms", (time.perf_counter() - t0) * 1000)
             first_event = True
 
-    async for chunk, meta in _graph().astream(
+    async for chunk, meta in get_graph().astream(
         agent_input, config=config, stream_mode="messages", durability="sync"
     ):
         node = (meta or {}).get("langgraph_node")
@@ -217,7 +177,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
     mark_stage("llm_total_ms", (time.perf_counter() - t0) * 1000)
 
     # 检测是否停留在中断（HumanInTheLoop 写盘确认 / 澄清反问），按类型分发事件
-    snapshot = await _graph().aget_state(config)
+    snapshot = await get_graph().aget_state(config)
     # 调试：多轮交互消息的全量结构仅输出到控制台（不推送前端、不落盘）
     logger.info(
         f"消息结构(session {session_id}): "
@@ -306,109 +266,3 @@ def _hanging_write_count(snapshot: Any) -> int:
             if isinstance(value, dict):
                 count += len(value.get("action_requests") or ())
     return max(count, 1)
-
-
-def files(task_id: str, textbook_name: str) -> list[dict]:
-    """列出某任务的全部落盘文件。"""
-    root = (MATERIAL_ROOT / textbook_name / task_id).resolve()
-    if not root.is_dir():
-        return []
-    return [
-        {"filename": p.name, "rel_path": p.relative_to(root).as_posix(), "size": p.stat().st_size}
-        for p in sorted(root.rglob("*"))
-        if p.is_file() and not p.name.endswith(".tmp")
-    ]
-
-
-def read_file(task_id: str, textbook_name: str, path: str) -> dict:
-    """读取文件内容供前端预览；路径校验与 ``tools/files.py`` 同一策略。"""
-    root = (MATERIAL_ROOT / textbook_name / task_id).resolve()
-    # 路径防线：拒绝绝对路径 / `..` 逃逸 / symlink 逃逸（与 tools/files.py 同一策略）
-    if not path or "\x00" in path or Path(path).is_absolute():
-        raise ValueError(f"文件名非法（须为非空相对路径）: {path!r}")
-    target = root
-    for part in Path(path).parts:
-        if part in ("", ".", ".."):
-            raise ValueError(f"非法路径片段: {path!r}")
-        target = (target / part).resolve(strict=False)
-        if target != root and not target.is_relative_to(root):
-            raise ValueError(f"路径越出任务沙箱: {path!r}")
-    if not target.is_file():
-        raise FileNotFoundError(f"文件不存在: {path}")
-    return {"path": path, "content": target.read_text(encoding="utf-8")}
-
-
-async def sessions(textbook_name: str, user_id: str) -> list[dict]:
-    """列出当前用户某教材的全部对话会话摘要（基于 study schema 的 checkpoints 表，倒序）。"""
-    prefix = f"{user_id}:"
-    thread_ids = [t for t in await list_thread_ids(prefix) if CHAT_THREAD_MARKER not in t]
-    items: list[dict] = []
-    for tid in thread_ids:
-        snapshot = await _graph().aget_state({"configurable": {"thread_id": tid}})
-        values = snapshot.values or {}
-        if values.get("textbook_name") != textbook_name:
-            continue
-        # 会话压缩注入的整篇回顾不是用户说的话：连同工具消息/中间轮次一起挡在计数与「最后问题」之外
-        messages = [m for m in values.get("messages", []) if not is_summary_message(m)]
-        # 会话条目数只统计可回显的消息（用户 + 最终回答），过滤工具消息/中间轮次
-        chat_count = sum(
-            1
-            for m in messages
-            if m.type == "human" or (m.type == "ai" and not getattr(m, "tool_calls", None))
-        )
-        last_user = next((m for m in reversed(messages) if m.type == "human"), None)
-        items.append(
-            {
-                "session_id": tid.split(":", 1)[1],  # 返回裸 session_id，前端配合 X-User-Id 使用
-                "updated_at": snapshot.created_at or "",
-                "message_count": chat_count,
-                # 返回最新用户问题原文；截断等展示整形由前端负责
-                "last_question": str(last_user.content) if last_user else "",
-            }
-        )
-    items.sort(key=lambda s: s["updated_at"], reverse=True)
-    return items
-
-
-def build_history(messages: list) -> list[dict]:
-    """把线程消息整成前端回显结构：用户 + 最终回答，思考与工具结果折进 steps。
-
-    工具步骤优先取 ``artifact`` 原文；压缩回顾跳过，被压掉的历史仍照常回显。
-    """
-    items: list[dict] = []
-    pending_steps: list[dict] = []
-    for m in messages:
-        if is_summary_message(m):
-            continue
-        if m.type == "human":
-            items.append({"role": "user", "content": str(m.content)})
-        elif m.type == "ai":
-            reasoning = getattr(m, "reasoning_content", None)
-            if not reasoning:
-                reasoning = (getattr(m, "additional_kwargs", {}) or {}).get("reasoning_content")
-            # 带 tool_calls 的中间回合：推理也进时间线（穿插在工具结果之前）
-            if reasoning:
-                pending_steps.append({"type": "thought", "content": str(reasoning)})
-            if getattr(m, "tool_calls", None):
-                continue  # 中间的工具调用回合，不单独展示
-            items.append({"role": "assistant", "content": str(m.content), "steps": pending_steps[:]})
-            pending_steps = []
-        elif m.type == "tool":
-            tm_name = getattr(m, "name", None)
-            if tm_name:
-                artifact = getattr(m, "artifact", None) or {}
-                # artifact 是干净原文；无 artifact 的工具（网页/文件等）剥掉边界标记再回显
-                content = artifact.get("content") or strip_boundary(str(m.content))
-                pending_steps.append({"type": "tool", "name": tm_name, "content": str(content)})
-    return items
-
-
-async def history(session_id: str, user_id: str) -> list[dict]:
-    """获取某会话的结构化消息列表。"""
-    snapshot = await _graph().aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
-    return build_history((snapshot.values or {}).get("messages", []))
-
-
-async def delete_session(session_id: str, user_id: str) -> None:
-    """删除单个会话（幂等：会话不存在也视为成功）。"""
-    await _checkpointer().adelete_thread(f"{user_id}:{session_id}")

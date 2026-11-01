@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from app.services import study as svc
+from app.services.study.chat import _hanging_write_count
 
 
 def _snapshot(*values: dict) -> SimpleNamespace:
@@ -15,10 +15,10 @@ def _snapshot(*values: dict) -> SimpleNamespace:
 def test_counts_every_hanging_tool_call_in_one_interrupt() -> None:
     """一次中断里挂两起写盘 → 决定数必须是 2（数 task 数是 1，会让中间件直接抛错）。"""
     snap = _snapshot({"action_requests": [{}, {}], "review_configs": [{}, {}]})
-    assert svc._hanging_write_count(snap) == 2
+    assert _hanging_write_count(snap) == 2
 
 
 def test_falls_back_to_one_without_action_requests() -> None:
     """澄清中断（无 action_requests）与无快照都兜底 1，不因计数把恢复路径打断。"""
-    assert svc._hanging_write_count(_snapshot({"type": "clarify", "questions": []})) == 1
-    assert svc._hanging_write_count(SimpleNamespace(tasks=[])) == 1
+    assert _hanging_write_count(_snapshot({"type": "clarify", "questions": []})) == 1
+    assert _hanging_write_count(SimpleNamespace(tasks=[])) == 1

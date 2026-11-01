@@ -46,7 +46,7 @@ async def _collect() -> list[str]:
 
 def _run(monkeypatch, pairs: list) -> tuple[list[str], dict[str, float]]:
     """用假图跑一轮 stream_agent，回传事件类型序列与该请求的阶段耗时。"""
-    monkeypatch.setattr(svc, "study_graph", _FakeGraph(pairs))
+    monkeypatch.setattr(svc.lifecycle, "study_graph", _FakeGraph(pairs))
     metrics = start_request("s1", "这一章的重点是什么")
     try:
         events = asyncio.run(_collect())

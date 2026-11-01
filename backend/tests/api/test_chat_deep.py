@@ -34,9 +34,9 @@ def _run(monkeypatch, req: ChatRequest) -> list:
         seen.append(agent_input)
         yield {"type": "done", "session_id": session_id}
 
-    monkeypatch.setattr(svc, "study_graph", _FakeGraph())
-    monkeypatch.setattr(svc, "stream_agent", _fake_stream)
-    monkeypatch.setattr(svc, "flush_metrics", svc.end_request)
+    monkeypatch.setattr(svc.lifecycle, "study_graph", _FakeGraph())
+    monkeypatch.setattr(svc.chat, "stream_agent", _fake_stream)
+    monkeypatch.setattr(svc.chat, "flush_metrics", svc.chat.end_request)
     resp = asyncio.run(route.chat(req, user_id="u1"))
     asyncio.run(_drain(resp))
     return seen

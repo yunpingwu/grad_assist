@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.services import study as svc
+from app.services.study import read_models
 from app.study_agent.tools import search
 
 # artifact 由生产方的构造器产出：键名改了，回显会静默回退成 state 里那句回收占位
@@ -98,8 +99,8 @@ def test_sessions_skip_summarization_recap(monkeypatch) -> None:
             return SimpleNamespace(values={"textbook_name": "T", "messages": messages}, created_at="2026-10-16T00:00:00")
 
     # 会话列表只读 checkpoint 与 PostgreSQL 的 thread 名单，两处都换成假件（不起服务、不连库）
-    monkeypatch.setattr(svc, "list_thread_ids", _list_thread_ids)
-    monkeypatch.setattr(svc, "study_graph", _Graph())
+    monkeypatch.setattr(read_models, "list_thread_ids", _list_thread_ids)
+    monkeypatch.setattr(svc.lifecycle, "study_graph", _Graph())
 
     items = asyncio.run(svc.sessions(textbook_name="T", user_id="u1"))
 
