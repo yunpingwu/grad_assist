@@ -11,6 +11,7 @@ from langchain.agents.middleware.types import ModelRequest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.core.message_sources import SUMMARY_SOURCE
 from app.study_agent.compaction import (
     FIXED_OVERHEAD_TOKENS,
     HistoryCompactionMiddleware,
@@ -19,7 +20,6 @@ from app.study_agent.compaction import (
     summarize_cutoff,
     view_messages,
 )
-from app.study_agent.message_sources import SUMMARY_SOURCE
 
 # 测试用的窗口与内容规模：触发线 = 40_000 × 0.5 = 20_000，而字符估算含 8000 的固定开销
 # （静态壳 + 工具 schema，实测口径），所以「过线」必须靠实打实的长回答，不能靠小消息堆轮数

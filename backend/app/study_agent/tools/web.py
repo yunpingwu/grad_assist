@@ -10,7 +10,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from app.config import llm_config, web_search_config
 from app.core import logger
-from app.study_agent.safety import wrap_untrusted
+from app.core.safety import wrap_untrusted
 from mcp import ClientSession
 
 
@@ -60,5 +60,5 @@ async def search_web(query: str) -> str:
         lines.append(f"{i}. [{title}]({url})\n   {content}")
 
     logger.info(f"search_web({query!r}) → {len(results)} 条")
-    # 网页摘要不可控，整块进外部资料边界（见 app/study_agent/safety.py）
+    # 网页摘要不可控，整块进外部资料边界（见 app/core/safety.py）
     return wrap_untrusted("\n\n".join(lines), "网页")

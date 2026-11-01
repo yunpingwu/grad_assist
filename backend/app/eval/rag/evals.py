@@ -29,8 +29,7 @@ from app.clients.llm import llm_alibaba, llm_deepseek
 from app.config import llm_config
 from app.core import logger
 from app.eval.rag import rag
-from app.ml.batch_manager.embedder import agenerate_embeddings
-from app.ml.embedding_util import generate_embeddings
+from app.ml.embedding import agenerate_embeddings, generate_embeddings
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 

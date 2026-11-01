@@ -130,15 +130,19 @@ uv run python -m app.eval.retrieval.run_multi_user_eval
 backend/
 ├── app/              # FastAPI + LangGraph 后端
 │   ├── main.py       # 应用装配、生命周期与 uvicorn 启动入口
-│   ├── api/          # 路由汇总与 HTTP 端点（routes/）
+│   ├── api/          # HTTP 适配：router.py 汇总路由，routes/ 只做参数与响应
 │   ├── services/     # 应用编排：SSE 流式、HITL 续跑、会话/文件查询
-│   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、意图路由
+│   ├── study_agent/  # 问答 Agent：graph 装配、工具、middleware、护栏
+│   ├── retrieval/    # 检索能力：向量召回、HyDE、RRF、精排、Milvus 教材存储
+│   ├── intent/       # 意图识别能力：三档漏斗与结果实体
 │   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
 │   ├── eval/         # 离线评测：数据集、指标、消融实验
 │   ├── prompts/      # 按意图动态加载的 system prompt
-│   ├── clients/      # Milvus / PostgreSQL / MinIO 客户端
+│   ├── clients/      # Milvus / PostgreSQL / MinIO 适配
 │   ├── ml/           # BGE-M3 / Reranker 模型加载与动态攒批
-│   └── utils/        # 无状态工具：chunk id、Milvus/MinIO 原语
+│   ├── core/         # 横切基础件：日志、提示词加载、安全边界、消息标记
+│   └── trace/        # 请求级观测
+├── tools/            # 开发期探针（chat_probe 等，不参与服务进程）
 ├── tests/            # pytest 单测（默认排除 integration 标记的端到端测试）
 ├── data/             # 评测集与结果（不入库）
 ├── textbooks/        # 教材 PDF 与解析产物（不入库）

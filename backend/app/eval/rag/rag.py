@@ -20,13 +20,13 @@ from app.clients import milvus_client
 from app.config import llm_config, rerank_config
 from app.core import logger
 from app.core.load_prompt import load_prompt
-from app.ml.batch_manager.embedder import agenerate_embeddings
-from app.study_agent.query_functions.embedding_search import search_by_vectors
-from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
-from app.study_agent.query_functions.merge_recalls import rrf_merge
-from app.study_agent.query_functions.rerank import arerank_chunks_weighted
-from app.study_agent.safety import wrap_untrusted
-from app.utils.milvus_util import get_collection_by_name, hybrid_search
+from app.core.safety import wrap_untrusted
+from app.ml.embedding import agenerate_embeddings
+from app.retrieval.dense import search_by_vectors
+from app.retrieval.fusion import rrf_merge
+from app.retrieval.hyde import hyde_doc_generate
+from app.retrieval.rerank import arerank_chunks_weighted
+from app.retrieval.store import get_collection_by_name, hybrid_search
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = PACKAGE_DIR / "datasets"

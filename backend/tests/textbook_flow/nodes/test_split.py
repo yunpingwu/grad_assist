@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from app.textbook_flow.nodes.split import split
-from tests.textbook_flow.nodes.conftest import TEXTBOOKS_PDF
+from tests.textbook_flow.conftest import TEXTBOOKS_PDF
 
 
 def _pdfs_in(root) -> list[str]:

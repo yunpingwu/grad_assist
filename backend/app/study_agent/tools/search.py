@@ -11,17 +11,14 @@ from langgraph.prebuilt import InjectedState
 
 from app.config import rerank_config
 from app.core import logger
+from app.core.safety import wrap_untrusted
 from app.ml import agenerate_embeddings
-from app.study_agent.query_functions.embedding_search import search_by_query, search_by_vectors
-from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate
-from app.study_agent.query_functions.merge_recalls import rrf_merge
-from app.study_agent.query_functions.rerank import arerank_chunks_weighted
-from app.study_agent.safety import wrap_untrusted
+from app.retrieval.dense import search_by_query, search_by_vectors
+from app.retrieval.fusion import rrf_merge
+from app.retrieval.hyde import hyde_doc_generate
+from app.retrieval.rerank import arerank_chunks_weighted
+from app.retrieval.store import get_collection_by_name, query_section_codes
 from app.trace import astage, mark_tool
-from app.utils import (
-    get_collection_by_name,
-    query_section_codes,
-)
 
 # 正文内嵌的图片标记：切块时图片行被替换为「【图: 简介】」，此处按简介回绑 url
 _FIGURE_MARK_PATTERN = re.compile(r"【图: (.*?)】")
@@ -292,7 +289,7 @@ async def search_textbook(
     # 图片引用已内联到所属片段末尾（配图行），供 agent 决定是否在回答中插入
     content = _format_hits(hits)
     # artifact 存干净原文（/history 回显与往轮降级记录都读它）；只有给模型的 content 包边界，
-    # 边界与随机串的设计理由见 app/study_agent/safety.py
+    # 边界与随机串的设计理由见 app/core/safety.py
     return wrap_untrusted(content, "教材"), _build_artifact(textbook_name, search_query, deep, hits, content)
 
 

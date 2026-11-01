@@ -1,6 +1,6 @@
 """Milvus 客户端：连接、集合/索引管理与通用读写检索。
 
-教材注册表、集合名分配等领域逻辑见 ``utils/milvus_util.py``。
+教材注册表、集合名分配等领域逻辑见 ``app/retrieval/store.py``。
 """
 
 from pymilvus import (

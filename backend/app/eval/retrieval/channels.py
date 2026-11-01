@@ -6,12 +6,12 @@ import time
 
 from app.config import rerank_config
 from app.core import logger
-from app.ml.batch_manager.embedder import agenerate_embeddings
-from app.study_agent.query_functions.embedding_search import search_by_query
-from app.study_agent.query_functions.hyde_embedding_search import hyde_doc_generate, hyde_doc_search
-from app.study_agent.query_functions.merge_recalls import rrf_merge
-from app.study_agent.query_functions.rerank import arerank_chunks_weighted
-from app.utils.milvus_util import (
+from app.ml.embedding import agenerate_embeddings
+from app.retrieval.dense import search_by_query
+from app.retrieval.fusion import rrf_merge
+from app.retrieval.hyde import hyde_doc_generate, hyde_doc_search
+from app.retrieval.rerank import arerank_chunks_weighted
+from app.retrieval.store import (
     dense_search,
     escape_expr_value,
     get_collection_by_name,

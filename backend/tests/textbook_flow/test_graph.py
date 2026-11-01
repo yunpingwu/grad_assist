@@ -6,7 +6,7 @@ import pytest
 
 from app.textbook_flow.graph import build_graph
 from app.textbook_flow.state import TextBookState
-from tests.textbook_flow.nodes.conftest import TEXTBOOKS_PDF
+from tests.textbook_flow.conftest import TEXTBOOKS_PDF
 
 
 @pytest.mark.integration

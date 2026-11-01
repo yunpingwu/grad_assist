@@ -14,7 +14,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.core import logger
-from app.study_agent.safety import wrap_untrusted
+from app.core.safety import wrap_untrusted
 
 # 文件落盘根目录：任务文件落在 {MATERIAL_ROOT}/{教材名}/{task_id}/ 下
 MATERIAL_ROOT = Path(__file__).parents[3] / "study"

@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from app.textbook_flow.nodes.split_contents import split_contents
-from tests.textbook_flow.nodes.conftest import TEXTBOOKS_PDF
+from tests.textbook_flow.conftest import TEXTBOOKS_PDF
 
 
 @pytest.mark.integration

@@ -7,9 +7,9 @@ from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.intent.entities import IntentResult
 from app.study_agent import graph
 from app.study_agent.compaction import HistoryCompactionMiddleware
-from app.study_agent.entity.intent import IntentResult
 from app.trace import RequestMetrics
 
 

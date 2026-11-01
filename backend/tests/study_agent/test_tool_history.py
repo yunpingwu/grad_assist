@@ -7,7 +7,7 @@ import asyncio
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.study_agent.query_functions import tool_history as th
+from app.study_agent import tool_history as th
 from app.study_agent.tools import search
 
 # fixture 由生产方自己的构造器产出（不手写键名）：_build_artifact 改了键，这边的降级会静默失效

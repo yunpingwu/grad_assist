@@ -6,16 +6,12 @@ from pathlib import Path
 from langgraph.types import StreamWriter
 
 from app.clients import milvus_client
+from app.clients.minio_client import upload_and_map
 from app.core import log_node, logger
 from app.ml import agenerate_embeddings
+from app.retrieval.store import deterministic_collection_name, get_collection_by_name, register_textbook
+from app.textbook_flow.chunk_id import build_chunk_id
 from app.textbook_flow.state import TextBookState
-from app.utils import (
-    build_chunk_id,
-    deterministic_collection_name,
-    get_collection_by_name,
-    register_textbook,
-    upload_and_map,
-)
 
 # 最小块字符数
 MIN_CHUNK_SIZE = 500

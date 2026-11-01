@@ -147,7 +147,7 @@ def build_tool_result(output: Any) -> dict[str, Any]:
     """工具返回值 → ``{chars, sha1, preview, truncated}``。
 
     正文优先取 ``artifact["content"]``（干净原文）：模型侧的 content 带外部资料边界与
-    随机串（见 app/study_agent/safety.py），落盘要的是原文。裸 str（直调工具）与
+    随机串（见 app/core/safety.py），落盘要的是原文。裸 str（直调工具）与
     ToolMessage 的差异在这里抹平。
     """
     artifact = getattr(output, "artifact", None)

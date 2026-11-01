@@ -1,10 +1,10 @@
-"""FastAPI 应用装配与启动入口（``python -m app.main``）；路由汇总见 ``app/api/main.py``。"""
+"""FastAPI 应用装配与启动入口（``python -m app.main``）；路由汇总见 ``app/api/router.py``。"""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api.main import api_router
+from app.api.router import api_router
 from app.core import logger
 
 
@@ -15,8 +15,8 @@ async def _warmup_local_models() -> None:
     加载与首次前向开销。预热失败仅告警降级，不阻断启动（回退到首个请求懒加载）。
     """
     # 延迟导入：仅预热阶段加载模型模块，保持启动装配轻量
-    from app.ml.batch_manager.embedder import agenerate_embeddings
-    from app.ml.batch_manager.reranker import arerank_scores
+    from app.ml.embedding import agenerate_embeddings
+    from app.ml.reranker import arerank_scores
 
     try:
         await agenerate_embeddings(["__warmup__"])

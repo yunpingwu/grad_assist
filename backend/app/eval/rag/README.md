@@ -2,7 +2,7 @@
 
 用 [ragas](https://docs.ragas.io) 对「检索 + 生成」这条 RAG 链路做离线评测。包内自足，
 不依赖 `app/eval/retrieval/`（那个包是旧的自研指标，待删）；检索实现直接复用生产代码
-（`app/study_agent/query_functions/`），测的就是线上真正跑的那条路径。
+（`app/retrieval/`），测的就是线上真正跑的那条路径。
 
 ## 评什么
 

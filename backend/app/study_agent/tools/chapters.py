@@ -8,8 +8,8 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.core import logger
-from app.study_agent.safety import wrap_untrusted
-from app.utils.milvus_util import list_chapters as _list_chapters
+from app.core.safety import wrap_untrusted
+from app.retrieval.store import list_chapters as _list_chapters
 
 
 @tool

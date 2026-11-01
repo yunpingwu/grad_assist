@@ -17,10 +17,10 @@ from langgraph.types import Command
 from psycopg_pool import AsyncConnectionPool
 
 from app.core import logger
+from app.retrieval.store import list_textbooks as list_textbooks  # 显式再导出：路由经服务层取教材列表
 from app.textbook_flow.cache import toc_cache
 from app.textbook_flow.graph import build_graph
 from app.textbook_flow.state import TextBookState
-from app.utils import list_textbooks as list_textbooks  # 显式再导出：路由经服务层取教材列表
 
 
 class MissingTextbookPath(ValueError):

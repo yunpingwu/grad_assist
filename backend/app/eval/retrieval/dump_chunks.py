@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from app.clients import milvus_client
-from app.utils.milvus_util import list_textbooks
+from app.retrieval.store import list_textbooks
 
 _OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "eval" / "chunks"
 
@@ -29,7 +29,7 @@ def _find_textbook(pattern: str) -> str | None:
 
 def dump(textbook: str) -> dict:
     """拉取某本教材全部 chunk 并返回结构化字典（含章节汇总）。"""
-    from app.utils.milvus_util import get_collection_by_name
+    from app.retrieval.store import get_collection_by_name
 
     collection = get_collection_by_name(textbook)
     if not collection:

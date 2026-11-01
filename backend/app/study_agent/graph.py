@@ -23,12 +23,12 @@ from langgraph.runtime import Runtime
 from app.clients.llm import get_llm_client
 from app.config import budget_config
 from app.core import load_prompt, logger
+from app.core.message_sources import TURN_INSTRUCTION_SOURCE
+from app.intent.detector import detect_intent, format_history
 from app.study_agent.compaction import HistoryCompactionMiddleware
-from app.study_agent.message_sources import TURN_INSTRUCTION_SOURCE
 from app.study_agent.middleware import SessionBudgetMiddleware
-from app.study_agent.query_functions.intent_detection import detect_intent, format_history
-from app.study_agent.query_functions.tool_history import demote_used_tool_results
 from app.study_agent.state import StudyState
+from app.study_agent.tool_history import demote_used_tool_results
 from app.study_agent.tools import AGENT_TOOLS
 from app.trace import get_metrics
 

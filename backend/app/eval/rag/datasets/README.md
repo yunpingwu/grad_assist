@@ -56,7 +56,7 @@
 （`data/eval/chunks/<collection>.json`，8.7MB，不入库）里按 id 抽出。评测侧
 `reference_contexts` 一律从这里取。
 
-**自校验**：chunk id 末段是 `sha1(归一化正文)[:12]`（见 `app/utils/chunk_id.py`），
+**自校验**：chunk id 末段是 `sha1(归一化正文)[:12]`（见 `app/textbook_flow/chunk_id.py`），
 所以每一条 gold 正文都能重算哈希与 id 对账——不需要 Milvus、也不需要那份全量转储，
 就能证明正文没被改过。迁移时 302 条全部通过。
 

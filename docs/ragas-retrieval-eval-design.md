@@ -278,7 +278,7 @@ rag_eval/                     # 独立项目脚手架
 | `evals.py`（评测工作流） | `app/eval/rag/evals.py` | 装配指标 → 采集 → 评估 → 落 experiment。**唯一 CLI 入口** |
 | `evals/datasets/` | `app/eval/rag/datasets/`（**已迁入，随代码入库**） | 旧位置 `data/eval/` 被 `.gitignore` 忽略，评测集看不到、改不了、review 不了。格式同步统一为 v2，见 [eval-dataset-schema.md](./eval-dataset-schema.md) |
 | `evals/experiments/` | `data/eval_rag/<run_id>/`（新） | **本方案最重要的结构改进**，见 5.3 |
-| `evals/logs/` | `data/eval_rag/<run_id>/run.log` | ⚠️ **绝不落顶层 `logs/`**：那是 `app/trace` 的落盘区（`logs/<日期>/metrics.log`），混进去会让 `app/trace/scripts/` 的探针把评测日志当请求日志解析 |
+| `evals/logs/` | `data/eval_rag/<run_id>/run.log` | ⚠️ **绝不落顶层 `logs/`**：那是 `app/trace` 的落盘区（`logs/<日期>/metrics.log`），混进去会让 `backend/tools/` 的探针把评测日志当请求日志解析 |
 | `pyproject.toml` | **不建** | 单一 uv 项目共享一份 `uv.lock`；另起项目要么上 workspace（改 CI 的 `uv sync --locked` 契约），要么维护第二份 lockfile。而评测代码本来就要 import `app.*`（channels / config / embedder），跨项目引用更别扭 |
 | `README.md` | `app/eval/rag/README.md` | 面向使用者：怎么跑、产物在哪。设计文档留在 `docs/`（本文件） |
 | `__init__.py` | `app/eval/rag/__init__.py` | 常规 |
@@ -316,7 +316,7 @@ async def retrieve(question: str, textbook: str, config: str) -> RetrievalResult
 
 - `app.eval.retrieval.channels.run_dense / run_sparse / run_hybrid / run_hyde_rrf / run_deep`：检索实现。
 - `app.eval.retrieval.metrics.recall_at_k / mean_reciprocal_rank_at_k`：① 的对照实现与 ② 的实现。
-- `app.ml.reranker_util` / 底层模型单例：预热。
+- `app.ml.reranker` / 底层模型单例：预热。
 
 **⛔ 硬约束**：`app/eval/rag/` 是唯一 import ragas 的地方，**绝不能让 ragas 出现在 `app/api` / `app/study_agent` 的导入路径上**。服务进程在 lifespan 里 `build_graph` + 连 PostgreSQL（见 CLAUDE.md），多一个 `datasets`/`tiktoken` 级别的重依赖会直接拖慢启动和 CI。
 
@@ -395,7 +395,7 @@ data/eval_rag/
 
 ### 6.2 攒批器：线上要，离线不要（实测）
 
-`app/utils/batch_manager/` 的 `BatchEmbedder` / `BatchReranker` 是**动态攒批器**：把并发到达的小请求（1~6 条）攒一批，一次前向再按序拆分回填。drainer 拿到第一条后会**开一个 `_MAX_WAIT_S = 10ms` 的窗口**，用几毫秒延迟换 GPU 吞吐。
+`app/ml/` 的 `BatchEmbedder` / `BatchReranker` 是**动态攒批器**：把并发到达的小请求（1~6 条）攒一批，一次前向再按序拆分回填。drainer 拿到第一条后会**开一个 `_MAX_WAIT_S = 10ms` 的窗口**，用几毫秒延迟换 GPU 吞吐。
 
 **这一段是本机实测**（RTX 5060 + BGE-M3 fp16，串行单飞 8 次取中位）：
 
@@ -417,7 +417,7 @@ data/eval_rag/
 两个实现细节值得写进注释，因为容易做错：
 
 1. drainer 在应用窗口前应先 `get_nowait()` 把**已经在队列里**的请求吃掉——直通模式仍能合并同刻到达的请求，不会退化成"每次前向一条"。
-2. 直通入口**仍必须走同一个 drainer**，不能直接 `asyncio.to_thread(generate_embeddings, ...)`。`embedding_util.generate_embeddings` 的线程安全是靠"drainer 单任务串行调用"保证的（锁已按这个前提移除），绕开它去并发调用就是 GPU 并发前向。
+2. 直通入口**仍必须走同一个 drainer**，不能直接 `asyncio.to_thread(generate_embeddings, ...)`。`app.ml.embedding.generate_embeddings` 的线程安全是靠"drainer 单任务串行调用"保证的（锁已按这个前提移除），绕开它去并发调用就是 GPU 并发前向。
 
 **备选（若不想动共享代码）**：离线脚本自己 `await asyncio.to_thread(generate_embeddings, texts)` + 自加锁。更简单，但把"同一个东西两条路径"的问题留下来了，且要自己维护单飞保证。**推荐前者。**
 
@@ -463,7 +463,7 @@ data/eval_rag/
 | --- | --- | --- | --- |
 | -1 | 评测集迁到 `app/eval/rag/datasets/` 并统一为 v2 格式 | 300 题 / 302 条 gold 正文全部自校验通过（见 [eval-dataset-schema.md](./eval-dataset-schema.md) 第 6 节） | **已完成 2026-10-16** |
 | 0 | `uv add ragas "langchain-community<0.4"` + `uv lock`，提交 `uv.lock` | CI `uv sync --locked` 过；**`import ragas` 必须成功**（这是唯一能发现 3.1 那个上游 import bug 的检查——解析通过不等于能 import）；CI 加一条 import 冒烟 | |
-| 1 | 攒批器改造：窗口参数化 + `*_nowait` 入口（第 6.2 节） | 线上入口行为零变化（默认窗口 10ms 不动）；`tests/utils/` 钉住"直通不等窗口、仍走同一 drainer" | |
+| 1 | 攒批器改造：窗口参数化 + `*_nowait` 入口（第 6.2 节） | 线上入口行为零变化（默认窗口 10ms 不动）；`tests/ml/` 钉住"直通不等窗口、仍走同一 drainer" | |
 | 2 | `samples.py`：题集加载 + gold 正文索引 + 样本构造（纯函数） | 单测：`schema != 2` 拒收；gold id 缺失、正文哈希对不上、`gold_contexts` 与题集脱节，三者都要报错 | |
 | 3 | `channels.py` 补 `retrieved_contexts`（只加键，不改返回结构） | 现 `run_ablation` 与新接入方都不回归 | |
 | 4 | `rag.py` + `evals.py` 阶段 A，先跑两条护栏口径（`IDBasedContextRecall@5` / `MRR@5`） | **数值回归锚点**：逐题等于旧 `recall@5` / `mrr@5`（对同一份旧结果文件比对，误差 0）。不等就是切片或 id 归一化有问题 | |
@@ -483,7 +483,7 @@ data/eval_rag/
 - `test_samples.py`：纯函数，**不依赖 ragas**。快照索引、切 k、id 归一化、envelope 字段、sha256 失败路径。
 - `test_metrics.py`：**用真实 ragas 的确定性指标跑小样本**（无 LLM、无网络、无 Milvus）钉住口径——特别是钉住 `IDBasedContextRecall` 与 `recall_at_k` 的等价性，以及自定义 `MRR@5` 与 `mean_reciprocal_rank_at_k` 的等价性。这是本方案最重要的一条测试。
 - `test_rag.py`：`rag.py` 的 8 配置注册表装配；检索函数用 `_Fake*` 桩掉（`monkeypatch` 打在 `app.eval.retrieval.channels` 里被引用的符号上）。
-- 攒批器改造：`tests/utils/batch_manager/` 钉住窗口参数化的行为（nowait 不等窗口、并发仍合并、仍走同一 drainer）。
+- 攒批器改造：`tests/ml/` 钉住窗口参数化的行为（nowait 不等窗口、并发仍合并、仍走同一 drainer）。
 - 语义指标：只测**装配**（哪些配置选中、样本字段齐不齐），不测 ragas 内部；LLM 用 `GenericFakeChatModel` 走通链路即可。
 - 需要真 Milvus/LLM/BGE 的端到端留一条 `@pytest.mark.integration`。
 

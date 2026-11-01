@@ -4,7 +4,7 @@ from pathlib import Path
 
 from cachetools import TTLCache
 
-from app.textbook_flow.nodes.toc_tree import build_toc_payload
+from app.textbook_flow.toc import build_toc_payload
 
 _TOC_CACHE_TTL = 2 * 3600  # 摄入任务小时级，2 小时足够覆盖断线重连窗口
 

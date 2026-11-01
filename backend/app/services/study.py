@@ -16,9 +16,9 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.clients.postgres_client import list_thread_ids
 from app.core import logger
+from app.core.message_sources import is_summary_message
+from app.core.safety import detect_prompt_leak, strip_boundary
 from app.study_agent.graph import build_graph
-from app.study_agent.message_sources import is_summary_message
-from app.study_agent.safety import detect_prompt_leak, strip_boundary
 from app.study_agent.state import StudyState
 from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
@@ -205,7 +205,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
                 yield {"type": "token", "content": speech}
         elif node == "tools":
             # 工具结果：前端展示。展示走 artifact 的干净原文 / 剥掉边界标记（与 /history 回显同一策略）：
-            # 模型侧 content 已包外部资料边界、带随机串，不该漏给用户看（见 app/study_agent/safety.py）
+            # 模型侧 content 已包外部资料边界、带随机串，不该漏给用户看（见 app/core/safety.py）
             tm_name = getattr(chunk, "name", None)
             if tm_name:
                 mark_first_event()

@@ -17,7 +17,7 @@ from langgraph.runtime import Runtime
 from app.clients.llm import get_llm_client
 from app.config import current_context_window
 from app.core import load_prompt, logger
-from app.study_agent.message_sources import SUMMARY_SOURCE, is_summary_message
+from app.core.message_sources import SUMMARY_SOURCE, is_summary_message
 from app.study_agent.state import StudyState
 from app.trace import get_metrics, mark_stage
 

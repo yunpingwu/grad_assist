@@ -9,8 +9,8 @@ from langgraph.types import StreamWriter, interrupt
 from pypdf import PdfReader, PdfWriter
 
 from app.core import log_node, logger
-from app.textbook_flow.nodes.toc_tree import toc_trees
 from app.textbook_flow.state import TextBookState
+from app.textbook_flow.toc import toc_trees
 
 
 def _parse_content_list(file_path: Path, all_match: list[dict]) -> None:

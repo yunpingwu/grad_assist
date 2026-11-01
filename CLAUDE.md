@@ -39,11 +39,11 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - **依赖变更必须 `uv lock` 并提交 `uv.lock`**，CI 用 `uv sync --locked` 会直接失败。CI 的 ruff/uv 版本钉死（`ruff==0.16.3` / `uv==0.11.16`，见 `.github/workflows/ci.yml`），本地版本更旧时 CI 仍可能报错。
 - CI 的 pytest job 起 `postgres:17-alpine` 并塞 `ALIBABA_API_KEY=dummy`：`tests/study_agent` 直接调用 `build_graph` 需要 dummy key；服务图的 `AsyncPostgresSaver` 改为在 FastAPI lifespan 内初始化，import 阶段不再连库。
-- 评测/探针（都在 `backend/app/eval/`、`backend/app/trace/scripts/`，在 `backend/` 下全部 `python -m` 运行）：
+- 评测/探针（评测在 `backend/app/eval/`，探针在 `backend/tools/`，在 `backend/` 下全部 `python -m` 运行）：
   - **ragas 四指标（现行，见 `backend/app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
   - 旧自研指标（待退役）：`app.eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
   - 意图识别：`app.eval.intent.run_eval` / `run_threshold_ablation`。
-  - 日志探针：`app.trace.scripts.chat_probe`（按 `probe_questions.json` 跑多会话，读 `logs/<日期>/metrics.log` 汇总命中率曲线与压缩事件；想看压缩得用小窗口起服务，见其 docstring）。
+  - 日志探针：`tools.chat_probe`（按 `probe_questions.json` 跑多会话，读 `logs/<日期>/metrics.log` 汇总命中率曲线与压缩事件；想看压缩得用小窗口起服务，见其 docstring）。
 
 ## 架构总览
 
@@ -52,7 +52,9 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 - **问答 Agent**（`backend/app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
 - **教材摄入**（`backend/app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
 - **观测**（`backend/app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
-- **API**（`backend/app/main.py` + `backend/app/api/routes/`）：应用实例与生命周期在 `main.py`，`api/main.py` 只汇总路由，`api/routes/` 只做 HTTP 参数与响应；业务编排（SSE、HITL 续跑、会话/文件查询）在 `backend/app/services/`。对话与摄入两个 APIRouter 挂同一 FastAPI，各用独立 PostgreSQL schema。
+- **能力层**（`backend/app/retrieval/`、`backend/app/intent/`）：检索（dense / HyDE / RRF / 精排 / Milvus 存储）与意图识别被 Agent 与 eval 共用；能力层不得反向 import 流水线层（`tests/test_layering.py` 钉住依赖方向）。
+- **开发探针**（`backend/tools/`）：`chat_probe` 等脚本不进入服务进程导入路径。
+- **API**（`backend/app/main.py` + `backend/app/api/routes/`）：应用实例与生命周期在 `main.py`，`api/router.py` 只汇总路由，`api/routes/` 只做 HTTP 参数与响应；业务编排（SSE、HITL 续跑、会话/文件查询）在 `backend/app/services/`。对话与摄入两个 APIRouter 挂同一 FastAPI，各用独立 PostgreSQL schema。
 
 ## 关键不变量（违反会静默变贵/变错，不报错）
 
@@ -62,7 +64,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - `dynamic_prompt` 的 system prompt **只装全局静态壳**；教材名 / 意图 / 任务目标一律由 `record_turn_instruction`（`graph.py`）作为**尾部 SystemMessage 每轮追加一次**（`lc_source="turn_instruction"` 标记，同内容不重复追加）。别把这些塞回 system prompt，也别每次模型调用重贴。
 - **会话压缩只裁模型视图，不删 state**（`compaction.py`，自研件，不用官方 `SummarizationMiddleware`）：超「窗口 × 50%」（窗口默认 50w → 触发线 25w）时在 `before_agent` 生成一份回顾追加进消息流 + 推进水位线 `compacted_upto`，`awrap_model_call` 按水位线裁请求视图。三条纪律：①必须排在 `record_turn_instruction` **之前**（否则本轮指令会被折进回顾）；②摘要调用失败/产出为空就返回 None、state 一条不动（官方件会把报错写成回顾再删历史）；③触发读数取 provider 上报的 `usage_metadata.total_tokens`，字符估算（1.3 字符/token + 8k 固定开销）只作兜底且生效时告警——中文内容下 chars/4 会低估约 3 倍。
-- 压缩注入的整篇回顾（`lc_source="summarization"`）**不是用户消息**：回显、会话计数、意图层历史一律用 `message_sources.is_summary_message` 排除（标记词表见 `app/study_agent/message_sources.py`，别再抄字面量）。
+- 压缩注入的整篇回顾（`lc_source="summarization"`）**不是用户消息**：回显、会话计数、意图层历史一律用 `message_sources.is_summary_message` 排除（标记词表见 `app/core/message_sources.py`，别再抄字面量）。
 - 预算降级的收尾说明是**转瞬即逝**的（不进 checkpoint、不动静态壳）。
 - `safety.wrap_untrusted` 的边界随机串每次包裹新生成并**冻结进文本**；往轮检索原文回收（`tool_history.py`）是**一次性、永不回改**的。
 - 判断缓存是否被打断看 `logs/<日期>/metrics.log` 里每次调用的 `cached` 与 `input_digest`（相邻调用 digest 相同即前缀未变）。
@@ -99,9 +101,9 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 ### 6. 提示词与行为块（`app/prompts/`）
 
 - 提示词是 `.prompt` 文件，经 `load_prompt(name)` 读取，**带 lru_cache**——开发期不会热更新，改完要重启进程。
-- 意图行为块在 `app/prompts/intent/*.prompt`，白名单在 `graph.py._INTENT_BLOCKS`；意图枚举与例句池在 `query_functions/intent_detection.py`（三档漏斗：关键词+池核验 → embedding 例句池 → LLM 兜底）。
+- 意图行为块在 `app/prompts/intent/*.prompt`，白名单在 `graph.py._INTENT_BLOCKS`；意图枚举与例句池在 `app/intent/detector.py`（三档漏斗：关键词+池核验 → embedding 例句池 → LLM 兜底）。
 
-### 7. 外部内容边界与 artifact 分工（`app/study_agent/safety.py`）
+### 7. 外部内容边界与 artifact 分工（`app/core/safety.py`）
 
 - 教材/网页/文件正文给模型前一律 `wrap_untrusted` 包边界；**artifact、落盘、前端回显、/history 一律用干净原文**（实时 SSE 与回显都走「优先 artifact、无 artifact 剥标记」）。
 - 输出侧 `detect_prompt_leak` 只留痕告警（`output_leak_suspected`），不拦截。
@@ -110,7 +112,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 - 幂等判据是「目标产物**整组**存在 → 跳过」（目录/文件存在即完成，含 MinerU 下载的原子落盘），半成品会只补缺的那些。
 - **已登记教材不会重新向量化**（`textbook_registry` 集合命中即跳过）；同教材换了内容要重灌时需先删注册表行（集合名 `tb_<sha1(教材名)[:16]>`）。
-- chunk 主键含内容 hash（`app/utils/chunk_id.py`，`v1_tb_{...}_ch_{...}_sec_{...}_{block_type}_{idx}_{文本hash}`），改正文即新 ID——评测 gold 集因此能跨重灌保持稳定。
+- chunk 主键含内容 hash（`app/textbook_flow/chunk_id.py`，`v1_tb_{...}_ch_{...}_sec_{...}_{block_type}_{idx}_{文本hash}`），改正文即新 ID——评测 gold 集因此能跨重灌保持稳定。
 - 图片：二进制进 MinIO（`textbook/{教材}/{章}/images/`），正文内以 `【图: 简介】` 占位、`metadata_json.images` 带 URL，两者必须落在**同一个** chunk（检索侧 `search.py` 的 `_FIGURE_MARK_PATTERN` 负责回绑）。
 - 产物目录布局（`textbooks/pdf-<时间戳>-<随机>/` 下）：`mineru_toc/{pdf_stem}/`、`pdf_split/`、`mineru_split/{教材名}/{章 stem}/`（`full.md` / `full_captioned.md`）。
 
