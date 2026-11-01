@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
+from psycopg_pool import AsyncConnectionPool
 
-from app.clients import mongo_client
-from app.config import mongo_config
+from app.clients.postgres_client import list_thread_ids
 from app.core import logger
 from app.study_agent.graph import build_graph
 from app.study_agent.message_sources import is_summary_message
@@ -24,14 +24,37 @@ from app.study_agent.tools.clarify import CANCEL_MARKER
 from app.study_agent.tools.files import MATERIAL_ROOT
 from app.trace import end_request, flush_metrics, get_metrics, mark_stage, start_request
 
-# 模块级编译一次：独立 checkpoint collection，避免与 query/textbook 图 thread 冲突
-checkpointer = MongoDBSaver(
-    mongo_client.get_client(),
-    mongo_config.db,
-    checkpoint_collection_name="study_checkpoints",
-    writes_collection_name="study_checkpoint_writes",
-)
-study_graph = build_graph(checkpointer=checkpointer)
+# AsyncPostgresSaver 构造时要求当前线程有运行中的事件循环，所以图和 checkpointer
+# 不能在 import 阶段创建；由 FastAPI lifespan 调用 init_graph 完成初始化与建表。
+checkpointer: AsyncPostgresSaver | None = None
+study_graph: Any | None = None
+
+
+def init_graph(pool: AsyncConnectionPool) -> None:
+    """在 lifespan 内装配图：独立 study schema，避免与摄入图 thread 冲突。"""
+    global checkpointer, study_graph
+    checkpointer = AsyncPostgresSaver(pool)
+    study_graph = build_graph(checkpointer=checkpointer)
+
+
+async def setup_checkpointer() -> None:
+    """首次启动建 checkpoint 表（幂等；迁移里有并发建索引，连接必须是 autocommit）。"""
+    if checkpointer is None:
+        raise RuntimeError("study checkpointer 尚未初始化")
+    await checkpointer.setup()
+
+
+def _graph() -> Any:
+    """取已装配的图；未初始化时给出明确错误，避免 None 上的属性错误。"""
+    if study_graph is None:
+        raise RuntimeError("study_graph 尚未初始化（应在 FastAPI lifespan 中调用 init_graph）")
+    return study_graph
+
+
+def _checkpointer() -> AsyncPostgresSaver:
+    if checkpointer is None:
+        raise RuntimeError("study checkpointer 尚未初始化")
+    return checkpointer
 
 CHAT_THREAD_MARKER = ":study:"  # 资料任务线程前缀标记，用于会话列表排除
 
@@ -63,7 +86,7 @@ async def prepare_chat(
     }
 
     # 判断线程是否停在中断（写盘确认 或 澄清反问）
-    snapshot = await study_graph.aget_state(config)
+    snapshot = await _graph().aget_state(config)
     pending_interrupt = bool(getattr(snapshot, "next", None)) and any(
         task for task in getattr(snapshot, "tasks", ()) if getattr(task, "interrupts", ())
     )
@@ -87,7 +110,7 @@ async def prepare_chat(
             else:
                 # 停在澄清却发来新问题 → 自动取消本轮澄清（返回空答案解锁线程），再正常跑新问题
                 logger.info(f"session {session_id} 停在澄清反问但收到新问题，自动取消本轮澄清")
-                await study_graph.ainvoke(Command(resume={CANCEL_MARKER: True}), config)
+                await _graph().ainvoke(Command(resume={CANCEL_MARKER: True}), config)
                 agent_input = state
         elif decision in ("approve", "reject"):
             # 用户回应上轮确认：对该中断里全部挂起的写盘调用统一生效，续跑同一线程
@@ -95,7 +118,7 @@ async def prepare_chat(
         else:
             # 方案A：停在写盘确认却发来新问题 → 自动拒绝本次写盘（解锁线程），再正常跑新问题
             logger.info(f"session {session_id} 停在写盘确认但收到新问题，自动拒绝本次写盘")
-            await study_graph.ainvoke(
+            await _graph().ainvoke(
                 Command(resume={"decisions": [{"type": "reject"}] * pending_count}), config
             )
             agent_input = state
@@ -149,7 +172,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
             mark_stage("llm_first_event_ms", (time.perf_counter() - t0) * 1000)
             first_event = True
 
-    async for chunk, meta in study_graph.astream(
+    async for chunk, meta in _graph().astream(
         agent_input, config=config, stream_mode="messages", durability="sync"
     ):
         node = (meta or {}).get("langgraph_node")
@@ -194,7 +217,7 @@ async def stream_agent(agent_input: dict | Command, config: dict, session_id: st
     mark_stage("llm_total_ms", (time.perf_counter() - t0) * 1000)
 
     # 检测是否停留在中断（HumanInTheLoop 写盘确认 / 澄清反问），按类型分发事件
-    snapshot = await study_graph.aget_state(config)
+    snapshot = await _graph().aget_state(config)
     # 调试：多轮交互消息的全量结构仅输出到控制台（不推送前端、不落盘）
     logger.info(
         f"消息结构(session {session_id}): "
@@ -316,16 +339,12 @@ def read_file(task_id: str, textbook_name: str, path: str) -> dict:
 
 
 async def sessions(textbook_name: str, user_id: str) -> list[dict]:
-    """列出当前用户某教材的全部对话会话摘要（基于 study_checkpoints，倒序）。"""
+    """列出当前用户某教材的全部对话会话摘要（基于 study schema 的 checkpoints 表，倒序）。"""
     prefix = f"{user_id}:"
-    thread_ids = [
-        t
-        for t in mongo_client.get_collection("study_checkpoints").distinct("thread_id")
-        if t.startswith(prefix) and CHAT_THREAD_MARKER not in t
-    ]
+    thread_ids = [t for t in await list_thread_ids(prefix) if CHAT_THREAD_MARKER not in t]
     items: list[dict] = []
     for tid in thread_ids:
-        snapshot = await study_graph.aget_state({"configurable": {"thread_id": tid}})
+        snapshot = await _graph().aget_state({"configurable": {"thread_id": tid}})
         values = snapshot.values or {}
         if values.get("textbook_name") != textbook_name:
             continue
@@ -386,10 +405,10 @@ def build_history(messages: list) -> list[dict]:
 
 async def history(session_id: str, user_id: str) -> list[dict]:
     """获取某会话的结构化消息列表。"""
-    snapshot = await study_graph.aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
+    snapshot = await _graph().aget_state({"configurable": {"thread_id": f"{user_id}:{session_id}"}})
     return build_history((snapshot.values or {}).get("messages", []))
 
 
-def delete_session(session_id: str, user_id: str) -> None:
+async def delete_session(session_id: str, user_id: str) -> None:
     """删除单个会话（幂等：会话不存在也视为成功）。"""
-    checkpointer.delete_thread(f"{user_id}:{session_id}")
+    await _checkpointer().adelete_thread(f"{user_id}:{session_id}")

@@ -16,7 +16,7 @@
 
 ## 架构
 
-系统由两条 LangGraph 流水线组成，共享一套存储（Milvus / MongoDB / MinIO）：
+系统由两条 LangGraph 流水线组成，共享一套存储（Milvus / PostgreSQL / MinIO）：
 
 ```mermaid
 flowchart LR
@@ -51,24 +51,25 @@ flowchart LR
 
 - 意图三级漏斗路由（关键词 → embedding 相似度 → LLM 结构化输出兜底），按意图动态装配 system prompt 行为块（工具集固定）；对话历史只喂给兜底层，用于消解「那再来十道」这类省略句；兜底层单独收紧超时且不重试，判不准即回退「讲解」块，不阻塞主链路；
 - 工具：`search_textbook`（限定教材检索）、`list_chapters`、`write_file`/`edit_file`/`append_file`（资料生成，Human-in-the-loop 写盘确认）、`clarify`（澄清反问）、联网搜索（MCP）；
-- 会话状态经 MongoDB checkpointer 持久化，`thread_id = user_id:session_id`，支持断流续跑与写盘确认 resume。
+- 会话状态经 PostgreSQL checkpointer（`AsyncPostgresSaver`）持久化，`thread_id = user_id:session_id`，支持断流续跑与写盘确认 resume；对话与摄入各用一个独立 schema（`study` / `textbook`）。
 
 ## 技术栈
 
-LangGraph / LangChain · FastAPI (SSE) · Milvus 2.4 · MongoDB · MinIO · BGE-M3 · BGE-Reranker-large · MinerU · Vue 3 / TypeScript · Docker · uv · pytest / ruff
+LangGraph / LangChain · FastAPI (SSE) · Milvus 2.4 · PostgreSQL · MinIO · BGE-M3 · BGE-Reranker-large · MinerU · Vue 3 / TypeScript · Docker · uv · pytest / ruff
 
 ## 快速开始
 
 ```bash
-# 1. 启动依赖中间件（Milvus + etcd + MinIO + MongoDB + Attu）
+# 1. 启动依赖中间件（Milvus + etcd + MinIO + PostgreSQL + Attu）
+#    Attu 在 http://localhost:8002（8000 留给后端）
 docker compose -f docker/docker-compose.yml up -d
 
 # 2. 后端：安装依赖并配置环境变量
 cd backend
 uv sync
-cp .env.example .env   # 填入 LLM API Key 等，模型默认走阿里云百炼 OpenAI 兼容接口
+cp .env.example .env   # 填 LLM API Key、MinerU Key；POSTGRES_URI 与 compose 默认值保持一致
 
-# 3. 启动后端（启动时预热 BGE-M3 / Reranker，首个请求不再背冷启动）
+# 3. 启动后端（启动时初始化 checkpoint 表并预热 BGE-M3 / Reranker）
 uv run python -m app.main   # http://localhost:8000, 交互式文档见 /docs
 
 # 4. 前端：另开终端
@@ -78,19 +79,22 @@ npm ci
 npm run dev                     # http://localhost:5173
 ```
 
-首次运行会从 HuggingFace 下载 `BAAI/bge-m3` 与 `BAAI/bge-reranker-large`；CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`（torch 源按平台自动选择：Windows 装 CUDA 版、Linux 装 CPU 版，见 pyproject 的 `[tool.uv.sources]`）。
-
-### 容器化（可选）
-
-后端提供 CPU 镜像（`backend/Dockerfile`）。模型文件不入镜像，需把模型目录挂到容器内：
+实际部署建议把 compose、`.env` 和数据都放在仓库外（例如 `/home/ypw/docker/grad_assist/`）：
 
 ```bash
-# 仓库根目录：中间件 + 后端（backend 在 app profile 下，默认不启动）
-MODEL_CACHE_DIR=/path/to/models docker compose -f docker/docker-compose.yml --profile app up -d --build
-# 后端默认映射宿主机 8001（8000 已被 Attu 占用）
+docker compose --env-file /home/ypw/docker/grad_assist/.env \
+  -f /home/ypw/docker/grad_assist/docker-compose.yml up -d
 ```
 
-容器内默认按 HF 缓存布局查找 `/models/BAAI/bge-m3` 与 `/models/BAAI/bge-reranker-large`，可用 `EMBEDDING_MODEL_PATH` / `RERANKER_MODEL_PATH` 覆盖；MinIO 凭据由 compose 的 `MINIO_ROOT_USER/PASSWORD` 统一注入，与后端容器保持一致。
+仓库里的 `docker/docker-compose.yml` 只作为参考实例；数据路径默认 `${DATA_ROOT:-./data}`，部署时用外部 `.env` 把 `DATA_ROOT` 指到仓库外目录。
+
+若使用本地 compose 的 Milvus / MinIO，`.env` 里 `MILVUS_URI` 用 `http://localhost:19530`、`MINIO_ENDPOINT` 用 `localhost:9000`，MinIO 凭据与 compose 的 `MINIO_ROOT_USER/PASSWORD` 保持一致；继续用远程存储则保留原值。
+
+`BAAI/bge-m3` 与 `BAAI/bge-reranker-large` 需要先下载到本地目录，并在 `.env` 里用 `EMBEDDING_MODEL_PATH` / `RERANKER_MODEL_PATH` 指向（BGE-M3 的加载代码要求本地目录存在，不会自动从 HuggingFace 拉取）。CPU 环境可将 `EMBEDDING_DEVICE/RERANKER_DEVICE` 保持为 `cpu`；torch 源见 `pyproject.toml` 的 `[tool.uv.sources]`。
+
+### 后端镜像（可选）
+
+`backend/Dockerfile` 仍可单独构建 CPU 镜像；`docker/docker-compose.yml` 已不再包含后端服务，本地开发直接用 `uv run python -m app.main`。
 
 ### 主要接口
 
@@ -132,7 +136,7 @@ backend/
 │   ├── textbook_flow/ # 教材摄入流水线：解析、富化、切分入库
 │   ├── eval/         # 离线评测：数据集、指标、消融实验
 │   ├── prompts/      # 按意图动态加载的 system prompt
-│   ├── clients/      # Milvus / MongoDB / MinIO 客户端
+│   ├── clients/      # Milvus / PostgreSQL / MinIO 客户端
 │   ├── ml/           # BGE-M3 / Reranker 模型加载与动态攒批
 │   └── utils/        # 无状态工具：chunk id、Milvus/MinIO 原语
 ├── tests/            # pytest 单测（默认排除 integration 标记的端到端测试）
@@ -141,7 +145,7 @@ backend/
 ├── study/            # 助手产物（不入库）
 └── logs/             # 运行日志（不入库）
 frontend/             # Vue 3 + TypeScript 前端（Vite）
-docker/               # Milvus 全家桶 + MongoDB + MinIO 编排
+docker/               # Milvus 全家桶 + PostgreSQL + MinIO 编排
 docs/                 # 设计文档（图片 caption、chunk 对齐修复、网关设计）
 ```
 
@@ -157,4 +161,4 @@ cd ../frontend
 npm run build            # vue-tsc 类型检查 + Vite 构建
 ```
 
-push / PR 到 `main` 后由 GitHub Actions 自动执行后端 ruff + pytest 与前端构建（`.github/workflows/ci.yml`）；CI 自带 MongoDB 容器，单元测试不依赖本地中间件。依赖由 `backend/uv.lock` 锁定，**修改依赖后需在 `backend/` 下 `uv lock` 并把锁文件一并提交**，否则 CI 的 `uv sync --locked` 会直接失败。
+push / PR 到 `main` 后由 GitHub Actions 自动执行后端 ruff + pytest 与前端构建（`.github/workflows/ci.yml`）；CI 自带 PostgreSQL 容器，单元测试不依赖本地中间件。依赖由 `backend/uv.lock` 锁定，**修改依赖后需在 `backend/` 下 `uv lock` 并把锁文件一并提交**，否则 CI 的 `uv sync --locked` 会直接失败。

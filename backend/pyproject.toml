@@ -7,7 +7,9 @@ dependencies = [
     "langchain>=1.3.14",
     "langchain-openai>=1.3.5",
     "langgraph>=1.2.9",
+    "langgraph-checkpoint-postgres>=3.2.0",
     "minio>=7.2.20",
+    "psycopg[binary,pool]>=3.2.0",
     "pymilvus>=3.0.0",
     "pypdf>=6.14.2",
     "python-dotenv>=1.2.2",
@@ -20,11 +22,9 @@ dependencies = [
     # gpu 打开，cpu 关闭
     "torch>=2.7",
     "loguru>=0.7.3",
-    "pymongo>=4.12.0,<4.17.0",
     "pillow>=12.3.0",
     "mcp[cli]>=2.0.0",
     "pydantic-settings>=2.15.0",
-    "langgraph-checkpoint-mongodb>=0.4.0",
     "httpx>=0.28.1",
     "cachetools>=7.1.6",
     "ragas>=0.4.3",
@@ -57,7 +57,16 @@ select = ["E", "F", "W", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "app/api/*.py" = ["B008"]
 
-# PyTorch 软件源：Windows（本地 GPU 开发机）用 CUDA 版，Linux（CI 等无 GPU 环境）用 CPU 版
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+# PyTorch 软件源
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
@@ -67,11 +76,5 @@ explicit = true
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cpu", marker = "sys_platform != 'win32'" },
-]
 
 

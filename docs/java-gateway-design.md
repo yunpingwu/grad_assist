@@ -13,7 +13,7 @@
 | 登录形态          | 邮箱 + 密码（**不用 OAuth**），后端签发 JWT                    |
 | 用户/模型存储       | MySQL（关系库）                                        |
 | Python 侧定位    | 下沉为内部 AI 服务，仅受本网关注入身份                             |
-| 会话 checkpoint | 仍留 MongoDB，隔离 key 由匿名 `user_id` 改为账号 `user.id`    |
+| 会话 checkpoint | 仍留 PostgreSQL，隔离 key 由匿名 `user_id` 改为账号 `user.id`    |
 | api\_key 存储   | MySQL 密文（AES-GCM），主密钥仅存环境变量                       |
 
 ***
@@ -244,6 +244,6 @@ WebClient pyClient = WebClient.builder()
 
 1. Python 侧改造点：`get_user_id` 依赖由 `X-User-Id 头` 改为「`X-Internal-Token` 校验 + 内部 `X-User-Id`」；`/study/chat` 的 `model/base_url/api_key` 改为由网关注入。
 2. 前端侧：移除 `utils/models.ts` 中 api\_key 明文；模型列表改走 `GET /api/models`（脱敏）；登录页 + token 存储 + 请求头 `Authorization`。
-3. Mongo 会话迁移：`study_checkpoints` 的 thread 从匿名 `user_id` 迁移绑定到账号 `users.id`（老匿名数据一次性归属策略待定）。
+3. PostgreSQL 会话迁移：`study` schema 的 thread 从匿名 `user_id` 迁移绑定到账号 `users.id`（老匿名数据一次性归属策略待定）。
 4. 密码找回/改密、refresh token、多端会话管理等作为后续扩展，不在 v0.1 范围。
 

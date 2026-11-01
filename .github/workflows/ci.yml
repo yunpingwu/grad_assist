@@ -40,20 +40,24 @@ jobs:
       run:
         working-directory: backend
     services:
-      mongo:
-        image: mongo:6.0 # 与 docker/docker-compose.yml 保持一致
+      postgres:
+        image: postgres:17-alpine # 与 docker/docker-compose.yml 保持一致
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: grad_assist
         ports:
-          - 27017:27017
+          - 5432:5432
         options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-cmd "pg_isready -U postgres -d grad_assist"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
-      # 仅为让 app/api/study_service.py 模块级 build_graph 通过（CI 不发起真实 LLM 调用）
+      # tests/study_agent 直接调用 build_graph 需要 dummy key（CI 不发起真实 LLM 调用）
       ALIBABA_API_KEY: dummy
       # 显式走 127.0.0.1，避免 localhost 解析到 ::1 的不确定性
-      MONGO_URI: mongodb://127.0.0.1:27017
+      POSTGRES_URI: postgresql://postgres:postgres@127.0.0.1:5432/grad_assist
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0（该仓库无 v10 移动 tag，按官方推荐用 SHA 钉住）

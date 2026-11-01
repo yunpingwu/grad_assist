@@ -9,13 +9,13 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import UploadFile
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
+from psycopg_pool import AsyncConnectionPool
 
-from app.clients import mongo_client
-from app.config import mongo_config
 from app.core import logger
 from app.textbook_flow.cache import toc_cache
 from app.textbook_flow.graph import build_graph
@@ -35,15 +35,32 @@ class TextbookPathNotFound(FileNotFoundError):
 # 每次上传在根目录下新建独立子目录（pdf-{特征值}），与测试数据 textbooks/pdf 隔离。
 TEXTBOOK_ROOT = Path(__file__).resolve().parents[2] / "textbooks"
 
-# 教材摄入图：独立 checkpointer collection，避免与 query 图的 thread_id 冲突；
+# 教材摄入图：独立 textbook schema，避免与对话图 thread_id 冲突；
 # thread_id = user_id:task_id，多用户任务天然隔离。
-checkpointer = MongoDBSaver(
-    mongo_client.get_client(),
-    mongo_config.db,
-    checkpoint_collection_name="textbook_checkpoints",
-    writes_collection_name="textbook_checkpoint_writes",
-)
-textbook_graph = build_graph(checkpointer=checkpointer)
+# AsyncPostgresSaver 构造要求运行中的事件循环，图和 checkpointer 在 lifespan 内装配。
+checkpointer: AsyncPostgresSaver | None = None
+textbook_graph: Any | None = None
+
+
+def init_graph(pool: AsyncConnectionPool) -> None:
+    """在 lifespan 内装配摄入图。"""
+    global checkpointer, textbook_graph
+    checkpointer = AsyncPostgresSaver(pool)
+    textbook_graph = build_graph(checkpointer=checkpointer)
+
+
+async def setup_checkpointer() -> None:
+    """首次启动建 checkpoint 表（幂等；迁移里有并发建索引，连接必须是 autocommit）。"""
+    if checkpointer is None:
+        raise RuntimeError("textbook checkpointer 尚未初始化")
+    await checkpointer.setup()
+
+
+def _graph() -> Any:
+    """取已装配的图；未初始化时给出明确错误。"""
+    if textbook_graph is None:
+        raise RuntimeError("textbook_graph 尚未初始化（应在 FastAPI lifespan 中调用 init_graph）")
+    return textbook_graph
 
 
 def _new_textbook_dir() -> Path:
@@ -100,7 +117,7 @@ async def prepare_resolve(
     # 借助 checkpoint 判断线程所处状态：
     # - 停在 offset 人工确认中断（tasks 带 interrupts，value.type=="offset_review"）
     # - 因断线停在节点边界、尚未完成（next 非空）
-    snapshot = await textbook_graph.aget_state(config)
+    snapshot = await _graph().aget_state(config)
     prev = (snapshot.values or {}) if snapshot else {}
 
     pending_offset = any(
@@ -163,12 +180,12 @@ async def resolve_events(plan: ResolvePlan) -> AsyncIterator[str]:
             if tocs:
                 info["tocs"] = tocs
         yield f"data: {json.dumps(info, ensure_ascii=False)}\n\n"
-        async for event in textbook_graph.astream(
+        async for event in _graph().astream(
             plan.run_input, config=plan.config, stream_mode="custom", durability="sync"
         ):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         # 流结束后确认是否停在 offset 确认中断：停在中断不发 done，由 ask_offset 事件收尾
-        snap_after = await textbook_graph.aget_state(plan.config)
+        snap_after = await _graph().aget_state(plan.config)
         awaiting_offset = any(
             (getattr(i, "value", None) or {}).get("type") == "offset_review"
             for task in (getattr(snap_after, "tasks", None) or ())

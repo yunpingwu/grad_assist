@@ -95,17 +95,23 @@ class MinioSettings(BaseSettings):
     secure: bool = Field(default=False, validation_alias="MINIO_SECURE")
 
 
-class MongoSettings(BaseSettings):
-    """MongoDB 配置（会话/对话历史存储）。"""
+class PostgresSettings(BaseSettings):
+    """PostgreSQL 配置（LangGraph checkpoint 持久化）。
+
+    对话与摄入各用一个 schema（默认 study / textbook），由连接 search_path 隔离；
+    两套图的 thread_id 因此不会互相覆盖。
+    """
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    uri: str = Field(default="mongodb://localhost:27017", validation_alias="MONGO_URI")
-    host: str = Field(default="localhost", validation_alias="MONGO_HOST")
-    db: str = Field(default="grad_assist", validation_alias="MONGO_DB")
-    chat_collection: str = Field(default="chat_sessions", validation_alias="MONGO_CHAT_COLLECTION")
-    access_key: str = Field(default="", validation_alias="MONGO_ACCESS_KEY")
-    secret_key: str = Field(default="", validation_alias="MONGO_SECRET_KEY")
+    uri: str = Field(
+        default="postgresql://postgres:postgres@localhost:5432/grad_assist",
+        validation_alias="POSTGRES_URI",
+    )
+    study_schema: str = Field(default="study", validation_alias="POSTGRES_STUDY_SCHEMA")
+    textbook_schema: str = Field(default="textbook", validation_alias="POSTGRES_TEXTBOOK_SCHEMA")
+    pool_min_size: int = Field(default=1, validation_alias="POSTGRES_POOL_MIN_SIZE")
+    pool_max_size: int = Field(default=5, validation_alias="POSTGRES_POOL_MAX_SIZE")
 
 
 class WebSearchSettings(BaseSettings):
@@ -181,7 +187,7 @@ class Settings(BaseModel):
     milvus: MilvusSettings = Field(default_factory=MilvusSettings)
     mineru: MineruSettings = Field(default_factory=MineruSettings)
     minio: MinioSettings = Field(default_factory=MinioSettings)
-    mongo: MongoSettings = Field(default_factory=MongoSettings)
+    postgres: PostgresSettings = Field(default_factory=PostgresSettings)
     web_search: WebSearchSettings = Field(default_factory=WebSearchSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)

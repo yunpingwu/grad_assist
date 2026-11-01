@@ -1,4 +1,4 @@
-"""首屏埋点测试：首个可见事件与首个正文 token 分开计时（假图，不触达 Mongo）。"""
+"""首屏埋点测试：首个可见事件与首个正文 token 分开计时（假图，不触达 PostgreSQL）。"""
 
 import asyncio
 from types import SimpleNamespace

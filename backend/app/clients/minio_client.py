@@ -29,7 +29,7 @@ def disconnect_minio() -> None:
     """断开 MinIO。
 
     Minio SDK 无显式 close()（底层 urllib3 连接池由进程退出时 OS 回收），
-    此处仅释放单例引用，与 milvus/mongo 的 disconnect 保持对称语义。
+    此处仅释放单例引用，与 milvus/postgres 的 disconnect 保持对称语义。
     """
     global _client
     if _client is not None:

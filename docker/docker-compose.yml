@@ -1,3 +1,10 @@
+
+#
+# 资源上限合计 4 CPU / 8 GiB：
+#   etcd 0.3 + minio 0.5 + milvus 2.0 + attu 0.2 + postgres 1.0 = 4.0 CPU
+#   etcd 512M + minio 1024M + milvus 4096M + attu 512M + postgres 2048M = 8192M
+#
+# Attu 因此改到 8002，避免占用后端端口。
 networks:
   app-net:
     driver: bridge
@@ -13,7 +20,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ./etcd-data:/etcd
+      - ${DATA_ROOT:-./data}/etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     ports:
       - "2379:2379"
@@ -22,8 +29,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: 256M
+          cpus: '0.3'
+          memory: 512M
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 10s
@@ -39,7 +46,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      - ./minio-data:/data
+      - ${DATA_ROOT:-./data}/minio:/data
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -48,8 +55,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: 384M
+          cpus: '0.5'
+          memory: 1024M
 
   milvus:
     image: milvusdb/milvus:v2.4.10
@@ -57,13 +64,13 @@ services:
     restart: always
     command: ["milvus", "run", "standalone"]
     environment:
-      - MEMORY_LIMIT=1536M
+      - MEMORY_LIMIT=4096M
       - ETCD_ENDPOINTS=etcd:2379
       - MINIO_ADDRESS=minio:9000
       - MINIO_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      - ./milvus-data:/var/lib/milvus
+      - ${DATA_ROOT:-./data}/milvus:/var/lib/milvus
     ports:
       - "19530:19530"
     networks:
@@ -76,8 +83,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1536M
+          cpus: '2.0'
+          memory: 4096M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 10s
@@ -92,7 +99,7 @@ services:
     environment:
       - MILVUS_URL=milvus:19530
     ports:
-      - "8000:3000"
+      - "8002:3000"
     networks:
       - app-net
     depends_on:
@@ -101,73 +108,31 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-          memory: 128M
-
-  mongodb:
-    image: mongo:6.0
-    container_name: mongodb-db
-    restart: always
-    command: mongod --wiredTigerCacheSizeGB 0.5
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-mongo}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-mongoadmin}
-    volumes:
-      - ./mongo-data:/data/db
-    ports:
-      - "27017:27017"
-    networks:
-      - app-net
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
+          cpus: '0.2'
           memory: 512M
 
-  # 可选：后端容器（默认不启动，需 --profile app）。
-  # - CPU 镜像；模型目录通过 MODEL_CACHE_DIR 挂到 /models，容器内路径由 EMBEDDING_MODEL_PATH /
-  #   RERANKER_MODEL_PATH 指定（默认按 HF 缓存布局 /models/BAAI/...）。
-  # - 宿主机 8000 已被 Attu 占用，默认映射到 8001。
-  # - MinIO 凭据直接用 compose 的 MINIO_ROOT_USER/PASSWORD 覆盖，避免与后端 .env 不一致。
-  backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    container_name: grad-assist-backend
-    restart: unless-stopped
-    profiles: ["app"]
-    env_file:
-      - path: ../backend/.env
-        required: false
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres-db
+    restart: always
+    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "max_connections=100"]
     environment:
-      MILVUS_URI: http://milvus:19530
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MONGO_URI: mongodb://${MONGO_ROOT_USER:-mongo}:${MONGO_ROOT_PASSWORD:-mongoadmin}@mongodb:27017/?authSource=admin
-      EMBEDDING_DEVICE: cpu
-      RERANKER_DEVICE: cpu
-      EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-/models/BAAI/bge-m3}
-      RERANKER_MODEL_PATH: ${RERANKER_MODEL_PATH:-/models/BAAI/bge-reranker-large}
-    ports:
-      - "${BACKEND_PORT:-8001}:8000"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-grad_assist}
     volumes:
-      - ../backend/study:/app/study
-      - ../backend/textbooks:/app/textbooks
-      - ../backend/logs:/app/logs
-      - ${MODEL_CACHE_DIR:-../backend/models}:/models:ro
-    depends_on:
-      milvus:
-        condition: service_healthy
-      mongodb:
-        condition: service_started
-      minio:
-        condition: service_started
+      - ${DATA_ROOT:-./data}/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2048M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/openapi.json"]
-      interval: 30s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-grad_assist}"]
+      interval: 5s
       timeout: 5s
-      retries: 3
-      start_period: 120s
+      retries: 10

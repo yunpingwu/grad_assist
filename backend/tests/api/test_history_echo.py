@@ -83,13 +83,8 @@ def test_history_hides_summarization_recap() -> None:
 def test_sessions_skip_summarization_recap(monkeypatch) -> None:
     """会话列表的计数与「最后问题」同样排除摘要回顾：否则计数虚高、列表摘要串味。"""
 
-    class _Collection:
-        def distinct(self, _field: str) -> list[str]:
-            return ["u1:s1"]
-
-    class _Mongo:
-        def get_collection(self, _name: str) -> _Collection:
-            return _Collection()
+    async def _list_thread_ids(_prefix: str) -> list[str]:
+        return ["u1:s1"]
 
     class _Graph:
         async def aget_state(self, _config: dict) -> SimpleNamespace:
@@ -102,8 +97,8 @@ def test_sessions_skip_summarization_recap(monkeypatch) -> None:
             ]
             return SimpleNamespace(values={"textbook_name": "T", "messages": messages}, created_at="2026-10-16T00:00:00")
 
-    # 会话列表只读 checkpoint 与 Mongo 的 thread 名单，两处都换成假件（不起服务、不连库）
-    monkeypatch.setattr(svc, "mongo_client", _Mongo())
+    # 会话列表只读 checkpoint 与 PostgreSQL 的 thread 名单，两处都换成假件（不起服务、不连库）
+    monkeypatch.setattr(svc, "list_thread_ids", _list_thread_ids)
     monkeypatch.setattr(svc, "study_graph", _Graph())
 
     items = asyncio.run(svc.sessions(textbook_name="T", user_id="u1"))

@@ -11,8 +11,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
-# 仓库根目录：中间件（milvus/etcd/minio/attu/mongodb）
+# 仓库根目录：中间件（milvus/etcd/minio/attu/postgresql）
 docker compose -f docker/docker-compose.yml up -d
+
+# 实际部署：compose/.env/data 在仓库外（默认 /home/ypw/docker/grad_assist，
+# 该目录 .env 的 DATA_ROOT 指向仓库外的 data/）
+docker compose --env-file /home/ypw/docker/grad_assist/.env \
+  -f /home/ypw/docker/grad_assist/docker-compose.yml up -d
 
 # backend/：后端安装、启动、测试（下文 app/... 均指 backend/app/...）
 cd backend
@@ -33,7 +38,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 ```
 
 - **依赖变更必须 `uv lock` 并提交 `uv.lock`**，CI 用 `uv sync --locked` 会直接失败。CI 的 ruff/uv 版本钉死（`ruff==0.16.3` / `uv==0.11.16`，见 `.github/workflows/ci.yml`），本地版本更旧时 CI 仍可能报错。
-- CI 的 pytest job 起 `mongo:6.0` 并塞 `ALIBABA_API_KEY=dummy`：`backend/app/services/study.py` 在**模块级** `build_graph` + 构造 `MongoDBSaver`，import 就要这些。
+- CI 的 pytest job 起 `postgres:17-alpine` 并塞 `ALIBABA_API_KEY=dummy`：`tests/study_agent` 直接调用 `build_graph` 需要 dummy key；服务图的 `AsyncPostgresSaver` 改为在 FastAPI lifespan 内初始化，import 阶段不再连库。
 - 评测/探针（都在 `backend/app/eval/`、`backend/app/trace/scripts/`，在 `backend/` 下全部 `python -m` 运行）：
   - **ragas 四指标（现行，见 `backend/app/eval/rag/README.md`）**：`app.eval.rag.rag <配置>`（生成样本：检索 → 单轮生成）、`app.eval.rag.evals <配置>`（评测：Context Precision / Recall + Faithfulness / Answer Relevancy）。配置为 `hyb_50`（非深度）/ `rerank`（深度）。
   - 旧自研指标（待退役）：`app.eval.retrieval.run_ablation`（检索消融）、`run_multi_user_eval` / `run_agent_eval`（驱动**已启动服务**的 SSE 多轮评测）。
@@ -42,12 +47,12 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 ## 架构总览
 
-两条 LangGraph 流水线 + 一套存储（Milvus / MongoDB / MinIO / 本地盘），架构图与检索链路见 README。需要读多处代码才能拼出来的部分：
+两条 LangGraph 流水线 + 一套存储（Milvus / PostgreSQL / MinIO / 本地盘），架构图与检索链路见 README。需要读多处代码才能拼出来的部分：
 
 - **问答 Agent**（`backend/app/study_agent/`）：`create_agent` 单层 ReAct，动态提示词与前置理解全部走 middleware（`graph.py` 的列表就是装配全景图：意图识别 → 会话压缩 → 本轮指令 → 历史回收 → 静态壳 → 步数/工具限流/重试/HITL/成本预算护栏）。
 - **教材摄入**（`backend/app/textbook_flow/`）：线性 6 节点 `load_textbook → split_contents → split → parse_to_md → enrich_md → split_text_and_store`，无分支；`split` 节点带人工确认**中断**（页码偏移）。
 - **观测**（`backend/app/trace/`）：横切两条流水线，回调自动采集每次 LLM 调用与工具执行。
-- **API**（`backend/app/main.py` + `backend/app/api/routes/`）：应用实例与生命周期在 `main.py`，`api/main.py` 只汇总路由，`api/routes/` 只做 HTTP 参数与响应；业务编排（SSE、HITL 续跑、会话/文件查询）在 `backend/app/services/`。对话与摄入两个 APIRouter 挂同一 FastAPI，各用独立 checkpoint collection。
+- **API**（`backend/app/main.py` + `backend/app/api/routes/`）：应用实例与生命周期在 `main.py`，`api/main.py` 只汇总路由，`api/routes/` 只做 HTTP 参数与响应；业务编排（SSE、HITL 续跑、会话/文件查询）在 `backend/app/services/`。对话与摄入两个 APIRouter 挂同一 FastAPI，各用独立 PostgreSQL schema。
 
 ## 关键不变量（违反会静默变贵/变错，不报错）
 
@@ -86,7 +91,8 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 ### 5. 线程、checkpoint 与 HITL
 
 - `thread_id = user_id:session_id`（对话）/ `user_id:task_id`（摄入）；`X-User-Id` 是**软隔离**（可伪造，非安全边界），同时充当恢复码。
-- 两条流水线各用一套独立 checkpoint collection（避免 thread 撞车）：对话 `study_checkpoints` + `study_checkpoint_writes`，摄入 `textbook_checkpoints` + `textbook_checkpoint_writes`。
+- 两条流水线各用一个独立 PostgreSQL schema（避免 thread 撞车）：对话 `study`、摄入 `textbook`；表由 `AsyncPostgresSaver.setup()` 在 lifespan 里创建，连接通过 `search_path` 隔离。
+- `AsyncPostgresSaver` 构造时要求当前线程有运行中的事件循环，所以图和 checkpointer 都在 `app/main.py` 的 lifespan 里 `init_graph`，不能在 import 阶段建。
 - HITL 写盘确认：一轮内所有待确认调用打包进**同一个** interrupt，resume 的 decisions 数必须等于挂起调用数（`app/services/study.py` 的 `_hanging_write_count` 数 `action_requests`）；数错会抛 "Number of human decisions … does not match" 并卡死线程。
 - SSE 事件协议（前端契约）：`tool`/`thought`/`token`/`ask_confirm`/`ask_clarify`/`done`/`error`；摄入侧另有 `message`/`toc`/`ask_offset`/`info`。
 
@@ -134,7 +140,7 @@ npm run build                                  # vue-tsc 类型检查 + Vite 构
 
 单仓形态：`backend/`（FastAPI + LangGraph 后端）与 `frontend/`（Vue3 + TypeScript，Vite 构建，走 `X-User-Id` + `/study/chat` SSE）**均入库**；`docker/`、`docs/`、`.github/` 服务于整个仓库。
 
-以下本地运行数据**不入库**（见 `.gitignore`），改它们不会进 commit：`backend/data/`（评测集与结果）、`backend/textbooks/`、`backend/study/`（助手产物）、`backend/logs/`、`backend/scripts/`（一次性评测集构建工具）。
+以下本地运行数据**不入库**（见 `.gitignore`），改它们不会进 commit：`backend/data/`（评测集与结果）、`backend/textbooks/`、`backend/study/`（助手产物）、`backend/logs/`、`backend/scripts/`（一次性评测集构建工具）、`docker/data/`（容器数据；实际部署在仓库外 `/home/ypw/docker/grad_assist/data/`）。
 
 `backend/mcp/milvus.py` 是给开发期用的只读 Milvus MCP 服务器（查集合元数据与数据），不参与运行时。
 

@@ -62,7 +62,7 @@ async def read_file(task_id: str, textbook_name: str, path: str) -> dict:
     description="按教材列出当前用户的对话会话摘要（从 study checkpoint 读取），最近更新在前，排除资料任务线程",
 )
 async def sessions(textbook_name: str | None = None, user_id: str = Depends(get_user_id)) -> list[dict]:
-    """列出当前用户某教材的全部对话会话摘要（基于 study_checkpoints，倒序）。"""
+    """列出当前用户某教材的全部对话会话摘要（基于 study schema 的 checkpoints 表，倒序）。"""
     if not textbook_name:
         raise HTTPException(status_code=400, detail="缺少 textbook_name")
     return await study_service.sessions(textbook_name, user_id)
@@ -89,5 +89,5 @@ async def delete_session(session_id: str, user_id: str = Depends(get_user_id)) -
     """删除单个会话（幂等：会话不存在也返回 204）。"""
     if not session_id:
         raise HTTPException(status_code=400, detail="缺少 session_id")
-    study_service.delete_session(session_id, user_id)
+    await study_service.delete_session(session_id, user_id)
     return Response(status_code=204)

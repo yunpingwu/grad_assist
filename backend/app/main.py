@@ -33,16 +33,29 @@ async def _warmup_local_models() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时预热本地模型，退出时优雅释放外部连接（均幂等）。"""
-    await _warmup_local_models()
-    yield
+    """应用生命周期：初始化 PostgreSQL checkpoint 与本地模型，退出时释放外部连接。"""
+    from app.clients import postgres_client
+    from app.services import study as study_service
+    from app.services import textbook as textbook_service
 
-    from app.clients import milvus_client, minio_client, mongo_client
+    await postgres_client.open_pools()
+    try:
+        # AsyncPostgresSaver 构造时要求运行中的事件循环，图只能在 lifespan 内装配；
+        # setup() 建表（幂等），必须在接收请求前完成。
+        study_service.init_graph(postgres_client.get_study_pool())
+        textbook_service.init_graph(postgres_client.get_textbook_pool())
+        await study_service.setup_checkpointer()
+        await textbook_service.setup_checkpointer()
 
-    milvus_client.disconnect_milvus()
-    minio_client.disconnect_minio()
-    mongo_client.disconnect_mongo()
-    logger.info("外部连接已优雅释放")
+        await _warmup_local_models()
+        yield
+    finally:
+        from app.clients import milvus_client, minio_client
+
+        milvus_client.disconnect_milvus()
+        minio_client.disconnect_minio()
+        await postgres_client.close_pools()
+        logger.info("外部连接已优雅释放")
 
 
 app = FastAPI(

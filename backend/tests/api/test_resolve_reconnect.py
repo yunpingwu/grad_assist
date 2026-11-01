@@ -1,4 +1,4 @@
-"""test_resolve_reconnect.py — /resolve 断线重连语义的单元测试（假图，不触达 Mongo）。"""
+"""test_resolve_reconnect.py — /resolve 断线重连语义的单元测试（假图，不触达 PostgreSQL）。"""
 
 import asyncio
 import json

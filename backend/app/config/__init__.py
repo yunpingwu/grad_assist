@@ -11,7 +11,7 @@ embedding_config = settings.embedding
 milvus_config = settings.milvus
 mineru_config = settings.mineru
 minio_config = settings.minio
-mongo_config = settings.mongo
+postgres_config = settings.postgres
 web_search_config = settings.web_search
 rerank_config = settings.rerank
 budget_config = settings.budget
@@ -36,7 +36,7 @@ __all__ = [
     "milvus_config",
     "mineru_config",
     "minio_config",
-    "mongo_config",
+    "postgres_config",
     "web_search_config",
     "rerank_config",
     "budget_config",
